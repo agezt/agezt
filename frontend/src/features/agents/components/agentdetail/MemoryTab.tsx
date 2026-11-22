@@ -1,4 +1,4 @@
-import type { WritePath, NativePath } from "@/app/api";
+import type { WritePath, NativeWritePath } from "@/app/api";
 import { useState } from "react";
 import { Brain, ArrowUpRight, Share2 } from "lucide-react";
 import { fmtAgo, clip } from "@/app/utils";
@@ -24,7 +24,7 @@ export function MemoryTab({
   scope: string;
   busy: boolean;
   onAction: (
-    path: WritePath | NativePath,
+    path: WritePath | NativeWritePath,
     params: Record<string, string>,
     success: string,
   ) => void;

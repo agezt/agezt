@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { X, Activity as ActivityIcon, ArrowUpRight, Play, Pause, Bot, CalendarClock, Coins, Cpu, HeartPulse, Megaphone, Wrench, Zap, Archive, ArchiveRestore } from "lucide-react";
-import { getJSON, postAction, postJSON, type WritePath, type NativePath } from "@/app/api";
+import { getJSON, postAction, postJSON, type WritePath, type NativeWritePath } from "@/app/api";
 import { fmtAgo, fmtDue } from "@/app/utils";
 import { money } from "@/app/format";
 import { Button } from "@/components/ui/button";
@@ -344,7 +344,7 @@ export function AgentDetail({
   }
 
   async function action(
-    path: WritePath | NativePath,
+    path: WritePath | NativeWritePath,
     params: Record<string, string>,
     success: string,
     opts?: { confirm?: ConfirmOptions },

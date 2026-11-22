@@ -9,7 +9,7 @@ import {
   Menu,
 } from "lucide-react";
 import { cn } from "@/app/utils";
-import { postAction, type WritePath, type NativePath } from "@/app/api";
+import { postAction, type WritePath, type NativeWritePath } from "@/app/api";
 import { ConnectionChip } from "@/components/ConnectionChip";
 import { AlertBell } from "@/components/AlertBell";
 import { ApprovalsBell } from "@/components/ApprovalsBell";
@@ -276,7 +276,7 @@ export function Header({
 }) {
   const [busy, setBusy] = useState(false);
   const ui = useUI();
-  async function act(path: WritePath | NativePath, opts?: { confirm?: ConfirmRequest; success?: string }) {
+  async function act(path: WritePath | NativeWritePath, opts?: { confirm?: ConfirmRequest; success?: string }) {
     if (opts?.confirm && !(await ui.confirm(opts.confirm))) return;
     setBusy(true);
     try {

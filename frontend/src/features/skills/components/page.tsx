@@ -6,7 +6,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { Sparkles, RefreshCw, ChevronRight, ChevronDown, Check, ShieldX, Undo2, Plus, Pencil, Search, Bot, Share2, AlertTriangle, X, FileText, Tags, History, type LucideIcon } from "lucide-react";
-import { getJSON, postAction, postJSON, type WritePath, type NativePath } from "@/app/api";
+import { getJSON, postAction, postJSON, type WritePath, type NativeWritePath } from "@/app/api";
 import { cn, fmtTime, fmtAgo } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
@@ -253,7 +253,7 @@ export function Skills() {
     reload();
   }, []);
 
-  async function act(id: string, path: WritePath | NativePath, opts?: { confirm?: ConfirmOptions; success?: string; params?: Record<string, string> }) {
+  async function act(id: string, path: WritePath | NativeWritePath, opts?: { confirm?: ConfirmOptions; success?: string; params?: Record<string, string> }) {
     if (opts?.confirm && !(await ui.confirm(opts.confirm))) return;
     setBusy(id);
     try {

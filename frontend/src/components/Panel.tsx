@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { RefreshCw, type LucideIcon } from "lucide-react";
 import { usePanel } from "@/lib/usePanel";
-import type { ReadPath, ReadArgsPath, NativePath } from "@/app/api";
+import type { ReadPath, ReadArgsPath, NativeReadPath } from "@/app/api";
 import { Card, CardHeader, CardTitle, CardBody } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { SkeletonList } from "@/components/ui/skeleton";
@@ -33,7 +33,7 @@ export function Panel<T = any>({
   description?: ReactNode;
   /** Content width when in page mode (icon set). Defaults to readable. */
   width?: PageWidth;
-  path: ReadPath | ReadArgsPath | NativePath;
+  path: ReadPath | ReadArgsPath | NativeReadPath;
   params?: Record<string, string>;
   headerExtra?: ReactNode;
   children: (data: T, reload: () => void) => ReactNode;

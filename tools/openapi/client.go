@@ -71,7 +71,7 @@ var pathGroups = []struct {
 // renderClient renders the generated TypeScript client.
 //
 // routes are the catalogue's routes; native are the console's own endpoints.
-func renderClient(routes []opapi.HTTPRoute, native []string) string {
+func renderClient(routes []opapi.HTTPRoute, native []opapi.NativeRoute) string {
 	var out strings.Builder
 	out.WriteString(clientHeader)
 
@@ -92,16 +92,34 @@ func renderClient(routes []opapi.HTTPRoute, native []string) string {
 	// The console's own endpoints. They are not operation bindings, so the
 	// catalogue says nothing about their shape — but they are paths the
 	// console answers, and the browser has to be able to name them.
-	nativePaths := make([]string, 0, len(native))
-	for _, path := range native {
-		if strings.HasPrefix(path, "/api/") {
-			nativePaths = append(nativePaths, path)
+	//
+	// They are published SPLIT BY VERB, because the contract now states the
+	// verb: a native read may only be fetched and a native write may only be
+	// posted. One flat union said nothing, so the client accepted a GET for
+	// /api/login and a POST for /api/authmeta — both of which the console
+	// answers 405.
+	nativeReads := make([]string, 0, len(native))
+	nativeWrites := make([]string, 0, len(native))
+	for _, route := range native {
+		if !strings.HasPrefix(route.Path, "/api/") {
+			continue
+		}
+		if route.IsWrite() {
+			nativeWrites = append(nativeWrites, route.Path)
+		} else {
+			nativeReads = append(nativeReads, route.Path)
 		}
 	}
-	sort.Strings(nativePaths)
-	out.WriteString("\n/** The console's own endpoints: not operation bindings, but paths it answers. */\n")
-	out.WriteString("export type NativePath =\n")
-	out.WriteString(union(nativePaths))
+	sort.Strings(nativeReads)
+	sort.Strings(nativeWrites)
+	out.WriteString("\n/** The console's own read endpoints: not operation bindings, but paths it answers with a GET. */\n")
+	out.WriteString("export type NativeReadPath =\n")
+	out.WriteString(union(nativeReads))
+	out.WriteString("\n/** The console's own write endpoints: not operation bindings, but paths it answers with a POST. */\n")
+	out.WriteString("export type NativeWritePath =\n")
+	out.WriteString(union(nativeWrites))
+	out.WriteString("\n/** Every console-native path, whatever its verb. */\n")
+	out.WriteString("export type NativePath = NativeReadPath | NativeWritePath;\n")
 
 	out.WriteString("\n/** Every path the console answers for an operation. */\n")
 	out.WriteString("export type ApiPath = ReadPath | ReadArgsPath | WritePath | JsonPath | StreamPath;\n")
@@ -155,7 +173,7 @@ export interface RequestOptions {
 declare const runtimePathBrand: unique symbol;
 export type RuntimePath = {
   readonly [runtimePathBrand]: true;
-} & (ReadPath | ReadArgsPath | NativePath);
+} & (ReadPath | ReadArgsPath | NativeReadPath | NativeWritePath);
 
 /** isRequestOptions tells a query bag from a request option bag. */
 function isRequestOptions(value: unknown): value is RequestOptions {
@@ -168,7 +186,7 @@ export async function getJSON<P extends ReadPath>(
   path: P,
   options?: RequestOptions,
 ): Promise<ResponseOf<P>>;
-export async function getJSON<P extends ReadArgsPath | NativePath>(
+export async function getJSON<P extends ReadArgsPath | NativeReadPath>(
   path: P,
   params?: Record<string, string>,
   options?: RequestOptions,
@@ -178,7 +196,7 @@ export async function getJSON<P extends RuntimePath>(
   params?: Record<string, string>,
   options?: RequestOptions,
 ): Promise<ResponseOf<P>>;
-export async function getJSON<P extends ReadPath | ReadArgsPath | NativePath | RuntimePath>(
+export async function getJSON<P extends ReadPath | ReadArgsPath | NativeReadPath | RuntimePath>(
   path: P,
   paramsOrOptions?: Record<string, string> | RequestOptions,
   options?: RequestOptions,
@@ -239,7 +257,7 @@ async function requestGet<T>(
   }
 }
 
-export async function postJSON<P extends JsonPath | NativePath>(
+export async function postJSON<P extends JsonPath | NativeWritePath>(
   path: P,
   body: RequestOf<P>,
   options?: { signal?: AbortSignal },
@@ -249,14 +267,14 @@ export async function postJSON<P extends JsonPath | NativePath>(
 
 /** postJSONAt is the runtime-path twin of postJSON. */
 export async function postJSONAt<T = any>(
-  path: JsonPath | NativePath,
+  path: JsonPath | NativeWritePath,
   body: unknown,
   options?: { signal?: AbortSignal },
 ): Promise<T> {
   return postBody<T>(path, body, options);
 }
 
-export async function postAction<P extends WritePath | NativePath>(
+export async function postAction<P extends WritePath | NativeWritePath>(
   path: P,
   params?: Record<string, string>,
 ): Promise<ResponseOf<P>> {
@@ -265,7 +283,7 @@ export async function postAction<P extends WritePath | NativePath>(
 
 /** postActionAt is the runtime-path twin of postAction. */
 export async function postActionAt<T = any>(
-  path: WritePath | NativePath,
+  path: WritePath | NativeWritePath,
   params?: Record<string, string>,
 ): Promise<T> {
   return postQuery<T>(path, params);

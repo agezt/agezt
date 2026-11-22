@@ -67,7 +67,7 @@ func (s *Server) handleWorkflowHook(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "POST only", http.StatusMethodNotAllowed)
 		return
 	}
-	name := strings.TrimPrefix(r.URL.Path, "/hooks/")
+	name := strings.TrimPrefix(r.URL.Path, consoleWorkflowHookPath)
 	if name == "" || strings.Contains(name, "/") {
 		http.Error(w, "webhook refused", http.StatusNotFound)
 		return

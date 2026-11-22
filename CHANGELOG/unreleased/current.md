@@ -837,6 +837,28 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The console's own endpoints get one home.** The console's HTTP surface has
+  two halves: the operation-bound routes (owned by the catalogue since W3.82)
+  and the console's **own** endpoints — the SPA shell, the auth surface, the
+  event feed, the file manager, the voice surface, the rollback surface and the
+  workflow hook. The second half was **named** in one place, but the console
+  still registered every one of the **21** by hand: the path was written twice
+  (the contract's list, and 21 `router.Handle("/api/…")` literals), and the
+  method, the tier and the mutation flag lived in a local variable nobody else
+  could see. The generated client published the 15 console-native paths as one
+  flat union that `getJSON`, `postJSON` **and** `postAction` all accepted — so
+  the browser could compile a `GET /api/login` and a `POST /api/authmeta`,
+  both of which the console answers **405**. The contract now states the whole
+  promise — name, path, method, tier, mutation flag — and the console binds a
+  handler to each **by name**, so it writes no path at all (the last three
+  console path literals are gone). The client publishes the paths **split by
+  verb** (`NativeReadPath` / `NativeWritePath`), so the wrong verb is now a
+  compile error; the browser's 15 components that carried the verb-blind union
+  name the verb they can actually use. The console answers at the same paths,
+  with the same methods, tiers, mutation flags, timeouts and body caps — and
+  a route nobody routes now stops the daemon at start-up instead of 404ing
+  later.
+
 - **The browser's payload types come from the daemon's registry.** The console
   described every payload in its operation registry, and the browser described
   the same payloads **again**, by hand: **352** hand-written `interface`

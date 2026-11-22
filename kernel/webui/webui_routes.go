@@ -33,8 +33,6 @@ func (s *Server) routeRegistry() *httpserver.Router {
 	}, func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 	})
-	publicRead := httpserver.RouteOpts{Tier: kernelauth.TierPublic, Method: http.MethodGet}
-	publicMutation := httpserver.RouteOpts{Tier: kernelauth.TierPublic, Method: http.MethodPost, Mutation: true}
 	protectedRead := httpserver.RouteOpts{Tier: kernelauth.TierUser, Method: http.MethodGet}
 	proxyRead := protectedRead
 	proxyRead.Timeout = 5 * time.Second
@@ -48,27 +46,44 @@ func (s *Server) routeRegistry() *httpserver.Router {
 	jsonProtected.BodyMax = jsonBodyMax
 	jsonProtected.Timeout = 120 * time.Second
 
-	// The SPA shell loads with the token OR — when a console password is
-	// configured (M933) — with no credential at all, so a token-less visitor
-	// gets the password login screen instead of a bare 401. The shell carries
-	// no data; every data route stays protected by route policy.
-	router.Handle("/", publicRead, s.shellAuth(s.handleSPA))
-	// Auth surface (M817/M933): probe + login/logout are token-FREE — they are
-	// how a token-less browser gets in. authmeta leaks only "is there a
-	// password gate" (no data); login is bounded by the failed-attempt lockout.
-	router.Handle("/api/authmeta", publicRead, s.handleAuthMeta)
-	loginPublic := publicMutation
-	loginPublic.BodyMax = loginBodyLimit
-	router.Handle("/api/login", loginPublic, s.handleLogin)
-	router.Handle("/api/logout", publicMutation, s.handleLogout)
-	// The hashed bundle and favicon are PUBLIC: the browser loads them as
-	// subresources of index.html and cannot attach the ?token= (only fetch /
-	// EventSource, which the SPA controls, can). They carry no secrets (compiled
-	// UI code). The data surfaces — /events and every /api/* — stay token-gated,
-	// so an unauthenticated visitor gets the shell but no data.
-	router.Handle("/assets/", publicRead, s.handleAssets())
-	router.Handle("/favicon.ico", publicRead, handleFavicon)
-	router.Handle("/events", protectedRead, s.handleEvents)
+	// The console's OWN endpoints (kernel/contract/opapi/native.go): the SPA
+	// shell, the auth surface, the event feed, the file manager, the voice
+	// surface, the rollback surface and the workflow hook. They are not
+	// operation bindings, but they are part of the console's HTTP surface, so
+	// their PATH, METHOD, TIER and MUTATION FLAG live in that one list, next to
+	// the catalogue above. The console binds a handler to each by NAME — never
+	// by path — so a path is written once in the whole tree.
+	bindings := s.nativeBindings()
+	bound := make(map[opapi.NativeRouteName]bool, len(bindings))
+	for _, route := range opapi.ConsoleNativeRoutes() {
+		binding, ok := bindings[route.Name]
+		if !ok {
+			// A route the contract names but the console does not answer is a
+			// promise the console breaks at start-up, loudly, rather than a
+			// 404 the browser discovers later.
+			panic("webui: no handler for the console-native endpoint " + string(route.Name))
+		}
+		bound[route.Name] = true
+		opts := httpserver.RouteOpts{
+			Method:   route.Method,
+			Timeout:  binding.timeout,
+			BodyMax:  binding.bodyMax,
+			Mutation: route.Mutation,
+			Tier:     kernelauth.TierUser,
+		}
+		if route.Public {
+			opts.Tier = kernelauth.TierPublic
+		}
+		router.Handle(route.Path, opts, binding.handler)
+	}
+	for name := range bindings {
+		if !bound[name] {
+			// A handler the console holds but the contract does not name is a
+			// route nobody routes — the other half of the same promise.
+			panic("webui: the console-native endpoint " + string(name) + " is not in the contract")
+		}
+	}
+
 	// The console's route table lives in the operation catalogue
 	// (kernel/contract/opapi/http.go): every route below is DERIVED from it —
 	// the path, the operation and the forwarded argument allowlist are read
@@ -88,8 +103,6 @@ func (s *Server) routeRegistry() *httpserver.Router {
 			router.Handle(route.Path, jsonProtected, s.jsonProxy(route.Op, route.Args))
 		}
 	}
-	router.Handle("/api/rollback/checkpoints", protectedRead, s.handleRollbackCheckpoints)
-	router.Handle("/api/rollback/apply", jsonProtected, s.handleRollbackApply)
 	streamMutation := jsonProtected
 	streamMutation.Timeout = planRunTimeout
 	// The streamed operations bind a bespoke handler each — the frames ARE the
@@ -103,59 +116,57 @@ func (s *Server) routeRegistry() *httpserver.Router {
 	// Marketplace install/uninstall stream per-item progress (skill/mcp/tool) as SSE.
 	router.Handle(consolePath(opapi.MarketInstall), streamMutation, s.marketStreamProxy(opapi.MarketInstall))
 	router.Handle(consolePath(opapi.MarketUninstall), streamMutation, s.marketStreamProxy(opapi.MarketUninstall))
-	// SSE token endpoint (VULN query-string-token fix): returns the ephemeral
-	// SSE-only token the SPA embeds in the EventSource URL (?st=...) instead of
-	// reusing the main console token. Requires valid WebUI data authorization.
-	sseTokenRead := protectedRead
-	sseTokenRead.Method = "GET,OPTIONS"
-	router.Handle("/api/sse-token", sseTokenRead, s.handleSSEToken)
-	// Provider-free speech readiness probe. Unlike the STT/TTS action routes,
-	// this never uploads dummy audio or synthesizes throwaway speech.
-	router.Handle("/api/voice/status", protectedRead, s.handleVoiceStatus)
-	transcribeProtected := protectedMutation
-	transcribeProtected.Timeout = 0
-	transcribeProtected.BodyMax = audioMaxBytes
-	router.Handle("/api/transcribe", transcribeProtected, s.handleTranscribe)
-	// Text-to-speech for the console Voice Mode (M998): POST {"text":…} and the
-	// server streams synthesized audio from the configured TTS backend.
-	ttsProtected := protectedMutation
-	ttsProtected.Timeout = 0
-	ttsProtected.BodyMax = ttsTextMaxBytes
-	router.Handle("/api/tts", ttsProtected, s.handleTTS)
-	// Binary artifact serving (M822): streams the raw bytes for a content ref with
-	// a sanitized Content-Type, so an <img src> / download link can render stored
-	// images and files. Proxies opapi.ArtifactGet (which re-verifies the bytes).
-	artifactRead := protectedRead
-	artifactRead.Timeout = 15 * time.Second
-	router.Handle("/api/artifact/raw", artifactRead, s.handleArtifactRaw)
-	// File Manager routes (M1017): live filesystem under the configured
-	// `AGEZT_FILE_ROOT` (default `~/agezt/workspace`). Every endpoint here
-	// path-traversal-guards before touching the OS — see files_route.go for
-	// the chokepoint.
-	router.Handle("/api/files/tree", protectedRead, s.handleFileTree)
-	router.Handle("/api/files/raw", protectedRead, s.handleFileRaw)
-	filesMutation := protectedMutation
-	filesMutation.Timeout = 0
-	filesMutation.BodyMax = defaultFileCap
-	router.Handle("/api/files/mkdir", filesMutation, s.handleFileMkdir)
-	router.Handle("/api/files/rename", filesMutation, s.handleFileRename)
-	router.Handle("/api/files/delete", filesMutation, s.handleFileDelete)
-	// Workflow webhooks (M809): the ONE deliberately console-token-free
-	// path. Authentication is the per-workflow secret, verified by the
-	// control plane (constant-time); all this handler can ever do is ask
-	// "fire workflow <name>" — no reads, no other writes, uniform refusals.
-	webhookMutation := publicMutation
-	webhookMutation.BodyMax = webhookBodyCap
-	webhookMutation.Timeout = 130 * time.Second
-	router.Handle("/hooks/", webhookMutation, s.handleWorkflowHook)
-	// Channel OAuth redirect target (Phase 4). Public (no console token): the
-	// provider redirects the operator's browser here with ?code&state. Security
-	// rests on the unguessable state minted by /api/channel/oauth/start.
-	oauthCallback := publicRead
-	oauthCallback.Mutation = true
-	oauthCallback.Timeout = 30 * time.Second
-	router.Handle("/oauth/callback", oauthCallback, s.handleOAuthCallback)
 	return router
+}
+
+// nativeBinding is the console's half of a console-native endpoint: the
+// handler that answers it, and the transport policy the console applies ON TOP
+// of the contract's method, tier and mutation flag.
+//
+// The key is the contract's NAME, not a path. That is the whole point of the
+// split: the path lives in the contract, so the console cannot write it — and
+// so a handler cannot be bound to a path the contract does not name.
+type nativeBinding struct {
+	handler http.HandlerFunc
+	timeout time.Duration
+	bodyMax int64
+}
+
+// The console's own paths, read from the contract once at start-up. The
+// authorization and hook handlers match on them per request, so they are
+// resolved here rather than on every call.
+var (
+	consoleEventsPath       = opapi.ConsoleNativePath(opapi.NativeEvents)
+	consoleWorkflowHookPath = opapi.ConsoleNativePath(opapi.NativeWorkflowHook)
+)
+
+// nativeBindings binds the console's own endpoints. Every key here must be a
+// name the contract lists, and every name the contract lists must have a
+// binding here — routeRegistry panics when either half is missing.
+func (s *Server) nativeBindings() map[opapi.NativeRouteName]nativeBinding {
+	return map[opapi.NativeRouteName]nativeBinding{
+		opapi.NativeShell:         {handler: s.shellAuth(s.handleSPA)},
+		opapi.NativeAuthMeta:      {handler: s.handleAuthMeta},
+		opapi.NativeLogin:         {handler: s.handleLogin, bodyMax: loginBodyLimit},
+		opapi.NativeLogout:        {handler: s.handleLogout},
+		opapi.NativeAssets:        {handler: s.handleAssets()},
+		opapi.NativeFavicon:       {handler: handleFavicon},
+		opapi.NativeEvents:        {handler: s.handleEvents},
+		opapi.NativeRollbackList:  {handler: s.handleRollbackCheckpoints},
+		opapi.NativeRollbackApply: {handler: s.handleRollbackApply, timeout: 120 * time.Second, bodyMax: jsonBodyMax},
+		opapi.NativeSSEToken:      {handler: s.handleSSEToken},
+		opapi.NativeVoiceStatus:   {handler: s.handleVoiceStatus},
+		opapi.NativeTranscribe:    {handler: s.handleTranscribe, bodyMax: audioMaxBytes},
+		opapi.NativeTTS:           {handler: s.handleTTS, bodyMax: ttsTextMaxBytes},
+		opapi.NativeArtifactRaw:   {handler: s.handleArtifactRaw, timeout: 15 * time.Second},
+		opapi.NativeFilesTree:     {handler: s.handleFileTree},
+		opapi.NativeFilesRaw:      {handler: s.handleFileRaw},
+		opapi.NativeFilesMkdir:    {handler: s.handleFileMkdir, bodyMax: defaultFileCap},
+		opapi.NativeFilesRename:   {handler: s.handleFileRename, bodyMax: defaultFileCap},
+		opapi.NativeFilesDelete:   {handler: s.handleFileDelete, bodyMax: defaultFileCap},
+		opapi.NativeWorkflowHook:  {handler: s.handleWorkflowHook, timeout: 130 * time.Second, bodyMax: webhookBodyCap},
+		opapi.NativeOAuthCallback: {handler: s.handleOAuthCallback, timeout: 30 * time.Second},
+	}
 }
 
 func (s *Server) Handler() http.Handler {

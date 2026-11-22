@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { postAction, type WritePath, type NativePath } from "@/app/api";
+import { postAction, type WritePath, type NativeWritePath } from "@/app/api";
 import { Button, type ButtonProps } from "@/components/ui/button";
 import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
 
@@ -17,7 +17,7 @@ export function ActionButton({
   success,
 }: {
   label: string;
-  path: WritePath | NativePath;
+  path: WritePath | NativeWritePath;
   params?: Record<string, string>;
   onDone: () => void;
   variant?: ButtonProps["variant"];

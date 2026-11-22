@@ -18,7 +18,7 @@ import {
   Copy,
   Download,
 } from "lucide-react";
-import { getJSON, postAction, postJSON, type WritePath, type NativePath } from "@/app/api";
+import { getJSON, postAction, postJSON, type WritePath, type NativeWritePath } from "@/app/api";
 import { Badge, statusVariant } from "@/components/ui/badge";
 import { KeyValue, Muted, ErrorText } from "@/components/JsonView";
 import { ToolOutput } from "@/components/DataView";
@@ -556,7 +556,7 @@ export function SteerControls({ correlationId, arc }: { correlationId: string; a
   // cockpit stays a pure, prop-driven component).
   const [confirmingCancel, setConfirmingCancel] = useState(false);
 
-  async function act(path: WritePath | NativePath, params?: Record<string, string>) {
+  async function act(path: WritePath | NativeWritePath, params?: Record<string, string>) {
     setBusy(true);
     setErr(null);
     try {

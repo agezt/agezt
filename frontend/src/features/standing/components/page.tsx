@@ -7,7 +7,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Anchor, RefreshCw, Pause, Play, Trash2, Clock, Zap, ShieldCheck, Plus, X, Pencil, Save, Download, Upload, Users, AlertTriangle, ClipboardList, TimerReset, type LucideIcon } from "lucide-react";
 import { AgentPicker } from "@/components/AgentPicker";
-import { getJSON, postAction, postJSON, type WritePath, type NativePath } from "@/app/api";
+import { getJSON, postAction, postJSON, type WritePath, type NativeWritePath } from "@/app/api";
 import { cn, fmtTime } from "@/app/utils";
 import { downloadText } from "@/app/export";
 import { Button } from "@/components/ui/button";
@@ -186,7 +186,7 @@ export function Standing() {
 
   async function act(
     id: string,
-    path: WritePath | NativePath,
+    path: WritePath | NativeWritePath,
     params?: Record<string, string>,
     opts?: { confirm?: ConfirmOptions; success?: string },
   ) {
