@@ -15974,17 +15974,93 @@ catches a test that stopped testing.
 Evidence:
 `architecture/322-w53-the-frontend-boundaries-are-lint-enforced-evidence.md`
 
+## W5.4bd checkpoint — the last edge closes, and the import ratchet is zero
+
+W5.4 asked for four things, and this slice pays the last one: the **import**
+allowlist is now **empty**, so every module boundary in the tree is a rule the
+gate enforces rather than a line in a debt ledger.
+
+**What the last edge was.** One line in `tools/archcheck/allowlist.txt`, for
+years: `cross-module kernel/modules/agents/selfrepair -> kernel/runtime`. The
+self-repair module — the agents module's doctor — held the whole kernel handle
+and asked it for **eleven** verbs over **twenty-two** call sites and **seven**
+daemon row types.
+
+**Each verb had an owner, and the owners were not the same.** The bus and the
+journal are the platform's; the provider and the roster rows are the
+contract's; the reaper and the roster service are the **agents module's own**;
+the run engine is another module's **api** package (principle P5); and the
+profile binding and the cost ceiling are **the daemon's doors**.
+
+**The two doors stayed, and that was the finding.** `k.WithAgentProfile` and
+`k.WithMaxCost` are forwarding copies of the run context's rules, and this
+programme has spent a long time deleting forwarding copies. These two stay,
+because the daemon's own ratchet requires them: they are "the doors a MODULE
+needs without naming the runs module — the profile and the ceiling — the
+self-repair module binds a run through them"
+(`kernel/runtime/runctx_ratchet_test.go`). Deleting them would have removed the
+only sanctioned way for a module to bind a run. So the module does not name
+the run context's vocabulary; it **asks the host** through a port. The name
+stays the daemon's, the decision stays the module's, and no second spelling of
+`WithAgentProfile` was created.
+
+**The shape.** The module holds a **Ports** struct
+(`kernel/modules/agents/selfrepair/ports.go`): one field per capability and a
+nil-tolerant reader for each, so a host that supplies nothing is *answered
+for* rather than called into. The composition root fills them
+(`cmd/agezt/selfrepair_port.go`) — ten of the eleven are method values. The one
+place a missing port is not answered for is the **wake**: a wake without the
+run engine, the correlation or the profile binding refuses, because a wake
+that ran without a profile would run somebody else.
+
+**Eight permanent tests, three mutations, three caught.** Five in the module
+(the edge may not come back; the ports answer for the host that supplied
+nothing; the wake refuses; the scan arrives in the module's own vocabulary;
+the binding is asked of the host) and three in the daemon (every port is
+filled; the profile door really binds the run; a host with no kernel holds no
+healer). M01 puts the daemon back into the module and is caught by **two**
+gates — `archcheck` names the new cross-module violation, and the module's own
+ratchet fails with the import path in the message. M02 makes the daemon forget
+the profile door; M03 makes the port stop asking the host. All three reverted.
+
+**The number.** `go run ./tools/archcheck -summary` reads **340 packages,
+0 violations**, **0 allowlisted import violations and 0 allowlisted call
+sites**. Both allowlists hold comments only.
+
+Evidence:
+`architecture/323-w54bd-the-last-edge-closes-evidence.md`
+
 ## What the next slice should do
 
-The roadmap's next row is **W5.4** — the final one: the `archcheck` allowlist
-at zero, the forbidden-call allowlist at zero, the codemap documents
-regenerated, and the stale `docs/` architecture documents archived.
+**The W5 wave is closed.** Its four rows are ticked: W5.1 (the API document and
+the generated browser client), W5.2a–c (the `/api/v1` surface, the golden
+fixtures, the Rust SDK), W5.3 (the frontend's boundaries, lint-enforced) and
+**W5.4** (both ratchets at zero, the codemap current, the stale `docs/`
+documents archived). There is no next roadmap row in this wave, so the next
+slice is carried by the **open ends** — and there are three worth carrying,
+in the order they bite:
 
-Two open ends from the W5 program are still open and are worth carrying:
-
+- the **frontend's payload types are still hand-written**: about 160 frontend
+  interfaces describe what the operation registry already describes. Generating
+  the request and response types from the same schema — and letting the
+  frontend's own interfaces extend them — would make a renamed field a compile
+  error in the browser too, the way it is already a compile error in the
+  daemon. This is W5.1's open end, and it is the last place a rename can still
+  pass silently;
 - the **message row's second home**: the REST contract's row and the app
   layer's board projection name the same fields. A ratchet ties them, but one
   is a copy; the honest end state moves the client-visible row down into
   `boardapi`;
 - the **Go SDK's control plane** (NDJSON) has no golden fixture yet — the
   REST surface is covered, the control plane is not.
+
+Two smaller ends ride along: `docs/openapi.json` carries the daemon's version,
+so a version bump makes it stale and the `-check` gate fails (intended — the
+release step regenerates it), and the console's native endpoints are **named**
+in one place but still registered one by one; binding them from the same list
+would close the last gap in "the console's HTTP surface has one home".
+
+**What the next slice must not do.** The daemon's handle is still the
+daemon's: `kernel/runtime` is 180 files and roughly 17.9k lines, and the
+modules stopped *reaching* for it long ago — the remaining work there is the
+W3 programme's, not the port programme's.

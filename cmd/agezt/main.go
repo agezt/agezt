@@ -1828,7 +1828,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// *board.Store handed to the Mailbox interface would be a NON-NIL
 	// interface, the callee's nil check would not fire, and the first
 	// escalation would dereference a board that is not there.
-	fmt.Fprintf(stdout, "  auto repair      : %s\n", selfrepair.WireAutoRepair(ctx, k, repairSource, boardPort(boardStore), boardNotify))
+	fmt.Fprintf(stdout, "  auto repair      : %s\n", selfrepair.WireAutoRepair(ctx, selfrepairPorts(k), repairSource, boardPort(boardStore), boardNotify))
 
 	// Workflow triggers (M799): arm cron/event triggers for ENABLED workflows.
 	// The runner consults the store live, so canvas/CLI saves take effect

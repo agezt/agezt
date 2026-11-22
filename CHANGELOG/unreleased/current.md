@@ -837,6 +837,23 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The self-repair module holds capabilities, not the daemon.** The agents
+  module's doctor asked the kernel handle for **eleven** verbs over
+  **twenty-two** call sites — the bus, the journal, the provider, the reaper's
+  scan, the roster's reads and writes, the run engine, the correlation and the
+  two run-context doors. It now holds a **Ports** struct
+  (`kernel/modules/agents/selfrepair/ports.go`) with one field per capability,
+  and the composition root fills them (`cmd/agezt/selfrepair_port.go`). Every
+  port answers for a host that supplied nothing: no roster means "no such
+  agent", no scanner means "an empty fleet", no journal means "no repair
+  history". The one exception is the wake — a wake without the run engine, the
+  correlation or the profile binding **refuses**, because a wake that ran
+  without a profile would run somebody else. The daemon's own doors for the
+  run context (`WithAgentProfile`, `WithMaxCost`) stayed the daemon's, and the
+  module asks for them through a port instead of importing the run context's
+  vocabulary, so no second spelling was created. Auto-repair behaves the same:
+  the same claims, the same cooldown, the same escalations.
+
 - **The console's module boundaries are lint-enforced, and the debt is zero.**
   A new `frontend/src/boundaries.test.ts` resolves the whole import graph and
   fails on two crossings: a feature importing another feature, and the shared
@@ -5703,6 +5720,20 @@ This file holds the active `[Unreleased]` working set.
   vet`, `staticcheck`, gofmt, and a full `go test ./...` run are green.
 
 ### Removed
+
+- **The last architecture allowlist entry, and the module's handle behind it.**
+  `tools/archcheck/allowlist.txt` carried one line for years:
+  `cross-module kernel/modules/agents/selfrepair -> kernel/runtime`. The
+  self-repair module no longer imports the daemon, so the line is gone and both
+  allowlists hold comments only — `go run ./tools/archcheck -summary` reads
+  **340 packages, 0 violations, 0 allowlisted import violations and 0
+  allowlisted call sites**. Every module boundary in the tree is now a rule the
+  gate enforces rather than a line in a debt ledger. Eight new tests hold the
+  line: five in the module (the daemon's package may not be imported; the
+  ports answer for the host that supplied nothing; the wake refuses; the scan
+  arrives in the module's own vocabulary; the profile binding is asked of the
+  host) and three in the daemon (every port is filled; the profile door really
+  binds the run; a host with no kernel holds no healer).
 
 - **The console's test-only modules — nine of them, and the chain that fell
   with them.** `lib/{catalog,insights,routingSuggest,snapshot,telemetry,toolbox}.ts`,

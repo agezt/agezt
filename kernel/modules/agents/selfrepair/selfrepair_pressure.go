@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"strings"
 
-	kernelruntime "github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/kernel/modules/agents/api"
 )
 
 // A fingerprint identifies the REPAIR TARGET — this agent, this kind of
@@ -30,11 +30,11 @@ import (
 //
 // The detail lives in the `reason` string, which is journaled alongside; it does
 // not belong in the identity.
-func autoRepairDegradedFingerprint(_ kernelruntime.DegradedAgent) string {
+func autoRepairDegradedFingerprint(_ api.DegradedAgent) string {
 	return autoRepairFingerprint("degraded")
 }
 
-func autoRepairDegradedReason(row kernelruntime.DegradedAgent) string {
+func autoRepairDegradedReason(row api.DegradedAgent) string {
 	base := fmt.Sprintf(
 		"deterministic auto-repair: degraded by %d failed run(s) in the last %d judged run(s) (threshold %d)",
 		row.Failures, row.Window, row.Threshold,
@@ -45,11 +45,11 @@ func autoRepairDegradedReason(row kernelruntime.DegradedAgent) string {
 	return base
 }
 
-func autoRepairRetryFingerprint(_ kernelruntime.RetryPressureAgent) string {
+func autoRepairRetryFingerprint(_ api.RetryPressureAgent) string {
 	return autoRepairFingerprint("retry_pressure")
 }
 
-func autoRepairRetryReason(row kernelruntime.RetryPressureAgent) string {
+func autoRepairRetryReason(row api.RetryPressureAgent) string {
 	base := fmt.Sprintf(
 		"deterministic auto-repair: %d whole-run retry decision(s) in the last %ds (threshold %d)",
 		row.Count, row.WindowSec, row.Threshold,
@@ -67,11 +67,11 @@ func autoRepairRetryReason(row kernelruntime.RetryPressureAgent) string {
 // rewrite, so two task types are genuinely separate targets. The chain contents
 // and the failing/next model are deliberately excluded — they change precisely
 // BECAUSE repair rewrote them, which is the flapping the guard exists to damp.
-func autoRepairRoutingFingerprint(row kernelruntime.RoutingPressureAgent) string {
+func autoRepairRoutingFingerprint(row api.RoutingPressureAgent) string {
 	return autoRepairFingerprint("routing", row.TaskType)
 }
 
-func autoRepairRoutingReason(row kernelruntime.RoutingPressureAgent) string {
+func autoRepairRoutingReason(row api.RoutingPressureAgent) string {
 	base := fmt.Sprintf(
 		"deterministic auto-repair: %d model-chain fallback hop(s) in the last %ds (threshold %d)",
 		row.Count, row.WindowSec, row.Threshold,
@@ -88,14 +88,14 @@ func autoRepairRoutingReason(row kernelruntime.RoutingPressureAgent) string {
 	return base
 }
 
-func autoRepairRoutingUnstableFingerprint(row kernelruntime.RoutingUnstableAgent) string {
+func autoRepairRoutingUnstableFingerprint(row api.RoutingUnstableAgent) string {
 	return autoRepairFingerprint(
 		"routing_unstable",
 		row.TaskType,
 	)
 }
 
-func autoRepairRoutingUnstableReason(row kernelruntime.RoutingUnstableAgent) string {
+func autoRepairRoutingUnstableReason(row api.RoutingUnstableAgent) string {
 	base := fmt.Sprintf(
 		"deterministic auto-repair: routing remained unstable after %d rollback event(s) in the last %ds",
 		row.Count, row.WindowSec,
@@ -115,14 +115,14 @@ func autoRepairRoutingUnstableReason(row kernelruntime.RoutingUnstableAgent) str
 	return base
 }
 
-func autoRepairRoutingForcedFailedFingerprint(row kernelruntime.RoutingForcedFailedAgent) string {
+func autoRepairRoutingForcedFailedFingerprint(row api.RoutingForcedFailedAgent) string {
 	return autoRepairFingerprint(
 		"routing_forced_failed",
 		row.TaskType,
 	)
 }
 
-func autoRepairRoutingForcedFailedReason(row kernelruntime.RoutingForcedFailedAgent) string {
+func autoRepairRoutingForcedFailedReason(row api.RoutingForcedFailedAgent) string {
 	base := fmt.Sprintf(
 		"deterministic auto-repair: owner-forced chain stayed under routing pressure after probation with %d fallback hop(s) in the last %ds",
 		row.Count, row.WindowSec,
@@ -139,14 +139,14 @@ func autoRepairRoutingForcedFailedReason(row kernelruntime.RoutingForcedFailedAg
 	return base
 }
 
-func autoRepairRoutingForcedExhaustedFingerprint(row kernelruntime.RoutingForcedExhaustedAgent) string {
+func autoRepairRoutingForcedExhaustedFingerprint(row api.RoutingForcedExhaustedAgent) string {
 	return autoRepairFingerprint(
 		"routing_forced_exhausted",
 		row.TaskType,
 	)
 }
 
-func autoRepairRoutingForcedExhaustedReason(row kernelruntime.RoutingForcedExhaustedAgent) string {
+func autoRepairRoutingForcedExhaustedReason(row api.RoutingForcedExhaustedAgent) string {
 	gen := row.ForceGeneration
 	if gen <= 0 {
 		gen = 1

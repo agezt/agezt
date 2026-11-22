@@ -46,7 +46,7 @@ Sibling docs: [00-README.md](00-README.md) · [01-daemon-boot-cmd-agezt.md](01-d
 | `scheduler` | agent, approval, bus, event, intent, ulid | controlplane, runtime (+accessors) |
 | `standing` | bus, filestore, ulid | cmd/agezt, app/{roster, standing}, controlplane, runtime (+accessors) |
 | `pulse` | agent, bus, event, state, ulid, warden | cmd/agezt, alerter, channelwire, builtinchannels |
-| `selfrepair` | brand, strutil, board, bus, event, roster, runtime | cmd/agezt only |
+| `selfrepair` | brand, strutil, board, bus, event, contract/{agentapi,llm}, modules/agents/{api,roster}, modules/runs/api | cmd/agezt only |
 | `skill` | agent, bus, contract/skillapi, event, filestore | cmd/agezt, cmd/agt, contextselect, controlplane, market, runtime (+accessors), builtinskills |
 | `market` | atomicfile, agent, contract/marketapi, edict, mcp, netguard, skill | cmd/agezt, cmd/agt, controlplane, runtime (+accessors) |
 | `plugin` | agent, contract/pluginapi, contract/toolapi, platform/sandbox | cmd/agt |
@@ -644,14 +644,15 @@ Tests: `engine_test` (`TestInitiativeActEmission`, `TestPendingAsksLifecycle`, `
 ## 7. `kernel/selfrepair` — deterministic auto-repair ("doctor")
 
 **Purpose.** It subscribes to `pulse.observer.system:reaper`. On each `reaper_candidates` delta it:
-1. re-runs `k.ReaperScan` (30-day window);
+1. re-runs the reaper's scan through its port (30-day window);
 2. claims eligible broken agents;
 3. drives a repair (overseer `RepairAgent` = a governed LLM run AS the broken agent proposing profile and routing fixes)
    or a routing rollback;
 4. on failure, escalates to the parent or owner via a mailbox help request plus a wake;
 5. parses that agent's fenced-JSON resolution and applies it.
 
-Exported surface: `WireAutoRepair(ctx, k, baseDir, mailbox Mailbox, postNotify) string` and the `Mailbox` interface
+Exported surface: `WireAutoRepair(ctx, ports Ports, src RepairSource, mailbox Mailbox, postNotify) string`, the `Ports` struct
+(the host's capabilities, filled by the composition root) and the `Mailbox` interface
 (`HelpRequest`, `Get`, `Send`; satisfied by `*board.Store`).
 
 ### 7.1 Eligibility and modes
@@ -686,20 +687,21 @@ Exported surface: `WireAutoRepair(ctx, k, baseDir, mailbox Mailbox, postNotify) 
 | Env | `AGEZT_AUTO_REPAIR` (`off`), `AGEZT_AUTO_REPAIR_COOLDOWN` (30 m), `AGEZT_ROUTING_ROLLBACK_PROBATION` (2 h). |
 | Events | Subject `doctor.auto_repair`, kind `info`, actor `kernel`. `phase` ∈ queued, attempts_exhausted, routing_*_detected, routing_rollback_{queued,completed,failed}, completed, failed, escalation_{failed,skipped,woke,answered}, resolution_{failed,applied}, delegation_{queued,failed,woke}. Panics: `selfrepair.panic`. |
 
-**Wiring:** `cmd/agezt/main.go:1680` only. Consumers of `doctor.auto_repair`: `controlplane/agent_activity_summary.go`,
+**Wiring:** `cmd/agezt/main.go:1831` only, through `cmd/agezt/selfrepair_port.go`. Consumers of `doctor.auto_repair`: `controlplane/agent_activity_summary.go`,
 `autonomy.go`, `autonomy_doctor.go`, `roster_activity.go`.
 
 **Files:**
 
 | File | Contents |
 |---|---|
-| `doc.go` | Import posture (imports runtime + the agents module's repair vocabulary; runtime never imports selfrepair). |
+| `doc.go` | Import posture (holds no handle: the host's capabilities arrive through the ports; the agents module's repair vocabulary is the module's own; runtime never imports selfrepair, and selfrepair never imports runtime). |
 | `selfrepair.go` | Subject/time constants, source/rollbacker/applier interfaces, `Mailbox`, `WireAutoRepair`. |
+| `ports.go` | The module's ports: one field per capability the host hands over (bus, journal, live provider, the reaper's scan, the roster's rows and lifecycle, the run engine, the correlation, the daemon's profile and cost doors) and a nil-tolerant reader for each. |
 | `selfrepair_coordinator.go` | Coordinator/candidate structs, env parsers, `run` loop, `handleTick` (scan → claim → queued → `go dispatch`). |
 | `selfrepair_claim.go` | Priority-ordered `claim` (rollback-plan injection), `claimOne` gate (in-flight / cooldown / max-attempts). |
 | `selfrepair_dispatch.go` | `dispatch` (escalate, `RollbackRouting`, or `RepairAgent`), `autoEscalate`, `release`, `publishAutoRepair`, phase names. |
 | `selfrepair_wake.go` | `autoWakeManager`: wake the target, auto-reply in the mailbox, apply the resolution. |
-| `selfrepair_wake_agent.go` | `autoRepairWakeAgent`: `RunWith`/`RunWithRetry` under `WithAgentProfile` + `WithMaxCost`. |
+| `selfrepair_wake_agent.go` | `autoRepairWakeAgent`: `RunWith`/`RunWithRetry` under the profile and cost the host's doors bind. |
 | `selfrepair_wake_helpers.go` | Skip reasons, escalation intent with the fenced-JSON contract, mailbox reply. |
 | `selfrepair_resolution.go` | Parse, clean, apply resolutions; forced-routing generation logic. |
 | `selfrepair_apply.go` | Delegated resolution, incident/root-chain id builders. |
@@ -710,7 +712,9 @@ Exported surface: `WireAutoRepair(ctx, k, baseDir, mailbox Mailbox, postNotify) 
 | `selfrepair_helpers.go` | Payload decoders. |
 
 Tests: `selfrepair_test`, `coverage_test`, `wire_test` (eligibility/priority, cooldown dedupe, exhaustion, contained
-panics, armed/disabled).
+panics, armed/disabled) and `ports_test` (the daemon's package may not be imported, the ports answer for a host that
+supplied nothing, the wake refuses without its doors, the scan arrives in the module's own vocabulary, the profile
+binding is asked of the host).
 
 ### 7.4 Flow
 

@@ -14,7 +14,6 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/contract/boardapi"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
-	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 )
 
 const (
@@ -59,18 +58,25 @@ type Mailbox interface {
 // src is the agent-control surface the coordinator repairs through. The
 // daemon injects it: the module asks for the repair it needs, it does not
 // reach into the tool that provides it.
-func WireAutoRepair(ctx context.Context, k *kernelruntime.Kernel, src RepairSource, mailbox Mailbox, postNotify func(boardapi.Message, string)) string {
-	if k == nil || k.Bus() == nil {
+//
+// ports are the host's capabilities the coordinator needs: the bus it
+// publishes on, the journal it reads the repair history from, the fleet
+// it judges, the roster it pauses, the run engine it wakes through and
+// the doors it binds a run with. The daemon fills them: a module may not
+// hold the kernel (archcheck's principle P5), and until W5.4 this one
+// did — which was the last cross-module edge in the tree.
+func WireAutoRepair(ctx context.Context, ports Ports, src RepairSource, mailbox Mailbox, postNotify func(boardapi.Message, string)) string {
+	if ports.Bus == nil {
 		return "disabled"
 	}
 	if strings.EqualFold(strings.TrimSpace(os.Getenv(brand.EnvPrefix+"AUTO_REPAIR")), "off") {
 		return "disabled (AGEZT_AUTO_REPAIR=off)"
 	}
-	sub, err := k.Bus().Subscribe(autoRepairPulseSubject, 64)
+	sub, err := ports.Bus.Subscribe(autoRepairPulseSubject, 64)
 	if err != nil {
 		return fmt.Sprintf("disabled (subscribe failed: %v)", err)
 	}
 	coord := newAutoRepairCoordinator(autoRepairCooldown())
-	go coord.run(ctx, sub, k, src, mailbox, postNotify)
+	go coord.run(ctx, sub, ports, src, mailbox, postNotify)
 	return fmt.Sprintf("armed (%s; cooldown %s)", autoRepairPulseSubject, coord.cooldown)
 }
