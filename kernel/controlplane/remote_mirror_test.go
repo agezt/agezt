@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
-	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -45,7 +45,7 @@ func TestRunRemoteExecutionProfileMirrorsPeerEventMetadata(t *testing.T) {
 		Tools:    map[string]toolapi.Tool{"remote_run": remoteRunFooterTool{}},
 	})
 	var mirrored map[string]any
-	_, err := c.Stream(context.Background(), controlplane.CmdRun,
+	_, err := c.Stream(context.Background(), opapi.Run,
 		map[string]any{"intent": "delegate this", "execution_profile": "remote-agezt"}, func(e *event.Event) {
 			if e.Kind != event.KindInfo {
 				return
@@ -102,7 +102,7 @@ func TestRunRemoteExecutionProfileMirrorsRedactedPeerPayloads(t *testing.T) {
 		Tools:    map[string]toolapi.Tool{"remote_run": remoteRunFooterTool{}},
 	})
 	var mirrored map[string]any
-	_, err := c.Stream(context.Background(), controlplane.CmdRun,
+	_, err := c.Stream(context.Background(), opapi.Run,
 		map[string]any{"intent": "delegate this", "execution_profile": "remote-agezt"}, func(e *event.Event) {
 			if e.Kind != event.KindInfo {
 				return
@@ -171,7 +171,7 @@ func TestRunRemoteExecutionProfileMirrorsPeerArtifactMetadata(t *testing.T) {
 		Tools:    map[string]toolapi.Tool{"remote_run": remoteRunFooterTool{}},
 	})
 	var mirrored map[string]any
-	_, err := c.Stream(context.Background(), controlplane.CmdRun,
+	_, err := c.Stream(context.Background(), opapi.Run,
 		map[string]any{"intent": "delegate this", "execution_profile": "remote-agezt"}, func(e *event.Event) {
 			if e.Kind != event.KindInfo {
 				return

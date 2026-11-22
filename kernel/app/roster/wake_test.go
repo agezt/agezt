@@ -169,7 +169,7 @@ func TestRosterWakeOperationIsAudited(t *testing.T) {
 		t.Fatal(ops, err)
 	}
 	spec := ops[0].Spec()
-	if spec.Name != "agent_wake" || spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.Input != reflect.TypeFor[WakeRequest]() || spec.Output != reflect.TypeFor[WakeOutput]() || spec.HTTP != (opapi.HTTP{Method: "POST", Path: "/api/agents/wake"}) {
+	if spec.Name != "agent_wake" || spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.Input != reflect.TypeFor[WakeRequest]() || spec.Output != reflect.TypeFor[WakeOutput]() {
 		t.Fatal(spec)
 	}
 	if schema.ValidateJSON(spec.OutputSchema, json.RawMessage(`{"accepted":true,"agent":"a","correlation_id":"c"}`)) != nil || schema.ValidateJSON(spec.OutputSchema, json.RawMessage(`{"accepted":"yes","agent":"a","correlation_id":"c"}`)) == nil {

@@ -15,7 +15,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
 )
 
@@ -104,7 +104,7 @@ func importSkillDir(dir string, asJSON bool, stdout, stderr io.Writer) int {
 	if len(resources) > 0 {
 		callArgs["resources"] = resources
 	}
-	res, err := c.Call(ctx, controlplane.CmdSkillImport, callArgs)
+	res, err := c.Call(ctx, opapi.SkillImport, callArgs)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s skill import: %v\n", brand.CLI, err)
 		return 1
@@ -130,7 +130,7 @@ func importSkillDir(dir string, asJSON bool, stdout, stderr io.Writer) int {
 }
 
 // importSkillMarkdownBytes ingests an agentskills.io/ClawHub SKILL.md (SPEC-13
-// §1.2): parse the frontmatter + body, then install it via the same CmdSkillImport
+// §1.2): parse the frontmatter + body, then install it via the same opapi.SkillImport
 // path the JSON-bundle importer uses — a fresh DRAFT, content-addressed by the
 // daemon, journaled, never auto-active. Unlike a Agezt bundle there is no
 // content address to verify offline (a SKILL.md is plain Markdown); the daemon
@@ -161,7 +161,7 @@ func importSkillMarkdownBytes(data []byte, asJSON bool, stdout, stderr io.Writer
 	if len(md.ToolsRequired) > 0 {
 		callArgs["tools_required"] = md.ToolsRequired
 	}
-	res, err := c.Call(ctx, controlplane.CmdSkillImport, callArgs)
+	res, err := c.Call(ctx, opapi.SkillImport, callArgs)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s skill import: %v\n", brand.CLI, err)
 		return 1

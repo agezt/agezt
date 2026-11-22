@@ -12,19 +12,22 @@
 import { useEffect, useState } from "react";
 import { Activity, ArrowRight, Brain, Check, Ear, History, MessageCircle, Mic, Sparkles } from "lucide-react";
 import { getJSON } from "@/app/api";
+import type { AgentListResponseProfilesItem } from "@/app/api/types.generated";
 import { useChat } from "@/lib/chatStore";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/app/utils";
 import { goToView } from "@/lib/nav";
+import { StatTile } from "@/components/ui/metric-widget";
 
 // AgentRow is one entry in the "who's online" list. The daemon exposes a roster
-// at /api/agents; we render the readiness + last-seen for each.
+// at /api/agents; we render the readiness + last-seen for each. The fields
+// come from the daemon's registry: the roster answers with `profiles`, and a
+// profile is enabled or it is not — there is no `ready` field to invent.
 interface AgentRow {
   slug: string;
   name?: string;
-  ready?: boolean;
-  lastSeenMs?: number;
-  status?: string;
+  enabled?: boolean;
+  status?: AgentListResponseProfilesItem["status"];
 }
 
 interface ServerVoiceStatus {
@@ -38,8 +41,8 @@ function useAgents(): AgentRow[] {
     let stop = false;
     async function load() {
       try {
-        const r = await getJSON<{ agents?: AgentRow[] }>("/api/agents", {});
-        if (!stop) setRows(r.agents || []);
+        const r = await getJSON("/api/agents", {});
+        if (!stop) setRows(r.profiles || []);
       } catch {
         // daemon offline / first run — leave the list empty rather than noisy-error
       }
@@ -55,12 +58,12 @@ function useAgents(): AgentRow[] {
 }
 
 function useRecentRuns() {
-  const [runs, setRuns] = useState<{ id: string; status: string; intent?: string; correlation_id?: string; ts?: number }[]>([]);
+  const [runs, setRuns] = useState<{ status: string; intent?: string; correlation_id?: string }[]>([]);
   useEffect(() => {
     let stop = false;
     async function load() {
       try {
-        const r = await getJSON<{ runs?: { id: string; status: string; intent?: string; correlation_id?: string; ts?: number }[] }>(
+        const r = await getJSON(
           "/api/runs",
           { limit: "5" },
         );
@@ -89,7 +92,7 @@ function useVoiceStatus(): ServerVoiceStatus | null | undefined {
     let stop = false;
     async function load() {
       try {
-        const r = await getJSON<ServerVoiceStatus>("/api/voice/status");
+        const r = await getJSON("/api/voice/status");
         if (!stop) setStatus(r || {});
       } catch {
         if (!stop) setStatus(null);
@@ -109,7 +112,7 @@ export default function Jarvis() {
   const voice = useVoiceStatus();
   const chat = useChat();
 
-  const onlineCount = agents.filter((a) => a.ready).length;
+  const onlineCount = agents.filter((a) => a.enabled).length;
   const runningCount = runs.filter((r) => r.status === "running").length;
   const sttReady = !!voice?.stt?.configured;
   const ttsReady = !!voice?.tts?.configured;
@@ -128,9 +131,9 @@ export default function Jarvis() {
             <p className="text-xs text-muted">your operator-side companion — what's online, what's running, what to nudge</p>
           </header>
           <div className="mt-3 grid gap-3 sm:grid-cols-3">
-            <Stat icon={Ear} label="Agents ready" value={onlineCount} hint={`of ${agents.length} roster`} />
-            <Stat icon={Activity} label="Runs in flight" value={runningCount} hint="right now" />
-            <Stat icon={Brain} label="Recent memories" value={"…"} hint="(stub)" />
+            <StatTile icon={Ear} label="Agents ready" value={onlineCount} suffix={` / ${agents.length}`} />
+            <StatTile icon={Activity} label="Runs in flight" value={runningCount} />
+            <StatTile icon={Brain} label="Recent memories (stub)" value="…" />
           </div>
         </section>
 
@@ -198,7 +201,7 @@ export default function Jarvis() {
           ) : (
             <ul className="mt-3 divide-y divide-border/40">
               {runs.map((r) => (
-                <li key={r.id} className="flex items-center gap-2 py-1.5 text-sm">
+                <li key={r.correlation_id} className="flex items-center gap-2 py-1.5 text-sm">
                   <span className={cn("inline-flex h-1.5 w-1.5 shrink-0 rounded-full", r.status === "running" ? "bg-accent" : r.status === "completed" ? "bg-good" : r.status === "failed" ? "bg-bad" : "bg-muted")} />
                   <span className="min-w-0 flex-1 truncate text-foreground/90">{r.intent || "(no intent)"}</span>
                   <span className="font-mono text-[10px] text-muted">{r.correlation_id?.slice(0, 8)}</span>
@@ -223,9 +226,11 @@ export default function Jarvis() {
             <ul className="mt-3 space-y-1.5">
               {agents.slice(0, 12).map((a) => (
                 <li key={a.slug} className="flex items-center gap-2 rounded-md px-2 py-1 text-sm hover:bg-panel/60">
-                  <span className={cn("inline-flex h-1.5 w-1.5 rounded-full", a.ready ? "bg-good" : "bg-muted")} />
+                  <span className={cn("inline-flex h-1.5 w-1.5 rounded-full", a.enabled ? "bg-good" : "bg-muted")} />
                   <span className="min-w-0 flex-1 truncate font-medium text-foreground/90">{a.name || a.slug}</span>
-                  <span className="text-[10px] uppercase tracking-wide text-muted">{a.ready ? "ready" : (a.status || "offline")}</span>
+                  <span className="text-[10px] uppercase tracking-wide text-muted">
+                    {a.enabled ? "ready" : (a.status?.operational_label || "offline")}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -251,19 +256,6 @@ export default function Jarvis() {
           </Button>
         </section>
       </aside>
-    </div>
-  );
-}
-
-function Stat({ icon: Icon, label, value, hint }: { icon: typeof Activity; label: string; value: number | string; hint?: string }) {
-  return (
-    <div className="rounded-xl border border-border/60 bg-card/30 p-3">
-      <div className="flex items-center gap-2 text-[11px] uppercase tracking-wider text-muted">
-        <Icon className="size-3.5" />
-        <span>{label}</span>
-      </div>
-      <div className="mt-1 text-2xl font-semibold tabular-nums text-foreground">{value}</div>
-      {hint && <div className="text-[10px] text-muted">{hint}</div>}
     </div>
   );
 }

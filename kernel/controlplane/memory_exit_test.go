@@ -12,15 +12,15 @@ import (
 func TestMemoryNativeExitCompleteTypedRegistry(t *testing.T) {
 	type expected struct{ readOnly, tenant bool }
 	want := map[string]expected{
-		CmdMemoryGet: {readOnly: true}, CmdMemoryList: {readOnly: true}, CmdMemorySearch: {readOnly: true}, CmdMemoryFindRelated: {readOnly: true},
-		CmdMemoryAdd: {}, CmdMemorySupersede: {}, CmdMemoryForget: {}, CmdMemoryPromote: {}, CmdMemoryBulkForget: {},
-		CmdMemoryPrune: {}, CmdMemoryTidy: {}, CmdMemoryAudit: {readOnly: true, tenant: true}, CmdMemoryClean: {tenant: true},
-		CmdMemoryLog: {readOnly: true, tenant: true}, CmdMemoryConsolidate: {}, CmdProfileRebuild: {},
+		opapi.MemoryGet: {readOnly: true}, opapi.MemoryList: {readOnly: true}, opapi.MemorySearch: {readOnly: true}, opapi.MemoryFindRelated: {readOnly: true},
+		opapi.MemoryAdd: {}, opapi.MemorySupersede: {}, opapi.MemoryForget: {}, opapi.MemoryPromote: {}, opapi.MemoryBulkForget: {},
+		opapi.MemoryPrune: {}, opapi.MemoryTidy: {}, opapi.MemoryAudit: {readOnly: true, tenant: true}, opapi.MemoryClean: {tenant: true},
+		opapi.MemoryLog: {readOnly: true, tenant: true}, opapi.MemoryConsolidate: {}, opapi.ProfileRebuild: {},
 	}
 	seen := map[string]bool{}
 	for _, operation := range registeredAppOperations() {
 		spec := operation.Spec()
-		if !strings.HasPrefix(spec.Name, "memory_") && spec.Name != CmdProfileRebuild {
+		if !strings.HasPrefix(spec.Name, "memory_") && spec.Name != opapi.ProfileRebuild {
 			continue
 		}
 		entry, exists := want[spec.Name]

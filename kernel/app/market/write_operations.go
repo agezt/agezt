@@ -71,31 +71,31 @@ func WriteOperations(provider func(context.Context) *Writes) ([]app.Operation, e
 		}
 		return s
 	}
-	install, err := app.NewStreamingOperation(spec("market_install", true), func(ctx context.Context, in InstallRequest, emit func(event.Event) error) (InstallOutput, error) {
+	install, err := app.NewStreamingOperation(spec(opapi.MarketInstall, true), func(ctx context.Context, in InstallRequest, emit func(event.Event) error) (InstallOutput, error) {
 		return provider(ctx).Install(ctx, InstallInput{Name: readText(in.Name), Marketplace: readText(in.Marketplace), Version: readText(in.Version)}, marketProgress(event.KindMarketInstallProgress, "market.install", emit))
 	})
 	if err != nil {
 		return nil, err
 	}
-	uninstall, err := app.NewStreamingOperation(spec("market_uninstall", true), func(ctx context.Context, in WriteNameRequest, emit func(event.Event) error) (UninstallOutput, error) {
+	uninstall, err := app.NewStreamingOperation(spec(opapi.MarketUninstall, true), func(ctx context.Context, in WriteNameRequest, emit func(event.Event) error) (UninstallOutput, error) {
 		return provider(ctx).Uninstall(ctx, UninstallInput{Name: readText(in.Name)}, marketProgress(event.KindMarketUninstallProgress, "market.uninstall", emit))
 	})
 	if err != nil {
 		return nil, err
 	}
-	add, err := app.NewOperation(spec("market_add_source", false), func(ctx context.Context, in AddSourceRequest) (AddSourceOutput, error) {
+	add, err := app.NewOperation(spec(opapi.MarketAddSource, false), func(ctx context.Context, in AddSourceRequest) (AddSourceOutput, error) {
 		return provider(ctx).AddSource(ctx, AddSourceInput{Name: readText(in.Name), URL: readText(in.URL), PubKey: readText(in.PubKey)})
 	})
 	if err != nil {
 		return nil, err
 	}
-	remove, err := app.NewOperation(spec("market_remove_source", false), func(ctx context.Context, in WriteNameRequest) (RemoveSourceOutput, error) {
+	remove, err := app.NewOperation(spec(opapi.MarketRemoveSource, false), func(ctx context.Context, in WriteNameRequest) (RemoveSourceOutput, error) {
 		return provider(ctx).RemoveSource(ctx, RemoveSourceInput{Name: readText(in.Name)})
 	})
 	if err != nil {
 		return nil, err
 	}
-	sync, err := app.NewOperation(spec("market_sync", false), func(ctx context.Context, in WriteNameRequest) (SyncOutput, error) {
+	sync, err := app.NewOperation(spec(opapi.MarketSync, false), func(ctx context.Context, in WriteNameRequest) (SyncOutput, error) {
 		return provider(ctx).Sync(ctx, SyncInput{Name: readText(in.Name)})
 	})
 	if err != nil {

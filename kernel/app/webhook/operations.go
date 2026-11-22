@@ -27,7 +27,7 @@ func Operations(provider func(context.Context) *Observability) ([]app.Operation,
 	if provider == nil {
 		return nil, errors.New("webhook observability provider required")
 	}
-	log, err := app.NewOperation(opapi.Spec{Name: "webhook_log", ReadOnly: true, Authz: opapi.OwnTenant, Tenancy: opapi.CallerTenant, AllowUnknownInput: true, HTTP: opapi.HTTP{Method: "GET", Path: "/api/webhook_log"}, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"failed":{},"limit":{},"since_ms":{},"cursor":{}}}`)}, func(ctx context.Context, in LogRequest) (LogOutput, error) {
+	log, err := app.NewOperation(opapi.Spec{Name: opapi.WebhookLog, ReadOnly: true, Authz: opapi.OwnTenant, Tenancy: opapi.CallerTenant, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"failed":{},"limit":{},"since_ms":{},"cursor":{}}}`)}, func(ctx context.Context, in LogRequest) (LogOutput, error) {
 		failed := false
 		if len(in.Failed) > 0 {
 			var ok bool
@@ -46,7 +46,7 @@ func Operations(provider func(context.Context) *Observability) ([]app.Operation,
 	if err != nil {
 		return nil, err
 	}
-	stats, err := app.NewOperation(opapi.Spec{Name: "webhook_stats", ReadOnly: true, Authz: opapi.OwnTenant, Tenancy: opapi.CallerTenant, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"since_ms":{}}}`)}, func(ctx context.Context, in StatsRequest) (StatsOutput, error) {
+	stats, err := app.NewOperation(opapi.Spec{Name: opapi.WebhookStats, ReadOnly: true, Authz: opapi.OwnTenant, Tenancy: opapi.CallerTenant, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"since_ms":{}}}`)}, func(ctx context.Context, in StatsRequest) (StatsOutput, error) {
 		return provider(ctx).Stats(ctx, numeric(in.SinceMS))
 	})
 	if err != nil {

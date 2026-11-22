@@ -201,9 +201,9 @@ func TestRosterProfileWriteOperationsAreAudited(t *testing.T) {
 	if err != nil || len(ops) != 2 {
 		t.Fatal(ops, err)
 	}
-	for i, want := range []struct{ name, path string }{{"agent_add", "/api/agents/add"}, {"agent_edit", "/api/agents/edit"}} {
+	for i, want := range []struct{ name, path string }{{opapi.AgentAdd, "/api/agents/add"}, {opapi.AgentEdit, "/api/agents/edit"}} {
 		spec := ops[i].Spec()
-		if spec.Name != want.name || spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || len(spec.OutputSchema) == 0 || spec.HTTP != (opapi.HTTP{Method: "POST", Path: want.path}) {
+		if spec.Name != want.name || spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || len(spec.OutputSchema) == 0 {
 			t.Fatal(spec)
 		}
 	}

@@ -50,7 +50,7 @@ func ListOperations(provider func(context.Context) *ListService) ([]app.Operatio
 	if err != nil {
 		return nil, err
 	}
-	op, err := app.NewOperation(opapi.Spec{Name: "agent_list", ReadOnly: true, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"limit":{},"cursor":{}}}`), OutputSchema: output, HTTP: opapi.HTTP{Method: "GET", Path: "/api/agents"}}, func(ctx context.Context, in ListRequest) (ListOutput, error) {
+	op, err := app.NewOperation(opapi.Spec{Name: opapi.AgentList, ReadOnly: true, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"limit":{},"cursor":{}}}`), OutputSchema: output}, func(ctx context.Context, in ListRequest) (ListOutput, error) {
 		return provider(ctx).List(ctx, in.input())
 	})
 	if err != nil {

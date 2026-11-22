@@ -1,41 +1,40 @@
 import { authHeaders, getJSON } from "@/app/api";
 import { parseSSEChunk, type ChatFrame } from "@/lib/chat";
+import type { MarketShowResponseSkillsItem } from "@/app/api/types.generated";
 
 // One security-review finding from the pre-install vet (kernel/market.VetFinding).
 // Internal: reached through VetReport.findings; not exported (knip gate).
-interface VetFinding {
-  severity: "info" | "warn" | "danger" | string;
+type VetFinding = {
+  severity: string;
   where: string;
   rule: string;
   detail: string;
-}
+};
 
 // The pack's pre-install security review (kernel/market.VetReport). Purely
 // informational — installs are never blocked on it (default-allow posture).
-export interface VetReport {
-  verdict: "clean" | "caution" | "danger" | string;
+export type VetReport = {
+  verdict: string;
   findings?: VetFinding[];
-}
+};
 
 // A pack's readable contents, for the gallery's "What's inside" panel and the
 // full detail view.
-export interface PackDetails {
-  skills: { name?: string; description?: string; skill_md?: string }[];
+export type PackDetails = {
+  skills: MarketShowResponseSkillsItem[];
   mcp_servers: string[];
   tools: string[];
   vet?: VetReport;
-}
+};
 
 // fetchPackDetails resolves one pack's contents (skills + MCP servers + CLI
 // tools) plus its security review from the read-only show endpoint, for lazy
 // on-expand loading.
 export async function fetchPackDetails(name: string, marketplace?: string): Promise<PackDetails> {
-  const res = await getJSON<{
-    skills?: PackDetails["skills"];
-    mcp_servers?: string[];
-    tools?: string[];
-    vet?: VetReport;
-  }>(`/api/market/show?name=${encodeURIComponent(name)}&marketplace=${encodeURIComponent(marketplace || "")}`);
+  const res = await getJSON("/api/market/show", {
+    name,
+    marketplace: marketplace || "",
+  });
   return { skills: res.skills || [], mcp_servers: res.mcp_servers || [], tools: res.tools || [], vet: res.vet };
 }
 

@@ -20,7 +20,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdWorkflowRuns(args []string, stdout, stderr io.Writer) int {
@@ -54,7 +54,7 @@ func cmdWorkflowRuns(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdWorkflowRuns, callArgs)
+	res, err := c.Call(ctx, opapi.WorkflowRuns, callArgs)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s workflow runs: %v\n", brand.CLI, err)
 		return 1
@@ -111,7 +111,7 @@ func cmdWorkflowSetEnabled(args []string, stdout, stderr io.Writer, enabled bool
 		fmt.Fprintf(stderr, "%s workflow %s: checkpoint: %v\n", brand.CLI, verb, cerr)
 		return 1
 	}
-	if _, err := c.Call(ctx, controlplane.CmdWorkflowSetEnabled, map[string]any{"ref": args[0], "enabled": enabled}); err != nil {
+	if _, err := c.Call(ctx, opapi.WorkflowSetEnabled, map[string]any{"ref": args[0], "enabled": enabled}); err != nil {
 		fmt.Fprintf(stderr, "%s workflow %s: %v\n", brand.CLI, verb, err)
 		return 1
 	}
@@ -134,7 +134,7 @@ func cmdWorkflowRemove(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s workflow remove: checkpoint: %v\n", brand.CLI, cerr)
 		return 1
 	}
-	res, err := c.Call(ctx, controlplane.CmdWorkflowRemove, map[string]any{"ref": args[0]})
+	res, err := c.Call(ctx, opapi.WorkflowRemove, map[string]any{"ref": args[0]})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s workflow remove: %v\n", brand.CLI, err)
 		return 1

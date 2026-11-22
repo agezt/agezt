@@ -39,9 +39,9 @@ import { ErrorText, KeyValue, Muted } from "@/components/JsonView";
 
 // ---- types (extracted to ./types) ----
 import type { ExecutionProfile, ExecutionProfileInventory, ExecutionProfileCheck, ExecutionProfileHealthReport, ConfigValueEntry, ExecutionProfilePolicyValues, ExecutionProfileBackendValues } from "./types";
-interface ConfigValuesResponse {
+type ConfigValuesResponse = {
   fields?: ConfigValueEntry[];
-}
+};
 
 
 
@@ -271,9 +271,9 @@ export function ExecutionProfiles() {
   async function reload() {
     setLoading(true);
     const [inv, health, configValues] = await Promise.allSettled([
-      getJSON<ExecutionProfileInventory>("/api/execution_profiles"),
-      getJSON<ExecutionProfileHealthReport>("/api/execution_profile_check"),
-      getJSON<ConfigValuesResponse>("/api/config/values"),
+      getJSON("/api/execution_profiles"),
+      getJSON("/api/execution_profile_check"),
+      getJSON("/api/config/values"),
     ]);
     if (inv.status === "fulfilled") setInventory(inv.value);
     if (health.status === "fulfilled") setReport(health.value);

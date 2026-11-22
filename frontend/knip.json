@@ -2,6 +2,7 @@
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "entry": [
     "src/main.tsx",
+    "src/app/api/types.generated.ts",
     "src/components/EventFeed.tsx",
     "src/features/admin/components/Backups.tsx",
     "src/features/agents/components/ACPAgents.tsx",
@@ -12,7 +13,7 @@
     "src/features/autonomy/components/Autonomy.tsx",
     "src/features/channels/components/Channels.tsx",
     "src/features/chat/components/Chat.tsx",
-    "src/features/configcenter/components/ConfigCenter.tsx",
+    "src/components/configcenter/ConfigCenter.tsx",
     "src/features/connections/components/Connections.tsx",
     "src/features/council/components/Council.tsx",
     "src/features/data/components/Data.tsx",

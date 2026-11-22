@@ -6,7 +6,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -28,7 +28,7 @@ func TestWardenLog_FoldsExecAndIssues(t *testing.T) {
 		Payload: map[string]any{"limit": "stdout_bytes", "argv0": "cat"},
 	})
 
-	res, err := c.Call(context.Background(), controlplane.CmdWardenLog, nil)
+	res, err := c.Call(context.Background(), opapi.WardenLog, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +38,7 @@ func TestWardenLog_FoldsExecAndIssues(t *testing.T) {
 	}
 
 	// --issues drops the plain exec → downgrade + limit only.
-	ires, err := c.Call(context.Background(), controlplane.CmdWardenLog, map[string]any{"issues": true})
+	ires, err := c.Call(context.Background(), opapi.WardenLog, map[string]any{"issues": true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +72,7 @@ func TestWardenStats_Aggregates(t *testing.T) {
 		Payload: map[string]any{"limit": "stdout_bytes", "argv0": "cat"},
 	})
 
-	res, err := c.Call(context.Background(), controlplane.CmdWardenStats, nil)
+	res, err := c.Call(context.Background(), opapi.WardenStats, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

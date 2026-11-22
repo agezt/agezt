@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/acp"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 )
 
@@ -44,8 +44,8 @@ func TestACPRunner_ForwardsTenant(t *testing.T) {
 	if ans != "ok" {
 		t.Errorf("answer = %q, want ok", ans)
 	}
-	if fs.lastCmd != controlplane.CmdRun {
-		t.Errorf("cmd = %q, want %q", fs.lastCmd, controlplane.CmdRun)
+	if fs.lastCmd != opapi.Run {
+		t.Errorf("cmd = %q, want %q", fs.lastCmd, opapi.Run)
 	}
 	if fs.lastArgs["intent"] != "do a thing" {
 		t.Errorf("intent = %v", fs.lastArgs["intent"])

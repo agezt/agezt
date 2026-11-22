@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/contract/llm"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -52,7 +52,7 @@ func TestBudget_ReturnsSnapshotShape(t *testing.T) {
 	})
 	_, _, c, _ := startPair(t, gov)
 
-	res, err := c.Call(context.Background(), controlplane.CmdBudget, nil)
+	res, err := c.Call(context.Background(), opapi.Budget, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -94,7 +94,7 @@ func TestBudget_NoCapsReturnsEmptyPerTask(t *testing.T) {
 	gov := makeGovernor(t, nil)
 	_, _, c, _ := startPair(t, gov)
 
-	res, err := c.Call(context.Background(), controlplane.CmdBudget, nil)
+	res, err := c.Call(context.Background(), opapi.Budget, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -115,22 +115,22 @@ func TestBudget_NoCapsReturnsEmptyPerTask(t *testing.T) {
 // useful response.
 func TestBudget_NonGovernorProviderErrorsCleanly(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
-	_, err := c.Call(context.Background(), controlplane.CmdBudget, nil)
+	_, err := c.Call(context.Background(), opapi.Budget, nil)
 	if err == nil {
 		t.Fatal("expected error when provider isn't a governor")
 	}
 }
 
 // TestBudgetSet_AdjustsCeilingAndReturnsSnapshot exercises the runtime
-// "ayarla" knob (M607): CmdBudgetSet changes the global ceiling and returns the
-// post-set snapshot, and a follow-up CmdBudget reads the new value back — proof
+// "ayarla" knob (M607): opapi.BudgetSet changes the global ceiling and returns the
+// post-set snapshot, and a follow-up opapi.Budget reads the new value back — proof
 // the override is live for both enforcement and reporting.
 func TestBudgetSet_AdjustsCeilingAndReturnsSnapshot(t *testing.T) {
 	gov := makeGovernor(t, nil)
 	_, _, c, _ := startPair(t, gov)
 
 	// Raise to $2.50.
-	res, err := c.Call(context.Background(), controlplane.CmdBudgetSet, map[string]any{"ceiling_mc": 2_500_000_000})
+	res, err := c.Call(context.Background(), opapi.BudgetSet, map[string]any{"ceiling_mc": 2_500_000_000})
 	if err != nil {
 		t.Fatalf("budget_set: %v", err)
 	}
@@ -138,7 +138,7 @@ func TestBudgetSet_AdjustsCeilingAndReturnsSnapshot(t *testing.T) {
 		t.Errorf("post-set ceiling_mc = %d want 2_500_000_000", got)
 	}
 	// Read back via the independent read path.
-	res2, err := c.Call(context.Background(), controlplane.CmdBudget, nil)
+	res2, err := c.Call(context.Background(), opapi.Budget, nil)
 	if err != nil {
 		t.Fatalf("budget: %v", err)
 	}
@@ -150,7 +150,7 @@ func TestBudgetSet_AdjustsCeilingAndReturnsSnapshot(t *testing.T) {
 	}
 
 	// Set to 0 (unlimited).
-	if _, err := c.Call(context.Background(), controlplane.CmdBudgetSet, map[string]any{"ceiling_mc": 0}); err != nil {
+	if _, err := c.Call(context.Background(), opapi.BudgetSet, map[string]any{"ceiling_mc": 0}); err != nil {
 		t.Fatalf("budget_set 0: %v", err)
 	}
 	if gov.DailyCeilingMicrocents() != 0 {
@@ -163,7 +163,7 @@ func TestBudgetSet_AdjustsCeilingAndReturnsSnapshot(t *testing.T) {
 func TestBudgetSet_AcceptsStringArg(t *testing.T) {
 	gov := makeGovernor(t, nil)
 	_, _, c, _ := startPair(t, gov)
-	res, err := c.Call(context.Background(), controlplane.CmdBudgetSet, map[string]any{"ceiling_mc": "750000000"})
+	res, err := c.Call(context.Background(), opapi.BudgetSet, map[string]any{"ceiling_mc": "750000000"})
 	if err != nil {
 		t.Fatalf("budget_set string arg: %v", err)
 	}
@@ -177,10 +177,10 @@ func TestBudgetSet_AcceptsStringArg(t *testing.T) {
 func TestBudgetSet_RejectsMissingAndBadArgs(t *testing.T) {
 	gov := makeGovernor(t, nil)
 	_, _, c, _ := startPair(t, gov)
-	if _, err := c.Call(context.Background(), controlplane.CmdBudgetSet, nil); err == nil {
+	if _, err := c.Call(context.Background(), opapi.BudgetSet, nil); err == nil {
 		t.Error("expected error when ceiling_mc is absent")
 	}
-	if _, err := c.Call(context.Background(), controlplane.CmdBudgetSet, map[string]any{"ceiling_mc": "abc"}); err == nil {
+	if _, err := c.Call(context.Background(), opapi.BudgetSet, map[string]any{"ceiling_mc": "abc"}); err == nil {
 		t.Error("expected error when ceiling_mc is non-numeric")
 	}
 }

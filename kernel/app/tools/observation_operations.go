@@ -84,7 +84,7 @@ func ObservationOperations(provider func(context.Context) *Observations, now fun
 	spec := func(name string) opapi.Spec {
 		return opapi.Spec{Name: name, ReadOnly: true, Authz: opapi.OwnTenant, Tenancy: opapi.CallerTenant, AllowUnknownInput: true, InputSchema: observationSchema}
 	}
-	log, err := app.NewOperation(spec("tool_log"), func(ctx context.Context, in ObservationRequest) (LogOutput, error) {
+	log, err := app.NewOperation(spec(opapi.ToolLog), func(ctx context.Context, in ObservationRequest) (LogOutput, error) {
 		errorsOnly, err := observationBool(in.Errors)
 		if err != nil {
 			return LogOutput{}, err
@@ -98,7 +98,7 @@ func ObservationOperations(provider func(context.Context) *Observations, now fun
 	if err != nil {
 		return nil, fmt.Errorf("tool log binding: %w", err)
 	}
-	stats, err := app.NewOperation(spec("tool_stats"), func(ctx context.Context, in ObservationRequest) (StatsOutput, error) {
+	stats, err := app.NewOperation(spec(opapi.ToolStats), func(ctx context.Context, in ObservationRequest) (StatsOutput, error) {
 		tool, err := observationText(in.Tool)
 		if err != nil {
 			return StatsOutput{}, err

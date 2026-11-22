@@ -248,15 +248,15 @@ func TestAskOperations(t *testing.T) {
 	}{
 		// The panel has a Web UI route; the Conductor's nav cluster was
 		// removed in the Day-28 topology audit, so it has none.
-		{"council_ask", "POST", "/api/council/ask", reflect.TypeFor[AskOutput]()},
-		{"conductor_ask", "", "", reflect.TypeFor[ConductOutput]()},
+		{opapi.CouncilAsk, "POST", "/api/council/ask", reflect.TypeFor[AskOutput]()},
+		{opapi.ConductorAsk, "", "", reflect.TypeFor[ConductOutput]()},
 	} {
 		s := ops[i].Spec()
 		out, err := schema.FromType(want.output, false)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if s.Name != want.name || s.ReadOnly || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Stream != opapi.StreamLive || !s.AllowUnknownInput || s.HTTP.Method != want.method || s.HTTP.Path != want.path || s.Output != want.output || string(s.OutputSchema) != string(out) {
+		if s.Name != want.name || s.ReadOnly || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Stream != opapi.StreamLive || !s.AllowUnknownInput || s.Output != want.output || string(s.OutputSchema) != string(out) {
 			t.Fatalf("%s spec: %+v", want.name, s)
 		}
 		if len(s.EmissionSchema) == 0 {

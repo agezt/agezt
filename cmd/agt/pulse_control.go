@@ -11,7 +11,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 // cmdPulseAsks implements `agt pulse asks [--json]` (list) and
@@ -53,7 +53,7 @@ func cmdPulseAsks(args []string, stdout, stderr io.Writer) int {
 
 	// Resolve verb: approve/reject one ask.
 	if verb != "" {
-		res, err := c.Call(ctx, controlplane.CmdPulseAskResolve, map[string]any{"issue_key": key, "approve": verb == "approve"})
+		res, err := c.Call(ctx, opapi.PulseAskResolve, map[string]any{"issue_key": key, "approve": verb == "approve"})
 		if err != nil {
 			fmt.Fprintf(stderr, "%s pulse asks %s: %v\n", brand.CLI, verb, err)
 			return 1
@@ -74,7 +74,7 @@ func cmdPulseAsks(args []string, stdout, stderr io.Writer) int {
 	}
 
 	// List verb: show pending asks.
-	res, err := c.Call(ctx, controlplane.CmdPulseAsks, nil)
+	res, err := c.Call(ctx, opapi.PulseAsks, nil)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s pulse asks: %v\n", brand.CLI, err)
 		return 1
@@ -122,9 +122,9 @@ func cmdPulseControl(sub string, args []string, stdout, stderr io.Writer) int {
 	}
 
 	cmd := map[string]string{
-		"status": controlplane.CmdPulseStatus,
-		"pause":  controlplane.CmdPulsePause,
-		"resume": controlplane.CmdPulseResume,
+		"status": opapi.PulseStatus,
+		"pause":  opapi.PulsePause,
+		"resume": opapi.PulseResume,
 	}[sub]
 
 	c := dialpkg.New(stderr)

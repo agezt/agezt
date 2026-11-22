@@ -13,6 +13,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/atomicfile"
 	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 )
 
@@ -72,7 +73,7 @@ func scopeCorrelation(spec string) (correlation, label string, ok bool) {
 	return spec, "task:" + spec, true
 }
 
-// journalExportResult mirrors the CmdJournalExport response. Events stay raw
+// journalExportResult mirrors the opapi.JournalExport response. Events stay raw
 // (see journalBundle) so payload bytes are preserved end-to-end.
 type journalExportResult struct {
 	Events    []json.RawMessage `json:"events"`
@@ -171,7 +172,7 @@ func cmdJournalExport(args []string, stdout, stderr io.Writer) int {
 	if correlation != "" {
 		callArgs["correlation"] = correlation
 	}
-	raw, err := c.CallRaw(ctx, controlplane.CmdJournalExport, callArgs)
+	raw, err := c.CallRaw(ctx, opapi.JournalExport, callArgs)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s journal export: %v\n", brand.CLI, err)
 		return 1

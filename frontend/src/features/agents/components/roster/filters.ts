@@ -1,4 +1,4 @@
-import { agentIdentityKind, type AgentProfile } from "./shared";
+import { agentIdentityKind, type AgentProfile } from "@/lib/agentshared";
 import { agentSchedulePressurePassport, systemGuardianSafetySummary } from "./guardians";
 
 export function sortAgentRoster(profiles: AgentProfile[]): AgentProfile[] {

@@ -12,7 +12,7 @@ func ACPInventoryOperations(provider func(context.Context) *ACPInventory) ([]app
 	if provider == nil {
 		return nil, errors.New("ACP inventory service provider required")
 	}
-	operation, err := app.NewOperation(opapi.Spec{Name: "acp_agents", ReadOnly: true, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, HTTP: opapi.HTTP{Method: "GET", Path: "/api/acp/agents"}}, func(ctx context.Context, in ACPInput) (ACPOutput, error) { return provider(ctx).List(ctx, in) })
+	operation, err := app.NewOperation(opapi.Spec{Name: opapi.ACPAgents, ReadOnly: true, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true}, func(ctx context.Context, in ACPInput) (ACPOutput, error) { return provider(ctx).List(ctx, in) })
 	if err != nil {
 		return nil, err
 	}

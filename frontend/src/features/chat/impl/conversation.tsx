@@ -143,14 +143,14 @@ export function EmptyState({ onPick }: { onPick: (s: string) => void }) {
   const [memChips, setMemChips] = useState<{ title: string; text: string }[]>([]);
   useEffect(() => {
     let live = true;
-    getJSON<{ prompts?: { title: string; text: string }[] }>("/api/prompts")
+    getJSON("/api/prompts")
       .then((r) => {
         if (!live) return;
         const saved = r.prompts || [];
         setPrompts(saved);
         // Only reach for memory starters when the owner hasn't defined prompts.
         if (saved.length === 0) {
-          getJSON<{ suggestions?: Suggestion[] }>("/api/suggestions")
+          getJSON("/api/suggestions")
             .then((d) => {
               if (!live) return;
               setMemChips(

@@ -21,7 +21,7 @@ import (
 )
 
 func TestUpdateNativeTwoTypedOperationsExit(t *testing.T) {
-	expected := map[string][2]reflect.Type{CmdUpdateCheck: {reflect.TypeFor[appupdate.CheckRequest](), reflect.TypeFor[appupdate.CheckOutput]()}, CmdUpdateApply: {reflect.TypeFor[appupdate.ApplyRequest](), reflect.TypeFor[appupdate.ApplyOutput]()}}
+	expected := map[string][2]reflect.Type{opapi.UpdateCheck: {reflect.TypeFor[appupdate.CheckRequest](), reflect.TypeFor[appupdate.CheckOutput]()}, opapi.UpdateApply: {reflect.TypeFor[appupdate.ApplyRequest](), reflect.TypeFor[appupdate.ApplyOutput]()}}
 	seen := map[string]int{}
 	for _, op := range registeredAppOperations() {
 		s := op.Spec()
@@ -30,12 +30,12 @@ func TestUpdateNativeTwoTypedOperationsExit(t *testing.T) {
 			continue
 		}
 		wire, found := commandRegistry[s.Name]
-		if !found || !wire.AppOwned || wire.ReadOnly != (s.Name == CmdUpdateCheck) || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Input != types[0] || s.Output != types[1] || !s.AllowUnknownInput || s.Stream != opapi.StreamNone || s.Emission != nil || len(s.EmissionSchema) != 0 || s.HTTP.Method != "" || s.HTTP.Path != "" {
+		if !found || !wire.AppOwned || wire.ReadOnly != (s.Name == opapi.UpdateCheck) || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Input != types[0] || s.Output != types[1] || !s.AllowUnknownInput || s.Stream != opapi.StreamNone || s.Emission != nil || len(s.EmissionSchema) != 0 {
 			t.Fatal(s, wire)
 		}
 		seen[s.Name]++
 	}
-	if len(updateOperations) != 2 || len(seen) != 2 || seen[CmdUpdateCheck] != 1 || seen[CmdUpdateApply] != 1 {
+	if len(updateOperations) != 2 || len(seen) != 2 || seen[opapi.UpdateCheck] != 1 || seen[opapi.UpdateApply] != 1 {
 		t.Fatal("update aggregate incomplete", seen)
 	}
 }
@@ -70,7 +70,7 @@ func TestUpdateNativeTerminalAuditFailureStillFinishesWriteBeforeRestart(t *test
 		defer close(done)
 		s.handleConn(context.Background(), pausedOAuthStatusConn{Conn: b, entered: entered, release: release})
 	}()
-	raw, _ := json.Marshal(Request{ID: "owned", Cmd: CmdUpdateApply, Token: "primary", Args: map[string]any{"version": "v", "sha256": "s", "url": "u"}})
+	raw, _ := json.Marshal(Request{ID: "owned", Cmd: opapi.UpdateApply, Token: "primary", Args: map[string]any{"version": "v", "sha256": "s", "url": "u"}})
 	if _, err := a.Write(append(raw, 10)); err != nil {
 		t.Fatal(err)
 	}
@@ -113,7 +113,7 @@ func TestUpdateNativeTerminalAuditFailureStillFinishesWriteBeforeRestart(t *test
 	}
 }
 func TestUpdateNativeCanceledAndAuditAdmissionBeforeBackend(t *testing.T) {
-	for _, cmd := range []string{CmdUpdateCheck, CmdUpdateApply} {
+	for _, cmd := range []string{opapi.UpdateCheck, opapi.UpdateApply} {
 		for _, gate := range []string{"canceled", "closed-journal"} {
 			t.Run(cmd+"/"+gate, func(t *testing.T) {
 				p := mock.New()
@@ -152,7 +152,7 @@ func TestUpdateNativeCanceledAndAuditAdmissionBeforeBackend(t *testing.T) {
 				}
 				var reply Response
 				json.Unmarshal(line, &reply)
-				admitted := gate == "closed-journal" && cmd == CmdUpdateCheck
+				admitted := gate == "closed-journal" && cmd == opapi.UpdateCheck
 				if admitted {
 					if reply.Type != RespResult || backend.call == nil {
 						t.Fatal("read requires audit", reply)

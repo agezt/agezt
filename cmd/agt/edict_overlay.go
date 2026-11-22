@@ -12,7 +12,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 // cmdEdictCompact implements `agt edict compact [--tenant <id>] [--json]` (M95)
@@ -43,7 +43,7 @@ func cmdEdictCompact(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdEdictCompact, withTenant(tenant, map[string]any{}))
+	res, err := c.Call(ctx, opapi.EdictCompact, withTenant(tenant, map[string]any{}))
 	if err != nil {
 		fmt.Fprintf(stderr, "%s edict compact: %v\n", brand.CLI, err)
 		return 1
@@ -90,7 +90,7 @@ func cmdEdictOverlay(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdEdictOverlay, withTenant(tenant, map[string]any{}))
+	res, err := c.Call(ctx, opapi.EdictOverlay, withTenant(tenant, map[string]any{}))
 	if err != nil {
 		fmt.Fprintf(stderr, "%s edict overlay: %v\n", brand.CLI, err)
 		return 1

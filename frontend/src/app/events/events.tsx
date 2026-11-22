@@ -9,7 +9,7 @@ import {
 } from "react";
 import { eventsURLAsync } from "@/app/api";
 
-export interface AgentEvent {
+export type AgentEvent = {
   id?: string;
   seq?: number;
   ts_unix_ms?: number;
@@ -18,7 +18,7 @@ export interface AgentEvent {
   kind?: string;
   correlation_id?: string;
   payload?: any;
-}
+};
 
 const MAX_FEED = 300;
 

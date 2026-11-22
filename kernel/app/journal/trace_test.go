@@ -92,7 +92,7 @@ func TestTraceOperations(t *testing.T) {
 		t.Fatal(ops, err)
 	}
 	spec := ops[0].Spec()
-	if spec.Name != "why" || !spec.ReadOnly || spec.Authz != opapi.OwnTenant || spec.Tenancy != opapi.CallerTenant || !spec.AllowUnknownInput || spec.HTTP != (opapi.HTTP{}) || spec.Output != reflect.TypeOf(WhyOutput{}) {
+	if spec.Name != "why" || !spec.ReadOnly || spec.Authz != opapi.OwnTenant || spec.Tenancy != opapi.CallerTenant || !spec.AllowUnknownInput || spec.Output != reflect.TypeOf(WhyOutput{}) {
 		t.Fatal(spec)
 	}
 	out := WhyOutput{Events: []*event.Event{{ID: "e1", Kind: event.KindTaskReceived, Payload: json.RawMessage(`{"intent":"x"}`)}}, CausationChain: []*event.Event{}}

@@ -4,6 +4,7 @@ package controlplane
 
 import (
 	"github.com/agezt/agezt/kernel/app/binding"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -14,7 +15,7 @@ import (
 )
 
 func TestSkillAppSocketRequiresAuditBeforeMutations(t *testing.T) {
-	for _, cmd := range []string{CmdSkillPromote, CmdSkillQuarantine, CmdSkillArchive, CmdSkillRevert, CmdSkillRestore, CmdSkillShare, CmdSkillReassign, CmdSkillImport} {
+	for _, cmd := range []string{opapi.SkillPromote, opapi.SkillQuarantine, opapi.SkillArchive, opapi.SkillRevert, opapi.SkillRestore, opapi.SkillShare, opapi.SkillReassign, opapi.SkillImport} {
 		t.Run(cmd, func(t *testing.T) {
 			dir := t.TempDir()
 			k, err := runtime.Open(withRoster(t, withSkill(t, runtime.Config{BaseDir: dir, Provider: mock.New()})))
@@ -42,8 +43,8 @@ func TestSkillAppSocketRequiresAuditBeforeMutations(t *testing.T) {
 				t.Fatal(err)
 			}
 			response := callAppHost(t, server, Request{ID: cmd, Cmd: cmd, Token: "primary", Args: map[string]any{"id": sk.ID, "reason": "owned", "status": "draft", "agent": "reviewer", "name": "new fixture", "body": "new body"}})[0]
-			if cmd == CmdSkillPromote {
-				for _, read := range []string{CmdSkillList, CmdSkillGet, CmdSkillHistory, CmdSkillFiles, CmdSkillReadFile, CmdSkillHygiene} {
+			if cmd == opapi.SkillPromote {
+				for _, read := range []string{opapi.SkillList, opapi.SkillGet, opapi.SkillHistory, opapi.SkillFiles, opapi.SkillReadFile, opapi.SkillHygiene} {
 					r := callAppHost(t, server, Request{ID: read, Cmd: read, Token: "primary", Args: map[string]any{"id": sk.ID, "path": "ref.md"}})[0]
 					if r.Type != RespResult {
 						t.Fatalf("read %s unexpectedly audited: %+v", read, r)
@@ -65,7 +66,7 @@ func TestSkillCommandMetadataComesFromCompleteAppRegistry(t *testing.T) {
 	if len(skillOperations) != 14 {
 		t.Fatalf("skill operations=%d", len(skillOperations))
 	}
-	reads := map[string]bool{CmdSkillList: true, CmdSkillGet: true, CmdSkillHistory: true, CmdSkillFiles: true, CmdSkillReadFile: true, CmdSkillHygiene: true}
+	reads := map[string]bool{opapi.SkillList: true, opapi.SkillGet: true, opapi.SkillHistory: true, opapi.SkillFiles: true, opapi.SkillReadFile: true, opapi.SkillHygiene: true}
 	for _, op := range skillOperations {
 		spec := op.Spec()
 		wire, found := commandRegistry[spec.Name]

@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/internal/paths"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
 )
@@ -150,14 +151,14 @@ func (c *Client) RunStream(ctx context.Context, intent string, onEvent func(*Eve
 			onEvent(e)
 		}
 	}
-	res, err := c.cp.Stream(ctx, controlplane.CmdRun, buildRunArgs(intent, cfg), cb)
+	res, err := c.cp.Stream(ctx, opapi.Run, buildRunArgs(intent, cfg), cb)
 	if err != nil {
 		return nil, err
 	}
 	return parseResult(res), nil
 }
 
-// buildRunArgs renders a run config into the control-plane CmdRun argument map,
+// buildRunArgs renders a run config into the control-plane opapi.Run argument map,
 // byte-for-byte as the `agt run` CLI does (timeout as a Go duration string,
 // tools/images as JSON arrays, max_cost as microcents).
 func buildRunArgs(intent string, cfg runConfig) map[string]any {
@@ -194,7 +195,7 @@ func buildRunArgs(intent string, cfg runConfig) map[string]any {
 	return args
 }
 
-// parseResult maps the CmdRun result object to a Result. JSON numbers decode to
+// parseResult maps the opapi.Run result object to a Result. JSON numbers decode to
 // float64, which intFromAny normalises.
 func parseResult(m map[string]any) *Result {
 	r := &Result{}

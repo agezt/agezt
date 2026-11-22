@@ -52,20 +52,20 @@ const (
 	StreamLive
 )
 
-type HTTP struct {
-	Method string
-	Path   string
-}
-
 // Spec is the single operation definition consumed by transports. Reflection
 // types and derived schemas describe the same Go handler's input and output.
+//
+// The spec carries no HTTP surface: the console's binding of an operation —
+// the path it answers at and the arguments it forwards — lives in the route
+// catalogue (http.go), next to the operation names. A spec that repeated the
+// path would be a second copy of the console's route table, and nothing read
+// it.
 type Spec struct {
 	Name              string
 	Authz             Authz
 	Tenancy           Tenancy
 	Stream            Stream
 	ReadOnly          bool
-	HTTP              HTTP
 	Input             reflect.Type
 	Output            reflect.Type
 	Emission          reflect.Type // stream frames; independent of terminal Output

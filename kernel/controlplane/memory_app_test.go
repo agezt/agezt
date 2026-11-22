@@ -18,8 +18,8 @@ func TestMemoryCommandMetadataComesFromCompleteAppRegistry(t *testing.T) {
 	if len(memoryOperations) != 16 {
 		t.Fatalf("memory operation count=%d", len(memoryOperations))
 	}
-	readOnly := map[string]bool{CmdMemoryGet: true, CmdMemoryList: true, CmdMemorySearch: true, CmdMemoryFindRelated: true, CmdMemoryAudit: true, CmdMemoryLog: true}
-	tenant := map[string]bool{CmdMemoryAudit: true, CmdMemoryClean: true, CmdMemoryLog: true}
+	readOnly := map[string]bool{opapi.MemoryGet: true, opapi.MemoryList: true, opapi.MemorySearch: true, opapi.MemoryFindRelated: true, opapi.MemoryAudit: true, opapi.MemoryLog: true}
+	tenant := map[string]bool{opapi.MemoryAudit: true, opapi.MemoryClean: true, opapi.MemoryLog: true}
 	for _, operation := range memoryOperations {
 		spec := operation.Spec()
 		wire := commandRegistry[spec.Name]
@@ -41,7 +41,7 @@ func TestMemoryNativeMutationSharesOperationCorrelation(t *testing.T) {
 	t.Cleanup(func() { k.Close() })
 	server := NewServer(binding.ScopeFromKernel(k, dir))
 	server.token = "primary"
-	response := callAppHost(t, server, Request{ID: "correlation", Cmd: CmdMemoryAdd, Token: "primary", Args: map[string]any{"content": "owned correlation fixture", "subject": "correlation"}})[0]
+	response := callAppHost(t, server, Request{ID: "correlation", Cmd: opapi.MemoryAdd, Token: "primary", Args: map[string]any{"content": "owned correlation fixture", "subject": "correlation"}})[0]
 	if response.Type != RespResult {
 		t.Fatalf("mutation=%+v", response)
 	}
@@ -70,7 +70,7 @@ func TestMemoryNativeMutationSharesOperationCorrelation(t *testing.T) {
 }
 
 func TestMemoryAppSocketRequiresAuditBeforeMutations(t *testing.T) {
-	for _, command := range []string{CmdMemoryAdd, CmdMemorySupersede, CmdMemoryForget, CmdMemoryPromote, CmdMemoryBulkForget, CmdMemoryPrune, CmdMemoryTidy, CmdMemoryClean, CmdMemoryConsolidate, CmdProfileRebuild} {
+	for _, command := range []string{opapi.MemoryAdd, opapi.MemorySupersede, opapi.MemoryForget, opapi.MemoryPromote, opapi.MemoryBulkForget, opapi.MemoryPrune, opapi.MemoryTidy, opapi.MemoryClean, opapi.MemoryConsolidate, opapi.ProfileRebuild} {
 		t.Run(command, func(t *testing.T) {
 			dir := t.TempDir()
 			k, err := runtime.Open(withMemory(t, runtime.Config{BaseDir: dir, Provider: mock.New()}))

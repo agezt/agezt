@@ -4,6 +4,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
 	"net"
@@ -55,26 +56,26 @@ func marketCLIEndpoint(t *testing.T) <-chan controlplane.Request {
 				requests <- req
 				result := map[string]any{}
 				switch req.Cmd {
-				case controlplane.CmdMarketList:
+				case opapi.MarketList:
 					result = map[string]any{"packs": []any{map[string]any{"name": "owned", "category": "owned-category", "description": "owned description", "installed": true}}, "count": 1}
-				case controlplane.CmdMarketShow:
+				case opapi.MarketShow:
 					result = map[string]any{"pack": map[string]any{"name": "owned", "version": "1.0.0", "category": "owned-category"}, "skill_count": 1, "mcp_count": 0, "tool_count": 1, "installed": false, "vet": map[string]any{"verdict": "clean"}}
-				case controlplane.CmdMarketInstall:
+				case opapi.MarketInstall:
 					json.NewEncoder(conn).Encode(controlplane.Response{ID: req.ID, Type: controlplane.RespEvent, Event: &event.Event{Kind: event.KindMarketInstallProgress, Subject: "market.install", Actor: "market", Payload: json.RawMessage(`{"stage":"owned","ok":true}`)}})
 					result = map[string]any{"name": "owned", "version": "1.0.0", "skill_ids": []any{"skill"}, "mcp_servers": []any{}, "tool_reqs": []any{"owned-tool"}, "unsigned": true}
-				case controlplane.CmdMarketUninstall:
+				case opapi.MarketUninstall:
 					json.NewEncoder(conn).Encode(controlplane.Response{ID: req.ID, Type: controlplane.RespEvent, Event: &event.Event{Kind: event.KindMarketUninstallProgress, Subject: "market.uninstall", Actor: "market", Payload: json.RawMessage(`{"stage":"owned","ok":true}`)}})
 					result = map[string]any{"uninstalled": "owned"}
-				case controlplane.CmdMarketSources:
+				case opapi.MarketSources:
 					result = map[string]any{"sources": []any{map[string]any{"name": "owned", "url": "http://owned/index.json", "pubkey": "owned-public-key"}}, "count": 1}
-				case controlplane.CmdMarketAddSource:
+				case opapi.MarketAddSource:
 					result = map[string]any{"name": "reported", "url": "http://owned/index.json"}
-				case controlplane.CmdMarketRemoveSource:
+				case opapi.MarketRemoveSource:
 					result = map[string]any{"name": req.Args["name"], "removed": req.Args["name"] != "missing"}
-				case controlplane.CmdMarketSync:
+				case opapi.MarketSync:
 					result = map[string]any{"results": []any{map[string]any{"source": "owned", "packs": 2}}, "synced": 1, "packs": 2, "partial_error": "owned partial error"}
 				}
-				if req.Args["name"] == "fail" && (req.Cmd == controlplane.CmdMarketInstall || req.Cmd == controlplane.CmdMarketUninstall) {
+				if req.Args["name"] == "fail" && (req.Cmd == opapi.MarketInstall || req.Cmd == opapi.MarketUninstall) {
 					json.NewEncoder(conn).Encode(controlplane.Response{ID: req.ID, Type: controlplane.RespError, Error: "owned terminal failure after progress"})
 				} else {
 					json.NewEncoder(conn).Encode(controlplane.Response{ID: req.ID, Type: controlplane.RespResult, Result: result})
@@ -94,22 +95,22 @@ func TestCmdMarketNativeRequestsAndStreamingResults(t *testing.T) {
 		wire     map[string]any
 		contains string
 	}{
-		{[]string{"list"}, controlplane.CmdMarketList, map[string]any{"query": ""}, "1 pack(s)"},
-		{[]string{"ls", "--json"}, controlplane.CmdMarketList, map[string]any{"query": ""}, `"count": 1`},
-		{[]string{"search", " raw query "}, controlplane.CmdMarketList, map[string]any{"query": " raw query "}, "owned description"},
-		{[]string{"show", " owned ", "--marketplace", " raw-market "}, controlplane.CmdMarketShow, map[string]any{"name": " owned ", "marketplace": " raw-market "}, "security review: clean"},
-		{[]string{"get", "owned", "--json"}, controlplane.CmdMarketShow, map[string]any{"name": "owned", "marketplace": ""}, `"skill_count": 1`},
-		{[]string{"install", " owned ", "--marketplace", " raw-market ", "--version", " raw-version "}, controlplane.CmdMarketInstall, map[string]any{"name": " owned ", "marketplace": " raw-market ", "version": " raw-version "}, "owned-tool"},
-		{[]string{"install", "owned", "--json"}, controlplane.CmdMarketInstall, map[string]any{"name": "owned", "marketplace": "", "version": ""}, `"unsigned": true`},
-		{[]string{"uninstall", " owned "}, controlplane.CmdMarketUninstall, map[string]any{"name": " owned "}, "uninstalled  owned "},
-		{[]string{"uninstall", "owned", "--json"}, controlplane.CmdMarketUninstall, map[string]any{"name": "owned"}, `"uninstalled": "owned"`},
-		{[]string{"sources"}, controlplane.CmdMarketSources, nil, "signed-key pinned"},
-		{[]string{"sources", "--json"}, controlplane.CmdMarketSources, nil, `"count": 1`},
-		{[]string{"add", " http://owned/index.json ", "--name", " raw-name ", "--pubkey", " raw-key "}, controlplane.CmdMarketAddSource, map[string]any{"url": " http://owned/index.json ", "name": " raw-name ", "pubkey": " raw-key "}, "reported"},
-		{[]string{"remove", " owned "}, controlplane.CmdMarketRemoveSource, map[string]any{"name": " owned "}, "removed source"},
-		{[]string{"rm", "missing"}, controlplane.CmdMarketRemoveSource, map[string]any{"name": "missing"}, "no source named"},
-		{[]string{"sync"}, controlplane.CmdMarketSync, map[string]any{"name": ""}, "warning: some sources failed: owned partial error"},
-		{[]string{"sync", " raw-source ", "--json"}, controlplane.CmdMarketSync, map[string]any{"name": " raw-source "}, `"synced": 1`},
+		{[]string{"list"}, opapi.MarketList, map[string]any{"query": ""}, "1 pack(s)"},
+		{[]string{"ls", "--json"}, opapi.MarketList, map[string]any{"query": ""}, `"count": 1`},
+		{[]string{"search", " raw query "}, opapi.MarketList, map[string]any{"query": " raw query "}, "owned description"},
+		{[]string{"show", " owned ", "--marketplace", " raw-market "}, opapi.MarketShow, map[string]any{"name": " owned ", "marketplace": " raw-market "}, "security review: clean"},
+		{[]string{"get", "owned", "--json"}, opapi.MarketShow, map[string]any{"name": "owned", "marketplace": ""}, `"skill_count": 1`},
+		{[]string{"install", " owned ", "--marketplace", " raw-market ", "--version", " raw-version "}, opapi.MarketInstall, map[string]any{"name": " owned ", "marketplace": " raw-market ", "version": " raw-version "}, "owned-tool"},
+		{[]string{"install", "owned", "--json"}, opapi.MarketInstall, map[string]any{"name": "owned", "marketplace": "", "version": ""}, `"unsigned": true`},
+		{[]string{"uninstall", " owned "}, opapi.MarketUninstall, map[string]any{"name": " owned "}, "uninstalled  owned "},
+		{[]string{"uninstall", "owned", "--json"}, opapi.MarketUninstall, map[string]any{"name": "owned"}, `"uninstalled": "owned"`},
+		{[]string{"sources"}, opapi.MarketSources, nil, "signed-key pinned"},
+		{[]string{"sources", "--json"}, opapi.MarketSources, nil, `"count": 1`},
+		{[]string{"add", " http://owned/index.json ", "--name", " raw-name ", "--pubkey", " raw-key "}, opapi.MarketAddSource, map[string]any{"url": " http://owned/index.json ", "name": " raw-name ", "pubkey": " raw-key "}, "reported"},
+		{[]string{"remove", " owned "}, opapi.MarketRemoveSource, map[string]any{"name": " owned "}, "removed source"},
+		{[]string{"rm", "missing"}, opapi.MarketRemoveSource, map[string]any{"name": "missing"}, "no source named"},
+		{[]string{"sync"}, opapi.MarketSync, map[string]any{"name": ""}, "warning: some sources failed: owned partial error"},
+		{[]string{"sync", " raw-source ", "--json"}, opapi.MarketSync, map[string]any{"name": " raw-source "}, `"synced": 1`},
 	}
 	for _, tc := range cases {
 		var out, errOut bytes.Buffer
@@ -117,7 +118,7 @@ func TestCmdMarketNativeRequestsAndStreamingResults(t *testing.T) {
 		if code != 0 || !strings.Contains(out.String()+errOut.String(), tc.contains) {
 			t.Fatal(tc.args, code, out.String(), errOut.String())
 		}
-		for _, expected := range []string{controlplane.CmdStatus, tc.cmd} {
+		for _, expected := range []string{opapi.Status, tc.cmd} {
 			select {
 			case req := <-requests:
 				if req.Cmd != expected || req.Token != "owned-token" || expected == tc.cmd && !reflect.DeepEqual(req.Args, tc.wire) {

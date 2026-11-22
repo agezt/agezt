@@ -8,7 +8,7 @@ import (
 )
 
 func TestOKRNativeExitCompleteTypedRegistry(t *testing.T) {
-	want := map[string]bool{CmdOKRList: true, CmdOKRShow: true, CmdOKRCreate: false, CmdOKRKeyResult: false, CmdOKRLink: false, CmdOKRUnlink: false, CmdOKRArchive: false}
+	want := map[string]bool{opapi.OKRList: true, opapi.OKRShow: true, opapi.OKRCreate: false, opapi.OKRKeyResult: false, opapi.OKRLink: false, opapi.OKRUnlink: false, opapi.OKRArchive: false}
 	seen := map[string]bool{}
 	for _, operation := range registeredAppOperations() {
 		spec := operation.Spec()

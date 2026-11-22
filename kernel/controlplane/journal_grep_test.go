@@ -6,6 +6,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -45,7 +46,7 @@ func publishGrepFixture(t *testing.T) (*controlplane.Client, func()) {
 func TestJournalGrep_KindFilter(t *testing.T) {
 	c, cleanup := publishGrepFixture(t)
 	defer cleanup()
-	res, err := c.Call(context.Background(), controlplane.CmdJournalGrep, map[string]any{
+	res, err := c.Call(context.Background(), opapi.JournalGrep, map[string]any{
 		"kind": "task.completed",
 	})
 	if err != nil {
@@ -67,7 +68,7 @@ func TestJournalGrep_KindFilter(t *testing.T) {
 func TestJournalGrep_CorrelationFilter(t *testing.T) {
 	c, cleanup := publishGrepFixture(t)
 	defer cleanup()
-	res, err := c.Call(context.Background(), controlplane.CmdJournalGrep, map[string]any{
+	res, err := c.Call(context.Background(), opapi.JournalGrep, map[string]any{
 		"correlation_id": "run-A",
 	})
 	if err != nil {
@@ -85,7 +86,7 @@ func TestJournalGrep_CorrelationFilter(t *testing.T) {
 func TestJournalGrep_PatternHitsPayload(t *testing.T) {
 	c, cleanup := publishGrepFixture(t)
 	defer cleanup()
-	res, err := c.Call(context.Background(), controlplane.CmdJournalGrep, map[string]any{
+	res, err := c.Call(context.Background(), opapi.JournalGrep, map[string]any{
 		"pattern": "rm -rf",
 	})
 	if err != nil {
@@ -102,11 +103,11 @@ func TestJournalGrep_PatternHitsPayload(t *testing.T) {
 func TestJournalGrep_PatternIsCaseInsensitive(t *testing.T) {
 	c, cleanup := publishGrepFixture(t)
 	defer cleanup()
-	lower, err := c.Call(context.Background(), controlplane.CmdJournalGrep, map[string]any{"pattern": "task.completed"})
+	lower, err := c.Call(context.Background(), opapi.JournalGrep, map[string]any{"pattern": "task.completed"})
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
-	upper, err := c.Call(context.Background(), controlplane.CmdJournalGrep, map[string]any{"pattern": "TASK.COMPLETED"})
+	upper, err := c.Call(context.Background(), opapi.JournalGrep, map[string]any{"pattern": "TASK.COMPLETED"})
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -120,7 +121,7 @@ func TestJournalGrep_PatternIsCaseInsensitive(t *testing.T) {
 func TestJournalGrep_FiltersAndTogether(t *testing.T) {
 	c, cleanup := publishGrepFixture(t)
 	defer cleanup()
-	res, err := c.Call(context.Background(), controlplane.CmdJournalGrep, map[string]any{
+	res, err := c.Call(context.Background(), opapi.JournalGrep, map[string]any{
 		"kind":           "tool.invoked",
 		"correlation_id": "run-A",
 	})
@@ -137,7 +138,7 @@ func TestJournalGrep_FiltersAndTogether(t *testing.T) {
 func TestJournalGrep_LimitClampsResults(t *testing.T) {
 	c, cleanup := publishGrepFixture(t)
 	defer cleanup()
-	res, err := c.Call(context.Background(), controlplane.CmdJournalGrep, map[string]any{
+	res, err := c.Call(context.Background(), opapi.JournalGrep, map[string]any{
 		"pattern": "task",
 		"limit":   float64(2),
 	})
@@ -150,11 +151,11 @@ func TestJournalGrep_LimitClampsResults(t *testing.T) {
 }
 
 // TestJournalGrep_HeadIsReported — clients need head for "we
-// looked at seq=0..head" rendering, matching CmdJournalTail.
+// looked at seq=0..head" rendering, matching opapi.JournalTail.
 func TestJournalGrep_HeadIsReported(t *testing.T) {
 	c, cleanup := publishGrepFixture(t)
 	defer cleanup()
-	res, err := c.Call(context.Background(), controlplane.CmdJournalGrep, map[string]any{
+	res, err := c.Call(context.Background(), opapi.JournalGrep, map[string]any{
 		"pattern": "task",
 	})
 	if err != nil {

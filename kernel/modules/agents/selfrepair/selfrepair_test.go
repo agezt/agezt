@@ -12,6 +12,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/modules/agents/api"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/board/board"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
@@ -43,7 +44,7 @@ func TestAutoRepairCoordinatorClaim_EligibleOnly(t *testing.T) {
 			{Slug: "manual", Issues: []string{"AGEZT_MAX_ITER: must be integer"}},
 		},
 	}
-	got := coord.claim(nil, rep, []roster.Profile{
+	got := coord.claim(Ports{}, rep, []roster.Profile{
 		{Slug: "builder", Enabled: true, SelfRepairPolicy: &roster.SelfRepairPolicy{Enabled: true}},
 		{Slug: "guardian", Enabled: true, System: true, SelfRepairPolicy: &roster.SelfRepairPolicy{Enabled: true}},
 		{Slug: "paused", Enabled: false, SelfRepairPolicy: &roster.SelfRepairPolicy{Enabled: true}},
@@ -67,19 +68,19 @@ func TestAutoRepairCoordinatorClaim_DedupesByFingerprintCooldown(t *testing.T) {
 		}
 	}
 
-	if got := coord.claim(nil, report("AGEZT_MAX_ITER: must be integer"), profiles); len(got) != 1 {
+	if got := coord.claim(Ports{}, report("AGEZT_MAX_ITER: must be integer"), profiles); len(got) != 1 {
 		t.Fatalf("first claim = %+v, want 1 candidate", got)
 	}
 	coord.release("builder")
-	if got := coord.claim(nil, report("AGEZT_MAX_ITER: must be integer"), profiles); len(got) != 0 {
+	if got := coord.claim(Ports{}, report("AGEZT_MAX_ITER: must be integer"), profiles); len(got) != 0 {
 		t.Fatalf("duplicate claim inside cooldown = %+v, want none", got)
 	}
-	if got := coord.claim(nil, report("AGEZT_MODEL: must be non-empty"), profiles); len(got) != 1 {
+	if got := coord.claim(Ports{}, report("AGEZT_MODEL: must be non-empty"), profiles); len(got) != 1 {
 		t.Fatalf("changed fingerprint should bypass cooldown, got %+v", got)
 	}
 	coord.release("builder")
 	now = now.Add(2 * time.Hour)
-	if got := coord.claim(nil, report("AGEZT_MODEL: must be non-empty"), profiles); len(got) != 1 {
+	if got := coord.claim(Ports{}, report("AGEZT_MODEL: must be non-empty"), profiles); len(got) != 1 {
 		t.Fatalf("post-cooldown claim = %+v, want 1 candidate", got)
 	}
 }
@@ -98,7 +99,7 @@ func TestAutoRepairCoordinatorClaim_ExhaustsAfterProfileMaxAttempts(t *testing.T
 		"reason":      "old repair attempt",
 	})
 
-	got := coord.claim(k, kernelruntime.ReaperReport{
+	got := coord.claim(autoRepairPorts(k), kernelruntime.ReaperReport{
 		MisconfiguredAgents: []kernelruntime.MisconfiguredAgent{{
 			Slug:   "builder",
 			Issues: []string{"AGEZT_MAX_ITER: must be integer"},
@@ -137,7 +138,7 @@ func TestAutoRepairDispatch_PanicIsContainedAndNextRepairStillLands(t *testing.T
 		}
 	}
 
-	first := coord.claim(k, report("AGEZT_MAX_ITER: must be integer"), profiles)
+	first := coord.claim(autoRepairPorts(k), report("AGEZT_MAX_ITER: must be integer"), profiles)
 	if len(first) != 1 {
 		t.Fatalf("first claim = %+v, want 1 candidate", first)
 	}
@@ -145,7 +146,7 @@ func TestAutoRepairDispatch_PanicIsContainedAndNextRepairStillLands(t *testing.T
 		t.Fatal("claim did not mark builder in-flight; the release assertion below would be vacuous")
 	}
 
-	coord.dispatch(context.Background(), k, k.Bus(), src, box, nil, first[0])
+	coord.dispatch(context.Background(), autoRepairPorts(k), src, box, nil, first[0])
 
 	if src.calls != 1 {
 		t.Fatalf("RepairAgent calls = %d, want 1 (the panicking attempt)", src.calls)
@@ -155,11 +156,11 @@ func TestAutoRepairDispatch_PanicIsContainedAndNextRepairStillLands(t *testing.T
 	}
 
 	// Different fingerprint so the cooldown does not legitimately dedupe it.
-	second := coord.claim(k, report("AGEZT_MODEL: must be non-empty"), profiles)
+	second := coord.claim(autoRepairPorts(k), report("AGEZT_MODEL: must be non-empty"), profiles)
 	if len(second) != 1 {
 		t.Fatalf("claim after contained panic = %+v, want 1 candidate", second)
 	}
-	coord.dispatch(context.Background(), k, k.Bus(), src, box, nil, second[0])
+	coord.dispatch(context.Background(), autoRepairPorts(k), src, box, nil, second[0])
 	if src.calls != 2 {
 		t.Fatalf("RepairAgent calls = %d, want 2 — the repair after a contained panic must still run", src.calls)
 	}
@@ -171,12 +172,15 @@ func TestAutoRepairDispatch_PanicIsContainedAndNextRepairStillLands(t *testing.T
 // healer on one bad event would be a silent, permanent degradation.
 func TestAutoRepairHandleTick_PanicIsContained(t *testing.T) {
 	coord := newAutoRepairCoordinator(time.Hour)
-	// A nil kernel panics inside ReaperScan, before anything is claimed.
-	coord.handleTick(context.Background(), nil, &countingAutoRepairSource{}, &fakeAutoRepairMailbox{}, nil)
+	// A panic inside the scan — the module's own door — must be contained
+	// too, and it must happen BEFORE anything is claimed.
+	coord.handleTick(context.Background(), Ports{Scan: func(int64, int64) api.ReaperReport {
+		panic("reaper scan exploded")
+	}}, &countingAutoRepairSource{}, &fakeAutoRepairMailbox{}, nil)
 
 	// Still armed: a healthy tick after the bad one is processed normally.
 	k := newAutoRepairKernel(t, mock.New(mock.FinalText("ok")))
-	coord.handleTick(context.Background(), k, &countingAutoRepairSource{}, &fakeAutoRepairMailbox{}, nil)
+	coord.handleTick(context.Background(), autoRepairPorts(k), &countingAutoRepairSource{}, &fakeAutoRepairMailbox{}, nil)
 }
 
 func TestAutoRepairDispatch_ExhaustedAttemptsEscalatesWithoutRepairRun(t *testing.T) {
@@ -198,7 +202,7 @@ func TestAutoRepairDispatch_ExhaustedAttemptsEscalatesWithoutRepairRun(t *testin
 		RootChainID:           "inc-1",
 	}
 
-	coord.dispatch(context.Background(), k, k.Bus(), src, box, nil, cand)
+	coord.dispatch(context.Background(), autoRepairPorts(k), src, box, nil, cand)
 
 	if src.calls != 0 {
 		t.Fatalf("RepairAgent calls = %d, want 0 after exhausted attempts", src.calls)
@@ -213,7 +217,7 @@ func TestAutoRepairDispatch_ExhaustedAttemptsEscalatesWithoutRepairRun(t *testin
 
 func TestAutoRepairCoordinatorClaim_DegradedEligible(t *testing.T) {
 	coord := newAutoRepairCoordinator(time.Hour)
-	got := coord.claim(nil, kernelruntime.ReaperReport{
+	got := coord.claim(Ports{}, kernelruntime.ReaperReport{
 		DegradedAgents: []kernelruntime.DegradedAgent{
 			{Slug: "builder", Failures: 3, Window: 5, Threshold: 3, LastReason: "provider timeout"},
 			{Slug: "guardian", Failures: 2, Window: 3, Threshold: 2, LastReason: "boom"},
@@ -232,7 +236,7 @@ func TestAutoRepairCoordinatorClaim_DegradedEligible(t *testing.T) {
 
 func TestAutoRepairCoordinatorClaim_RoutingEligible(t *testing.T) {
 	coord := newAutoRepairCoordinator(time.Hour)
-	got := coord.claim(nil, kernelruntime.ReaperReport{
+	got := coord.claim(Ports{}, kernelruntime.ReaperReport{
 		RoutingPressure: []kernelruntime.RoutingPressureAgent{
 			{Slug: "builder", Count: 3, Threshold: 3, WindowSec: 3600, LastFailedModel: "gpt-5", LastNextModel: "gpt-4.1", LastReason: "provider timeout"},
 			{Slug: "guardian", Count: 3, Threshold: 3, WindowSec: 3600, LastFailedModel: "gpt-5", LastNextModel: "gpt-4.1", LastReason: "provider timeout"},
@@ -248,7 +252,7 @@ func TestAutoRepairCoordinatorClaim_RoutingEligible(t *testing.T) {
 
 func TestAutoRepairCoordinatorClaim_RetryPressureEligible(t *testing.T) {
 	coord := newAutoRepairCoordinator(time.Hour)
-	got := coord.claim(nil, kernelruntime.ReaperReport{
+	got := coord.claim(Ports{}, kernelruntime.ReaperReport{
 		RetryPressure: []kernelruntime.RetryPressureAgent{
 			{Slug: "builder", Count: 3, Threshold: 3, WindowSec: 3600, LastReason: "timeout", NextAttempt: 2, MaxAttempts: 3},
 			{Slug: "guardian", Count: 3, Threshold: 3, WindowSec: 3600, LastReason: "timeout"},
@@ -267,7 +271,7 @@ func TestAutoRepairCoordinatorClaim_RetryPressureEligible(t *testing.T) {
 
 func TestAutoRepairCoordinatorClaim_MisconfiguredBeatsDegradedSameAgent(t *testing.T) {
 	coord := newAutoRepairCoordinator(time.Hour)
-	got := coord.claim(nil, kernelruntime.ReaperReport{
+	got := coord.claim(Ports{}, kernelruntime.ReaperReport{
 		MisconfiguredAgents: []kernelruntime.MisconfiguredAgent{
 			{Slug: "builder", Issues: []string{"AGEZT_MAX_ITER: must be integer"}},
 		},
@@ -284,7 +288,7 @@ func TestAutoRepairCoordinatorClaim_MisconfiguredBeatsDegradedSameAgent(t *testi
 
 func TestAutoRepairCoordinatorClaim_RoutingBeatsDegradedSameAgent(t *testing.T) {
 	coord := newAutoRepairCoordinator(time.Hour)
-	got := coord.claim(nil, kernelruntime.ReaperReport{
+	got := coord.claim(Ports{}, kernelruntime.ReaperReport{
 		RoutingPressure: []kernelruntime.RoutingPressureAgent{
 			{Slug: "builder", Count: 3, Threshold: 3, WindowSec: 3600, LastFailedModel: "gpt-5", LastNextModel: "gpt-4.1", LastReason: "provider timeout"},
 		},
@@ -315,7 +319,7 @@ func TestAutoRepairCoordinatorClaim_RoutingRecurrenceQueuesRollback(t *testing.T
 		"routing_task_model_chain":          []string{"gpt-4.1", "deepseek-chat"},
 		"previous_routing_task_model_chain": []string{"gpt-5", "gpt-4.1"},
 	})
-	got := coord.claim(k, kernelruntime.ReaperReport{
+	got := coord.claim(autoRepairPorts(k), kernelruntime.ReaperReport{
 		RoutingPressure: []kernelruntime.RoutingPressureAgent{
 			{Slug: "builder", Count: 3, Threshold: 3, WindowSec: 3600, TaskType: "code", LastFailedModel: "gpt-4.1", LastNextModel: "deepseek-chat", LastReason: "provider timeout"},
 		},
@@ -341,7 +345,7 @@ func TestAutoRepairCoordinatorClaim_RoutingRecurrenceQueuesRollback(t *testing.T
 
 func TestAutoRepairCoordinatorClaim_RoutingUnstableBeatsRoutingRepair(t *testing.T) {
 	coord := newAutoRepairCoordinator(time.Hour)
-	got := coord.claim(nil, kernelruntime.ReaperReport{
+	got := coord.claim(Ports{}, kernelruntime.ReaperReport{
 		RoutingUnstable: []kernelruntime.RoutingUnstableAgent{
 			{Slug: "builder", Count: 1, Threshold: 1, WindowSec: 3600, TaskType: "code", CurrentChain: []string{"gpt-5", "gpt-4.1"}, PreviousChain: []string{"gpt-4.1", "deepseek-chat"}, LastReason: "provider timeout"},
 		},
@@ -358,7 +362,7 @@ func TestAutoRepairCoordinatorClaim_RoutingUnstableBeatsRoutingRepair(t *testing
 
 func TestAutoRepairCoordinatorClaim_RoutingForcedFailedBeatsRoutingRepair(t *testing.T) {
 	coord := newAutoRepairCoordinator(time.Hour)
-	got := coord.claim(nil, kernelruntime.ReaperReport{
+	got := coord.claim(Ports{}, kernelruntime.ReaperReport{
 		RoutingForcedFailed: []kernelruntime.RoutingForcedFailedAgent{
 			{
 				Slug:           "builder",
@@ -396,7 +400,7 @@ func TestAutoRepairCoordinatorClaim_RoutingForcedFailedBeatsRoutingRepair(t *tes
 
 func TestAutoRepairCoordinatorClaim_RoutingForcedExhaustedBeatsForcedFailedAndRoutingRepair(t *testing.T) {
 	coord := newAutoRepairCoordinator(time.Hour)
-	got := coord.claim(nil, kernelruntime.ReaperReport{
+	got := coord.claim(Ports{}, kernelruntime.ReaperReport{
 		RoutingForcedExhausted: []kernelruntime.RoutingForcedExhaustedAgent{
 			{
 				Slug:            "builder",
@@ -461,7 +465,7 @@ func TestAutoRepairDispatch_FailedRepairPostsHelpToManager(t *testing.T) {
 	box := &fakeAutoRepairMailbox{}
 	var notified []board.Message
 
-	coord.dispatch(context.Background(), nil, nil, src, box, func(m board.Message, _ string) { notified = append(notified, m) }, autoRepairCandidate{
+	coord.dispatch(context.Background(), Ports{}, src, box, func(m board.Message, _ string) { notified = append(notified, m) }, autoRepairCandidate{
 		Slug:         "builder",
 		Mode:         "degraded",
 		Fingerprint:  "fp-1",
@@ -507,7 +511,7 @@ func TestAutoRepairDispatch_RoutingRollbackPublishesRollbackCompletion(t *testin
 			Answer:                        "rolled back code chain",
 		},
 	}
-	coord.dispatch(context.Background(), k, k.Bus(), src, nil, nil, autoRepairCandidate{
+	coord.dispatch(context.Background(), autoRepairPorts(k), src, nil, nil, autoRepairCandidate{
 		Slug:                     "builder",
 		Mode:                     "routing",
 		Fingerprint:              "routing-fp-1",
@@ -713,7 +717,7 @@ func TestApplyAutoRepairResolution_PausesAgent(t *testing.T) {
 		t.Fatalf("add profile: %v", err)
 	}
 	coord := newAutoRepairCoordinator(time.Hour)
-	outcome, err := coord.applyAutoRepairResolution(context.Background(), k, nil, nil, nil, autoRepairCandidate{Slug: "builder"}, autoRepairWakeResult{
+	outcome, err := coord.applyAutoRepairResolution(context.Background(), autoRepairPorts(k), nil, nil, nil, autoRepairCandidate{Slug: "builder"}, autoRepairWakeResult{
 		Target:     "lead",
 		Resolution: &autoRepairResolution{Resolution: "paused", Summary: "stop it for now"},
 	})
@@ -735,7 +739,7 @@ func TestApplyAutoRepairResolution_RetiresAgent(t *testing.T) {
 		t.Fatalf("add profile: %v", err)
 	}
 	coord := newAutoRepairCoordinator(time.Hour)
-	outcome, err := coord.applyAutoRepairResolution(context.Background(), k, nil, nil, nil, autoRepairCandidate{Slug: "builder"}, autoRepairWakeResult{
+	outcome, err := coord.applyAutoRepairResolution(context.Background(), autoRepairPorts(k), nil, nil, nil, autoRepairCandidate{Slug: "builder"}, autoRepairWakeResult{
 		Target:     "lead",
 		Resolution: &autoRepairResolution{Resolution: "retired", Summary: "mission finished"},
 	})
@@ -763,7 +767,7 @@ func TestApplyAutoRepairResolution_DelegatesViaMailbox(t *testing.T) {
 	coord.now = func() time.Time { return time.Unix(1_700_000_000, 0) }
 	box := &fakeAutoRepairMailbox{}
 	var notified []board.Message
-	outcome, err := coord.applyAutoRepairResolution(context.Background(), k, nil, box, func(m board.Message, _ string) { notified = append(notified, m) }, autoRepairCandidate{
+	outcome, err := coord.applyAutoRepairResolution(context.Background(), autoRepairPorts(k), nil, box, func(m board.Message, _ string) { notified = append(notified, m) }, autoRepairCandidate{
 		Slug:   "builder",
 		Mode:   "degraded",
 		Reason: "repeated provider failure",
@@ -823,7 +827,7 @@ func TestApplyAutoRepairResolution_ForcesRoutingChain(t *testing.T) {
 			PreviousRoutingTaskModelChain: []string{"gpt-4.1", "deepseek-chat"},
 		},
 	}
-	outcome, err := coord.applyAutoRepairResolution(context.Background(), nil, src, nil, nil, autoRepairCandidate{Slug: "builder"}, autoRepairWakeResult{
+	outcome, err := coord.applyAutoRepairResolution(context.Background(), Ports{}, src, nil, nil, autoRepairCandidate{Slug: "builder"}, autoRepairWakeResult{
 		Target: "lead",
 		Resolution: &autoRepairResolution{
 			Resolution:     "force_chain",
@@ -863,7 +867,7 @@ func TestApplyAutoRepairResolution_ForceChainIncrementsGeneration(t *testing.T) 
 			PreviousRoutingTaskModelChain: []string{"gpt-4.1", "deepseek-chat"},
 		},
 	}
-	outcome, err := coord.applyAutoRepairResolution(context.Background(), k, src, nil, nil, autoRepairCandidate{Slug: "builder"}, autoRepairWakeResult{
+	outcome, err := coord.applyAutoRepairResolution(context.Background(), autoRepairPorts(k), src, nil, nil, autoRepairCandidate{Slug: "builder"}, autoRepairWakeResult{
 		Target: "lead",
 		Resolution: &autoRepairResolution{
 			Resolution:     "force_chain",
@@ -890,7 +894,7 @@ func TestApplyAutoRepairResolution_ExhaustedRoutingRejectsHandledAndBlocked(t *t
 	}
 	for _, resolution := range []string{"handled", "blocked"} {
 		t.Run(resolution, func(t *testing.T) {
-			outcome, err := coord.applyAutoRepairResolution(context.Background(), nil, nil, nil, nil, cand, autoRepairWakeResult{
+			outcome, err := coord.applyAutoRepairResolution(context.Background(), Ports{}, nil, nil, nil, cand, autoRepairWakeResult{
 				Target:     "lead",
 				Resolution: &autoRepairResolution{Resolution: resolution, Summary: "ignore it"},
 			})
@@ -907,7 +911,7 @@ func TestApplyAutoRepairResolution_ExhaustedRoutingRejectsHandledAndBlocked(t *t
 func TestApplyAutoRepairResolution_ExhaustedRoutingRejectsSameForcedChain(t *testing.T) {
 	coord := newAutoRepairCoordinator(time.Hour)
 	src := &fakeAutoRepairSource{}
-	outcome, err := coord.applyAutoRepairResolution(context.Background(), nil, src, nil, nil, autoRepairCandidate{
+	outcome, err := coord.applyAutoRepairResolution(context.Background(), Ports{}, src, nil, nil, autoRepairCandidate{
 		Slug:                    "builder",
 		Mode:                    "routing_forced_exhausted",
 		RoutingRollbackTaskType: "code",
@@ -944,7 +948,7 @@ func TestApplyAutoRepairResolution_DelegationCarriesIncidentTreeIDs(t *testing.T
 	coord.now = func() time.Time { return time.Unix(1_700_000_000, 0) }
 	box := &fakeAutoRepairMailbox{}
 	rootIncident := autoRepairIncidentID("builder", "fp-1", coord.now())
-	outcome, err := coord.applyAutoRepairResolution(context.Background(), k, nil, box, nil, autoRepairCandidate{
+	outcome, err := coord.applyAutoRepairResolution(context.Background(), autoRepairPorts(k), nil, box, nil, autoRepairCandidate{
 		Slug:        "builder",
 		Mode:        "degraded",
 		Reason:      "repeated provider failure",
@@ -1006,7 +1010,7 @@ func TestApplyAutoRepairResolution_DelegationFailureIsJournaled(t *testing.T) {
 	coord := newAutoRepairCoordinator(time.Hour)
 	coord.now = func() time.Time { return time.Unix(1_700_000_000, 0) }
 	box := &fakeAutoRepairMailbox{}
-	outcome, err := coord.applyAutoRepairResolution(context.Background(), k, nil, box, nil, autoRepairCandidate{
+	outcome, err := coord.applyAutoRepairResolution(context.Background(), autoRepairPorts(k), nil, box, nil, autoRepairCandidate{
 		Slug:   "builder",
 		Mode:   "degraded",
 		Reason: "repeated provider failure",

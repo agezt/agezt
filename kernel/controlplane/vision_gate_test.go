@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/contract/llm"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -20,7 +20,7 @@ import (
 func TestRun_VisionGate_RejectsImageOnNonVisionModel(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("hi")))
 
-	_, err := c.Stream(context.Background(), controlplane.CmdRun,
+	_, err := c.Stream(context.Background(), opapi.Run,
 		map[string]any{"intent": "describe this", "images": []any{"photo.png"}},
 		func(e *event.Event) {})
 	if err == nil {
@@ -75,7 +75,7 @@ func TestRun_VisionGate_CaptionsForRequestedTextModel(t *testing.T) {
 	_, _, c, _ := startPairWithConfig(t, runtime.Config{
 		Provider: prov, Model: "default-text", VisionModel: func() (string, bool) { return "vision", true },
 	})
-	res, err := c.Stream(context.Background(), controlplane.CmdRun,
+	res, err := c.Stream(context.Background(), opapi.Run,
 		map[string]any{"intent": "describe", "model": "requested-text", "images": []any{"photo"}}, func(*event.Event) {})
 	if err != nil || res["answer"] != "handled" {
 		t.Fatalf("response=%v error=%v", res, err)
@@ -88,7 +88,7 @@ func TestRun_VisionGate_CaptionsForRequestedTextModel(t *testing.T) {
 // TestRun_NoImage_Unaffected — an ordinary run (no images) is not gated (M91).
 func TestRun_NoImage_Unaffected(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
-	res, err := c.Stream(context.Background(), controlplane.CmdRun,
+	res, err := c.Stream(context.Background(), opapi.Run,
 		map[string]any{"intent": "hello"}, func(e *event.Event) {})
 	if err != nil {
 		t.Fatalf("plain run errored: %v", err)

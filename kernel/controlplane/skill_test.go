@@ -6,7 +6,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -24,7 +24,7 @@ func TestSkillLifecycleOverControlPlane(t *testing.T) {
 	}
 
 	// List shows it (1 skill, 0 active).
-	res, err := c.Call(ctx, controlplane.CmdSkillList, nil)
+	res, err := c.Call(ctx, opapi.SkillList, nil)
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -36,17 +36,17 @@ func TestSkillLifecycleOverControlPlane(t *testing.T) {
 	}
 
 	// Promote draft→shadow→active.
-	res, err = c.Call(ctx, controlplane.CmdSkillPromote, map[string]any{"id": sk.ID})
+	res, err = c.Call(ctx, opapi.SkillPromote, map[string]any{"id": sk.ID})
 	if err != nil || res["status"] != "shadow" {
 		t.Fatalf("promote 1: status=%v err=%v", res["status"], err)
 	}
-	res, _ = c.Call(ctx, controlplane.CmdSkillPromote, map[string]any{"id": sk.ID})
+	res, _ = c.Call(ctx, opapi.SkillPromote, map[string]any{"id": sk.ID})
 	if res["status"] != "active" {
 		t.Fatalf("promote 2: status=%v", res["status"])
 	}
 
 	// History folds the lifecycle chain (created + 2 promoted).
-	res, err = c.Call(ctx, controlplane.CmdSkillHistory, map[string]any{"id": sk.ID})
+	res, err = c.Call(ctx, opapi.SkillHistory, map[string]any{"id": sk.ID})
 	if err != nil {
 		t.Fatalf("history: %v", err)
 	}
@@ -66,7 +66,7 @@ func TestSkillImportInstallsFreshDraft(t *testing.T) {
 		"body":           "step one\nstep two",
 		"tools_required": []any{"shell"},
 	}
-	res, err := c.Call(ctx, controlplane.CmdSkillImport, args)
+	res, err := c.Call(ctx, opapi.SkillImport, args)
 	if err != nil {
 		t.Fatalf("import: %v", err)
 	}
@@ -88,7 +88,7 @@ func TestSkillImportInstallsFreshDraft(t *testing.T) {
 	}
 
 	// Re-importing the same content dedupes (created=false).
-	res2, err := c.Call(ctx, controlplane.CmdSkillImport, args)
+	res2, err := c.Call(ctx, opapi.SkillImport, args)
 	if err != nil {
 		t.Fatalf("re-import: %v", err)
 	}
@@ -101,7 +101,7 @@ func TestSkillImportInstallsFreshDraft(t *testing.T) {
 // null); import must accept the minimal name+body form (M271 regression guard).
 func TestSkillImportOmittedOptionalArgs(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
-	res, err := c.Call(context.Background(), controlplane.CmdSkillImport, map[string]any{
+	res, err := c.Call(context.Background(), opapi.SkillImport, map[string]any{
 		"name":        "minimal",
 		"description": "no triggers, no tools",
 		"body":        "just do it",
@@ -116,7 +116,7 @@ func TestSkillImportOmittedOptionalArgs(t *testing.T) {
 
 func TestSkillImportRequiresNameAndBody(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
-	if _, err := c.Call(context.Background(), controlplane.CmdSkillImport, map[string]any{"name": "x"}); err == nil {
+	if _, err := c.Call(context.Background(), opapi.SkillImport, map[string]any{"name": "x"}); err == nil {
 		t.Error("import without a body should error")
 	}
 }
@@ -125,9 +125,9 @@ func TestSkillPromoteIllegalErrors(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	sk, _, _ := k.Forge().Create("seed", skill.CreateSpec{Name: "s", Body: "b"})
 	// draft→shadow→active, then a 3rd promote is illegal.
-	_, _ = c.Call(context.Background(), controlplane.CmdSkillPromote, map[string]any{"id": sk.ID})
-	_, _ = c.Call(context.Background(), controlplane.CmdSkillPromote, map[string]any{"id": sk.ID})
-	if _, err := c.Call(context.Background(), controlplane.CmdSkillPromote, map[string]any{"id": sk.ID}); err == nil {
+	_, _ = c.Call(context.Background(), opapi.SkillPromote, map[string]any{"id": sk.ID})
+	_, _ = c.Call(context.Background(), opapi.SkillPromote, map[string]any{"id": sk.ID})
+	if _, err := c.Call(context.Background(), opapi.SkillPromote, map[string]any{"id": sk.ID}); err == nil {
 		t.Error("promoting an active skill should error")
 	}
 }
@@ -137,7 +137,7 @@ func TestSkillArchiveOverControlPlane(t *testing.T) {
 	sk, _, _ := k.Forge().Create("seed", skill.CreateSpec{Name: "proposal", Body: "steps"})
 	ctx := context.Background()
 
-	res, err := c.Call(ctx, controlplane.CmdSkillArchive, map[string]any{
+	res, err := c.Call(ctx, opapi.SkillArchive, map[string]any{
 		"id": sk.ID, "reason": "operator rejected",
 	})
 	if err != nil {
@@ -154,7 +154,7 @@ func TestSkillArchiveOverControlPlane(t *testing.T) {
 		t.Fatalf("stored status = %s, want archived", got.Status)
 	}
 
-	hist, err := c.Call(ctx, controlplane.CmdSkillHistory, map[string]any{"id": sk.ID})
+	hist, err := c.Call(ctx, opapi.SkillHistory, map[string]any{"id": sk.ID})
 	if err != nil {
 		t.Fatalf("history: %v", err)
 	}
@@ -177,12 +177,12 @@ func TestSkillRestoreStatusOverControlPlane(t *testing.T) {
 	sk, _, _ := k.Forge().Create("seed", skill.CreateSpec{Name: "proposal", Body: "steps"})
 	ctx := context.Background()
 
-	if _, err := c.Call(ctx, controlplane.CmdSkillArchive, map[string]any{
+	if _, err := c.Call(ctx, opapi.SkillArchive, map[string]any{
 		"id": sk.ID, "reason": "operator rejected",
 	}); err != nil {
 		t.Fatalf("archive: %v", err)
 	}
-	res, err := c.Call(ctx, controlplane.CmdSkillRestore, map[string]any{
+	res, err := c.Call(ctx, opapi.SkillRestore, map[string]any{
 		"id": sk.ID, "status": "draft", "reason": "rollback checkpoint rb-test",
 	})
 	if err != nil {
@@ -199,7 +199,7 @@ func TestSkillRestoreStatusOverControlPlane(t *testing.T) {
 		t.Fatalf("stored status = %s, want draft", got.Status)
 	}
 
-	hist, err := c.Call(ctx, controlplane.CmdSkillHistory, map[string]any{"id": sk.ID})
+	hist, err := c.Call(ctx, opapi.SkillHistory, map[string]any{"id": sk.ID})
 	if err != nil {
 		t.Fatalf("history: %v", err)
 	}
@@ -222,7 +222,7 @@ func TestSkillRestoreStatusOverControlPlane(t *testing.T) {
 
 func TestSkillListEmpty(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
-	res, err := c.Call(context.Background(), controlplane.CmdSkillList, nil)
+	res, err := c.Call(context.Background(), opapi.SkillList, nil)
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}

@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"github.com/agezt/agezt/kernel/app/binding"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -39,10 +40,10 @@ func TestProviderOAuthCommandMetadataComesFromAppSpecs(t *testing.T) {
 	for _, operation := range oauthOperations {
 		spec := operation.Spec()
 		wire := commandRegistry[spec.Name]
-		if !wire.AppOwned || wire.ReadOnly != (spec.Name == CmdProviderOAuthStatus) || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone {
+		if !wire.AppOwned || wire.ReadOnly != (spec.Name == opapi.ProviderOAuthStatus) || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone {
 			t.Fatalf("OAuth command metadata=%+v", wire)
 		}
-		if spec.Name == CmdProviderOAuthImport && spec.Output != reflect.TypeFor[providers.OAuthImportOutput]() {
+		if spec.Name == opapi.ProviderOAuthImport && spec.Output != reflect.TypeFor[providers.OAuthImportOutput]() {
 			t.Fatal("OAuth output is opaque")
 		}
 	}
@@ -72,13 +73,13 @@ func TestProviderOAuthAppSocketAuditAndAuthoritativeEmptyModels(t *testing.T) {
 		}
 		return result
 	}
-	imported := call(CmdProviderOAuthImport, map[string]any{"path": oauthFixtureFile(t), "ignored": true})
+	imported := call(opapi.ProviderOAuthImport, map[string]any{"path": oauthFixtureFile(t), "ignored": true})
 	if imported.Result["connected"] != true || imported.Result["default_model"] != "fixture-live-model" || reloads.Load() != 1 {
 		t.Fatalf("OAuth import=%v reload=%d", imported, reloads.Load())
 	}
 	before, _ := k.Journal().Head()
 	empty.Store(true)
-	status := call(CmdProviderOAuthStatus, map[string]any{"state": "unknown", "ignored": true})
+	status := call(opapi.ProviderOAuthStatus, map[string]any{"state": "unknown", "ignored": true})
 	after, _ := k.Journal().Head()
 	if before != after || status.Result["connected"] != true || status.Result["default_model"] != "" || len(status.Result["models"].([]any)) != 0 {
 		t.Fatalf("authoritative empty status=%v journal=%d->%d", status, before, after)
@@ -92,8 +93,8 @@ func TestProviderOAuthAppSocketAuditAndAuthoritativeEmptyModels(t *testing.T) {
 			t.Fatal("OAuth response exposed token")
 		}
 	}
-	call(CmdProviderOAuthLogout, nil)
-	status = call(CmdProviderOAuthStatus, nil)
+	call(opapi.ProviderOAuthLogout, nil)
+	status = call(opapi.ProviderOAuthStatus, nil)
 	if status.Result["connected"] != false || reloads.Load() != 2 || syncs.Load() != 2 {
 		t.Fatalf("OAuth logout/status=%v reload/sync=%d/%d", status, reloads.Load(), syncs.Load())
 	}
@@ -120,7 +121,7 @@ func TestProviderOAuthAppSocketAuditAndAuthoritativeEmptyModels(t *testing.T) {
 }
 
 func TestProviderOAuthAppAdmissionPreventsStateAndVaultEffects(t *testing.T) {
-	for _, command := range []string{CmdProviderOAuthStart, CmdProviderOAuthImport, CmdProviderOAuthLogout} {
+	for _, command := range []string{opapi.ProviderOAuthStart, opapi.ProviderOAuthImport, opapi.ProviderOAuthLogout} {
 		t.Run(command, func(t *testing.T) {
 			t.Setenv(creds.PassphraseEnvVar, "isolated-oauth-fixture")
 			dir := t.TempDir()

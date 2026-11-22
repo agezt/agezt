@@ -7,15 +7,13 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/internal/strutil"
-	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/contract/boardapi"
-	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 )
 
-func (c *autoRepairCoordinator) autoWakeManager(ctx context.Context, k *kernelruntime.Kernel, b *bus.Bus, src autoRepairSource, mailbox Mailbox, postNotify func(boardapi.Message, string), cand autoRepairCandidate, msg *boardapi.Message, mailboxErr error) {
-	res, err := autoRepairWakeAgent(ctx, k, cand, msg)
+func (c *autoRepairCoordinator) autoWakeManager(ctx context.Context, ports Ports, src autoRepairSource, mailbox Mailbox, postNotify func(boardapi.Message, string), cand autoRepairCandidate, msg *boardapi.Message, mailboxErr error) {
+	res, err := autoRepairWakeAgent(ctx, ports, cand, msg)
 	if err != nil {
-		publishAutoRepair(b, res.Correlation, map[string]any{
+		publishAutoRepair(ports.Bus, res.Correlation, map[string]any{
 			"phase":                    "escalation_failed",
 			"agent":                    cand.Slug,
 			"mode":                     cand.Mode,
@@ -36,7 +34,7 @@ func (c *autoRepairCoordinator) autoWakeManager(ctx context.Context, k *kernelru
 		return
 	}
 	if res.Skipped != "" {
-		publishAutoRepair(b, "", map[string]any{
+		publishAutoRepair(ports.Bus, "", map[string]any{
 			"phase":                    "escalation_skipped",
 			"agent":                    cand.Slug,
 			"mode":                     cand.Mode,
@@ -59,7 +57,7 @@ func (c *autoRepairCoordinator) autoWakeManager(ctx context.Context, k *kernelru
 	if res.Target == "" {
 		return
 	}
-	publishAutoRepair(b, res.Correlation, map[string]any{
+	publishAutoRepair(ports.Bus, res.Correlation, map[string]any{
 		"phase":                    "escalation_woke",
 		"agent":                    cand.Slug,
 		"mode":                     cand.Mode,
@@ -110,8 +108,8 @@ func (c *autoRepairCoordinator) autoWakeManager(ctx context.Context, k *kernelru
 				payload["routing_task_model_chain"] = res.Resolution.TaskModelChain
 			}
 		}
-		publishAutoRepair(b, res.Correlation, payload)
-		outcome, err := c.applyAutoRepairResolution(ctx, k, src, mailbox, postNotify, cand, res)
+		publishAutoRepair(ports.Bus, res.Correlation, payload)
+		outcome, err := c.applyAutoRepairResolution(ctx, ports, src, mailbox, postNotify, cand, res)
 		if err != nil {
 			fail := map[string]any{
 				"phase":                    "resolution_failed",
@@ -143,7 +141,7 @@ func (c *autoRepairCoordinator) autoWakeManager(ctx context.Context, k *kernelru
 					fail["routing_task_model_chain"] = res.Resolution.TaskModelChain
 				}
 			}
-			publishAutoRepair(b, res.Correlation, fail)
+			publishAutoRepair(ports.Bus, res.Correlation, fail)
 		} else if outcome != nil {
 			applied := map[string]any{
 				"phase":                    strutil.FirstNonEmpty(outcome.Phase, "resolution_applied"),
@@ -181,7 +179,7 @@ func (c *autoRepairCoordinator) autoWakeManager(ctx context.Context, k *kernelru
 			if outcome.PreviousRoutingForceGeneration > 0 {
 				applied["previous_routing_force_generation"] = outcome.PreviousRoutingForceGeneration
 			}
-			publishAutoRepair(b, res.Correlation, applied)
+			publishAutoRepair(ports.Bus, res.Correlation, applied)
 		}
 	}
 }

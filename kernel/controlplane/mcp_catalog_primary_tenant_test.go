@@ -3,7 +3,7 @@ package controlplane_test
 
 import (
 	"context"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"strings"
@@ -20,7 +20,7 @@ func TestMCPCatalogNativeTenantDenialPreservesStoreAndJournal(t *testing.T) {
 
 	client := tenantClient(t, dir, mustTenant(t, registry, "acme"))
 	head, hash := k.Journal().Head()
-	if _, err := client.Call(context.Background(), controlplane.CmdMCPList, map[string]any{"tenant": "acme"}); err == nil || (!strings.Contains(err.Error(), "forbidden") && !strings.Contains(err.Error(), "unauthorized")) {
+	if _, err := client.Call(context.Background(), opapi.MCPList, map[string]any{"tenant": "acme"}); err == nil || (!strings.Contains(err.Error(), "forbidden") && !strings.Contains(err.Error(), "unauthorized")) {
 		t.Fatal(err)
 	}
 	after, afterHash := k.Journal().Head()

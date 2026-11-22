@@ -6,18 +6,18 @@ import (
 	"context"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
-// CmdStatus folds provider.fallback events into a count + last reason (M280), so
+// opapi.Status folds provider.fallback events into a count + last reason (M280), so
 // a silently-degraded provider is visible at a glance.
 func TestStatusSurfacesProviderFallbacks(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 
 	// No fallbacks yet → count 0.
-	res, err := c.Call(context.Background(), controlplane.CmdStatus, nil)
+	res, err := c.Call(context.Background(), opapi.Status, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +39,7 @@ func TestStatusSurfacesProviderFallbacks(t *testing.T) {
 		}
 	}
 
-	res, err = c.Call(context.Background(), controlplane.CmdStatus, nil)
+	res, err = c.Call(context.Background(), opapi.Status, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

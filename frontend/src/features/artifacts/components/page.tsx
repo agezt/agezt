@@ -41,7 +41,7 @@ import { Markdown } from "@/components/Markdown";
 import { Modal } from "@/components/ui/Modal";
 import { MonacoView } from "@/components/MonacoView";
 import { useUI } from "@/components/ui/feedback";
-import { FileManagerWorkspace } from "@/components/FileManagerWorkspace";
+import { FileManagerWorkspace } from "@/features/artifacts/components/FileManagerWorkspace";
 import { Segmented, ToggleChip } from "@/components/ui/segmented";
 import {
   type ArtifactEntry,
@@ -52,9 +52,9 @@ import {
   previewMaxBytes,
   isRunInternal,
   humanSize,
-  BlobArtifact,
   downloadArtifact,
-} from "../lib/artifacts";
+} from "@/lib/artifacts";
+import { BlobArtifact } from "@/components/BlobArtifact";
 
 // Artifacts (M931 + the 2026-09 Files merge): the ONE surface for everything the
 // daemon stored, in two modes.
@@ -173,7 +173,7 @@ export function Artifacts() {
   // a confirm actually deletes them — the operator's "approved" path.
   async function collect() {
     try {
-      const dry = await postAction<{ count: number; bytes: number }>("/api/artifact/collect", {
+      const dry = await postAction("/api/artifact/collect", {
         older_than_days: String(COLLECT_DAYS),
         dry_run: "true",
       });
@@ -188,7 +188,7 @@ export function Artifacts() {
         danger: true,
       });
       if (!ok) return;
-      const res = await postAction<{ count: number; bytes: number }>("/api/artifact/collect", {
+      const res = await postAction("/api/artifact/collect", {
         older_than_days: String(COLLECT_DAYS),
         dry_run: "false",
       });

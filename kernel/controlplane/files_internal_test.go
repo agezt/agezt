@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"github.com/agezt/agezt/kernel/app/binding"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"net"
 	"path/filepath"
 	"testing"
@@ -22,7 +23,7 @@ import (
 )
 
 func TestFileCommandsArePrimaryMutations(t *testing.T) {
-	for _, command := range []string{CmdFileMkdir, CmdFileRename, CmdFileDelete, CmdFileRestore} {
+	for _, command := range []string{opapi.FileMkdir, opapi.FileRename, opapi.FileDelete, opapi.FileRestore} {
 		spec, ok := commandRegistry[command]
 		if !ok || !spec.AppOwned || spec.ReadOnly || spec.TenantAllowed || spec.TenantRouted || spec.Streaming != StreamNone {
 			t.Errorf("workspace command must be an audited primary-only mutation: %q %+v", command, spec)
@@ -51,7 +52,7 @@ func TestFileRestoreBindsTheServer(t *testing.T) {
 	defer client.Close()
 	go s.handleConn(context.Background(), server)
 	_ = client.SetDeadline(time.Now().Add(10 * time.Second))
-	raw, _ := json.Marshal(Request{ID: "req-77", Cmd: CmdFileRestore, Token: "primary", Args: map[string]any{"id": "c1"}})
+	raw, _ := json.Marshal(Request{ID: "req-77", Cmd: opapi.FileRestore, Token: "primary", Args: map[string]any{"id": "c1"}})
 	if _, err := client.Write(append(raw, 10)); err != nil {
 		t.Fatal(err)
 	}

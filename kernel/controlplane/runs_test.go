@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -19,7 +19,7 @@ import (
 func TestRunsList_EmptyJournalReturnsEmptyArray(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 
-	res, err := c.Call(context.Background(), controlplane.CmdRunsList, nil)
+	res, err := c.Call(context.Background(), opapi.RunsList, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -59,7 +59,7 @@ func TestRunsList_PairsReceivedAndCompleted(t *testing.T) {
 		t.Fatalf("Publish completed: %v", err)
 	}
 
-	res, err := c.Call(context.Background(), controlplane.CmdRunsList, nil)
+	res, err := c.Call(context.Background(), opapi.RunsList, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -100,7 +100,7 @@ func TestRunsList_UncompletedRunsReportRunning(t *testing.T) {
 		t.Fatalf("Publish: %v", err)
 	}
 
-	res, err := c.Call(context.Background(), controlplane.CmdRunsList, nil)
+	res, err := c.Call(context.Background(), opapi.RunsList, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -134,7 +134,7 @@ func TestRunsList_LivePhaseForRunningRun(t *testing.T) {
 	pub(event.KindLLMRequest, map[string]string{"model": "m"})
 	pub(event.KindToolInvoked, map[string]any{"tool": "web_search", "call_id": "c1"})
 
-	res, err := c.Call(context.Background(), controlplane.CmdRunsList, nil)
+	res, err := c.Call(context.Background(), opapi.RunsList, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -171,7 +171,7 @@ func TestRunsList_TerminalRunHasNoPhase(t *testing.T) {
 		}
 	}
 
-	res, err := c.Call(context.Background(), controlplane.CmdRunsList, nil)
+	res, err := c.Call(context.Background(), opapi.RunsList, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -213,7 +213,7 @@ func TestRunsList_SortsByStartedDesc(t *testing.T) {
 	time.Sleep(2 * time.Millisecond)
 	publishPair("run-C", "third")
 
-	res, err := c.Call(context.Background(), controlplane.CmdRunsList, nil)
+	res, err := c.Call(context.Background(), opapi.RunsList, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -244,7 +244,7 @@ func TestRunsList_LimitClamps(t *testing.T) {
 		})
 	}
 
-	res, err := c.Call(context.Background(), controlplane.CmdRunsList, map[string]any{"limit": 2})
+	res, err := c.Call(context.Background(), opapi.RunsList, map[string]any{"limit": 2})
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -274,7 +274,7 @@ func TestRunsList_AbandonedStatus(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	res, err := c.Call(context.Background(), controlplane.CmdRunsList, nil)
+	res, err := c.Call(context.Background(), opapi.RunsList, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -305,7 +305,7 @@ func TestRunsList_CompletedBeatsAbandoned(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	res, _ := c.Call(context.Background(), controlplane.CmdRunsList, nil)
+	res, _ := c.Call(context.Background(), opapi.RunsList, nil)
 	rows, _ := res["runs"].([]any)
 	row, _ := rows[0].(map[string]any)
 	if got, _ := row["status"].(string); got != "completed" {
@@ -330,7 +330,7 @@ func TestRunsList_FailedStatus(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	res, err := c.Call(context.Background(), controlplane.CmdRunsList, nil)
+	res, err := c.Call(context.Background(), opapi.RunsList, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -358,7 +358,7 @@ func TestRunsList_CompletedBeatsFailed(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	res, _ := c.Call(context.Background(), controlplane.CmdRunsList, nil)
+	res, _ := c.Call(context.Background(), opapi.RunsList, nil)
 	rows, _ := res["runs"].([]any)
 	row, _ := rows[0].(map[string]any)
 	if got, _ := row["status"].(string); got != "completed" {
@@ -397,7 +397,7 @@ func TestWhy_SubAgentParentBacklink(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	res, err := c.Call(context.Background(), controlplane.CmdWhy, map[string]any{"event_id": childEv.ID})
+	res, err := c.Call(context.Background(), opapi.Why, map[string]any{"event_id": childEv.ID})
 	if err != nil {
 		t.Fatalf("Why(child): %v", err)
 	}
@@ -405,7 +405,7 @@ func TestWhy_SubAgentParentBacklink(t *testing.T) {
 		t.Errorf("child why parent_correlation = %q want p1", got)
 	}
 
-	res, err = c.Call(context.Background(), controlplane.CmdWhy, map[string]any{"event_id": rootEv.ID})
+	res, err = c.Call(context.Background(), opapi.Why, map[string]any{"event_id": rootEv.ID})
 	if err != nil {
 		t.Fatalf("Why(root): %v", err)
 	}
@@ -454,7 +454,7 @@ func TestRunsList_SubAgentParentLink(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	res, err := c.Call(context.Background(), controlplane.CmdRunsList, nil)
+	res, err := c.Call(context.Background(), opapi.RunsList, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -480,7 +480,7 @@ func TestRunsList_SubAgentParentLink(t *testing.T) {
 // well-formed (zero-valued) duration block so renderers/jq don't crash.
 func TestRunsStats_EmptyJournal(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
-	res, err := c.Call(context.Background(), controlplane.CmdRunsStats, nil)
+	res, err := c.Call(context.Background(), opapi.RunsStats, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -548,7 +548,7 @@ func TestRunsStats_CountsAndSuccessRate(t *testing.T) {
 	abandon("a1")
 	received("r1") // left running
 
-	res, err := c.Call(context.Background(), controlplane.CmdRunsStats, nil)
+	res, err := c.Call(context.Background(), opapi.RunsStats, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -605,7 +605,7 @@ func TestRunsStats_FailedByReason(t *testing.T) {
 	failWith("f3", "error")
 	failWith("f4", "") // no reason → "unknown"
 
-	res, err := c.Call(context.Background(), controlplane.CmdRunsStats, nil)
+	res, err := c.Call(context.Background(), opapi.RunsStats, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -639,7 +639,7 @@ func TestRunsStats_NoFailuresEmptyBreakdown(t *testing.T) {
 		Subject: "task", Kind: event.KindTaskCompleted, Actor: "a",
 		CorrelationID: "ok1", Payload: map[string]any{"iters": 1},
 	})
-	res, err := c.Call(context.Background(), controlplane.CmdRunsStats, nil)
+	res, err := c.Call(context.Background(), opapi.RunsStats, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -701,7 +701,7 @@ func TestRunsStats_DelegationMetrics(t *testing.T) {
 		complete(ch, "subagent-"+ch)
 	}
 
-	res, err := c.Call(context.Background(), controlplane.CmdRunsStats, nil)
+	res, err := c.Call(context.Background(), opapi.RunsStats, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -744,7 +744,7 @@ func TestRunsList_StatusFilter(t *testing.T) {
 	complete("ok2")
 	fail("bad1")
 
-	res, err := c.Call(context.Background(), controlplane.CmdRunsList,
+	res, err := c.Call(context.Background(), opapi.RunsList,
 		map[string]any{"status": "failed"})
 	if err != nil {
 		t.Fatalf("Call: %v", err)
@@ -786,7 +786,7 @@ func TestScheduleFires_StatusFilter(t *testing.T) {
 	fire("ok1", false)
 	fire("bad1", true)
 
-	res, err := c.Call(context.Background(), controlplane.CmdScheduleFires,
+	res, err := c.Call(context.Background(), opapi.ScheduleFires,
 		map[string]any{"status": "failed"})
 	if err != nil {
 		t.Fatal(err)
@@ -821,7 +821,7 @@ func TestRunsList_RowCarriesSpend(t *testing.T) {
 		CorrelationID: "r1", Payload: map[string]any{"iters": 1},
 	})
 
-	res, err := c.Call(context.Background(), controlplane.CmdRunsList, nil)
+	res, err := c.Call(context.Background(), opapi.RunsList, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -851,7 +851,7 @@ func TestRunsList_RowCarriesAnswerPreview(t *testing.T) {
 		},
 	})
 
-	res, err := c.Call(context.Background(), controlplane.CmdRunsList, nil)
+	res, err := c.Call(context.Background(), opapi.RunsList, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -880,7 +880,7 @@ func TestRunsList_AnswerPreviewTruncated(t *testing.T) {
 		CorrelationID: "r1", Payload: map[string]any{"iters": 1, "answer": long},
 	})
 
-	res, _ := c.Call(context.Background(), controlplane.CmdRunsList, nil)
+	res, _ := c.Call(context.Background(), opapi.RunsList, nil)
 	rows, _ := res["runs"].([]any)
 	row, _ := rows[0].(map[string]any)
 	got, _ := row["answer_preview"].(string)
@@ -939,7 +939,7 @@ func TestRunsStats_SpendAttribution(t *testing.T) {
 	spend("c1", 30)
 	complete("c1", "subagent-c1")
 
-	res, err := c.Call(context.Background(), controlplane.CmdRunsStats, nil)
+	res, err := c.Call(context.Background(), opapi.RunsStats, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -984,7 +984,7 @@ func TestRunsStats_SpendDistribution(t *testing.T) {
 		CorrelationID: "free", Payload: map[string]any{"iters": 1},
 	})
 
-	res, err := c.Call(context.Background(), controlplane.CmdRunsStats, nil)
+	res, err := c.Call(context.Background(), opapi.RunsStats, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -1035,7 +1035,7 @@ func TestRunsList_CostBandFilter(t *testing.T) {
 
 	corrs := func(args map[string]any) map[string]bool {
 		t.Helper()
-		res, err := c.Call(context.Background(), controlplane.CmdRunsList, args)
+		res, err := c.Call(context.Background(), opapi.RunsList, args)
 		if err != nil {
 			t.Fatalf("Call: %v", err)
 		}
@@ -1107,7 +1107,7 @@ func TestRunsStats_ByModel(t *testing.T) {
 	mkRun("h1", "haiku", 50)
 	mkRun("free", "", 0)
 
-	res, err := c.Call(context.Background(), controlplane.CmdRunsStats, nil)
+	res, err := c.Call(context.Background(), opapi.RunsStats, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -1168,7 +1168,7 @@ func TestRunsList_ModelFoldAndFilter(t *testing.T) {
 
 	modelsByCorr := func(args map[string]any) map[string]string {
 		t.Helper()
-		res, err := c.Call(context.Background(), controlplane.CmdRunsList, args)
+		res, err := c.Call(context.Background(), opapi.RunsList, args)
 		if err != nil {
 			t.Fatalf("Call: %v", err)
 		}
@@ -1231,7 +1231,7 @@ func TestRunsStats_SpendIgnoresUnknownCorrelation(t *testing.T) {
 		CorrelationID: "ghost", Payload: map[string]any{"cost_microcents": int64(999)},
 	})
 
-	res, err := c.Call(context.Background(), controlplane.CmdRunsStats, nil)
+	res, err := c.Call(context.Background(), opapi.RunsStats, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1255,7 +1255,7 @@ func TestRunsStats_NoDelegationsZeroed(t *testing.T) {
 		Subject: "task", Kind: event.KindTaskCompleted, Actor: "a",
 		CorrelationID: "solo", Payload: map[string]any{"iters": 1},
 	})
-	res, err := c.Call(context.Background(), controlplane.CmdRunsStats, nil)
+	res, err := c.Call(context.Background(), opapi.RunsStats, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1288,7 +1288,7 @@ func TestRunsStats_SinceWindow(t *testing.T) {
 	}
 
 	// All-time: the run is counted, window_ms == 0.
-	res, err := c.Call(context.Background(), controlplane.CmdRunsStats, nil)
+	res, err := c.Call(context.Background(), opapi.RunsStats, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -1300,7 +1300,7 @@ func TestRunsStats_SinceWindow(t *testing.T) {
 	}
 
 	// Huge window (1h): the just-published run is well within it.
-	res, err = c.Call(context.Background(), controlplane.CmdRunsStats,
+	res, err = c.Call(context.Background(), opapi.RunsStats,
 		map[string]any{"since_ms": 3_600_000})
 	if err != nil {
 		t.Fatalf("Call(since=1h): %v", err)
@@ -1315,7 +1315,7 @@ func TestRunsStats_SinceWindow(t *testing.T) {
 	// Tiny window after a sleep: the run started > 30ms ago, so a 30ms
 	// window excludes it.
 	time.Sleep(60 * time.Millisecond)
-	res, err = c.Call(context.Background(), controlplane.CmdRunsStats,
+	res, err = c.Call(context.Background(), opapi.RunsStats,
 		map[string]any{"since_ms": 30})
 	if err != nil {
 		t.Fatalf("Call(since=30ms): %v", err)
@@ -1351,7 +1351,7 @@ func TestRunsStats_DurationPercentiles(t *testing.T) {
 		})
 	}
 
-	res, err := c.Call(context.Background(), controlplane.CmdRunsStats, nil)
+	res, err := c.Call(context.Background(), opapi.RunsStats, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -1391,7 +1391,7 @@ func TestRunsList_IntentFilter(t *testing.T) {
 	recv("run-b", "summarize the README")
 	recv("run-c", "DEPLOY production now")
 
-	res, err := c.Call(context.Background(), controlplane.CmdRunsList,
+	res, err := c.Call(context.Background(), opapi.RunsList,
 		map[string]any{"intent": "deploy"})
 	if err != nil {
 		t.Fatal(err)
@@ -1425,7 +1425,7 @@ func TestRunsStats_IntentScope(t *testing.T) {
 	recv("run-c", "DEPLOY prod")
 
 	// Unscoped → 3.
-	all, err := c.Call(context.Background(), controlplane.CmdRunsStats, nil)
+	all, err := c.Call(context.Background(), opapi.RunsStats, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1434,7 +1434,7 @@ func TestRunsStats_IntentScope(t *testing.T) {
 	}
 
 	// --intent deploy → 2 (case-insensitive).
-	res, err := c.Call(context.Background(), controlplane.CmdRunsStats,
+	res, err := c.Call(context.Background(), opapi.RunsStats,
 		map[string]any{"intent": "deploy"})
 	if err != nil {
 		t.Fatal(err)
@@ -1475,7 +1475,7 @@ func TestRunsList_CursorPaginatesFullPages(t *testing.T) {
 	}
 
 	// Diagnostic — print the raw sort order so we know the ms/seq shape.
-	diag, _ := c.Call(context.Background(), controlplane.CmdRunsList, map[string]any{"limit": 20})
+	diag, _ := c.Call(context.Background(), opapi.RunsList, map[string]any{"limit": 20})
 	if drows, _ := diag["runs"].([]any); true {
 		for i, raw := range drows {
 			row, _ := raw.(map[string]any)
@@ -1487,7 +1487,7 @@ func TestRunsList_CursorPaginatesFullPages(t *testing.T) {
 	t.Logf("diag next_cursor=%v", diag["next_cursor"])
 
 	// And once more with limit=3, so we see the first-page cursor.
-	page1, _ := c.Call(context.Background(), controlplane.CmdRunsList, map[string]any{"limit": 3})
+	page1, _ := c.Call(context.Background(), opapi.RunsList, map[string]any{"limit": 3})
 	t.Logf("page1 rows=%v next_cursor=%v", page1["runs"], page1["next_cursor"])
 
 	// Patch up the cursor logic — old test compared page-N+1.first vs page-N.last
@@ -1507,7 +1507,7 @@ func TestRunsList_CursorPaginatesFullPages(t *testing.T) {
 	var prevFirstMS int64
 	args := map[string]any{"limit": limit}
 	for iter := 0; iter < maxIters; iter++ {
-		res, err := c.Call(context.Background(), controlplane.CmdRunsList, args)
+		res, err := c.Call(context.Background(), opapi.RunsList, args)
 		if err != nil {
 			t.Fatalf("Call: %v", err)
 		}
@@ -1581,7 +1581,7 @@ func TestRunsList_CursorUnparseableFallsBack(t *testing.T) {
 		time.Sleep(3 * time.Millisecond)
 	}
 	for _, garbage := range []string{"", "abc", "1:", ":5", "1:abc", "%%3A%%", "1:2:3", "-1:-1"} {
-		res, err := c.Call(context.Background(), controlplane.CmdRunsList,
+		res, err := c.Call(context.Background(), opapi.RunsList,
 			map[string]any{"limit": 10, "cursor": garbage})
 		if err != nil {
 			t.Errorf("cursor=%q raised error: %v", garbage, err)
@@ -1639,7 +1639,7 @@ func TestRunsList_CursorSurvivesStatusFilter(t *testing.T) {
 	const maxIters = 16
 	seenFailed := map[string]bool{}
 	for iter := 0; iter < maxIters; iter++ {
-		res, err := c.Call(context.Background(), controlplane.CmdRunsList, args)
+		res, err := c.Call(context.Background(), opapi.RunsList, args)
 		if err != nil {
 			t.Fatalf("Call: %v", err)
 		}

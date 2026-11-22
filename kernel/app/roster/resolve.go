@@ -281,7 +281,7 @@ func ResolveOperations(provider func(context.Context) *ResolveService) ([]app.Op
 	if err != nil {
 		return nil, err
 	}
-	op, err := app.NewOperation(opapi.Spec{Name: "agent_resolve", OutputSchema: output, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{},"resolution":{},"summary":{},"delegate_to":{},"task_type":{},"task_model_chain":{},"incident_id":{},"root_incident_id":{},"parent_incident_id":{}}}`), HTTP: opapi.HTTP{Method: "POST", Path: "/api/agents/resolve"}}, func(ctx context.Context, in ResolveRequest) (ResolveOutput, error) {
+	op, err := app.NewOperation(opapi.Spec{Name: opapi.AgentResolve, OutputSchema: output, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{},"resolution":{},"summary":{},"delegate_to":{},"task_type":{},"task_model_chain":{},"incident_id":{},"root_incident_id":{},"parent_incident_id":{}}}`)}, func(ctx context.Context, in ResolveRequest) (ResolveOutput, error) {
 		return provider(ctx).Resolve(ctx, in)
 	})
 	if err != nil {

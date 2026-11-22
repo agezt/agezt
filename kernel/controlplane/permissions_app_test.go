@@ -23,7 +23,7 @@ import (
 )
 
 func TestAgentPermissionsNativeTypedRegistry(t *testing.T) {
-	for cmd, readOnly := range map[string]bool{CmdAgentPermissions: true, CmdAgentCapabilities: false} {
+	for cmd, readOnly := range map[string]bool{opapi.AgentPermissions: true, opapi.AgentCapabilities: false} {
 		found := 0
 		for _, operation := range registeredAppOperations() {
 			spec := operation.Spec()
@@ -89,11 +89,11 @@ func TestAgentPermissionsNativeRouting(t *testing.T) {
 		}
 		return string(line)
 	}
-	if line := call("primary", CmdAgentPermissions, map[string]any{"ref": "builder", "tenant": "acme"}); !strings.Contains(line, `"trust_ceiling":""`) || !strings.Contains(line, `"config_entries":[]`) {
+	if line := call("primary", opapi.AgentPermissions, map[string]any{"ref": "builder", "tenant": "acme"}); !strings.Contains(line, `"trust_ceiling":""`) || !strings.Contains(line, `"config_entries":[]`) {
 		t.Fatal("the picture reads the primary roster whatever tenant is named", line)
 	}
 	head, _ := k.Journal().Head()
-	if line := call("primary", CmdAgentCapabilities, map[string]any{"ref": "builder", "trust_ceiling": "L2", "tenant": "acme"}); !strings.Contains(line, `"profile":{`) || !strings.Contains(line, `"trust_ceiling":"L2"`) {
+	if line := call("primary", opapi.AgentCapabilities, map[string]any{"ref": "builder", "trust_ceiling": "L2", "tenant": "acme"}); !strings.Contains(line, `"profile":{`) || !strings.Contains(line, `"trust_ceiling":"L2"`) {
 		t.Fatal(line)
 	}
 	if p, _ := k.Roster().Get("builder"); p.TrustCeiling != "L2" {
@@ -112,10 +112,10 @@ func TestAgentPermissionsNativeRouting(t *testing.T) {
 	if !audited[event.KindOpInvoked] {
 		t.Fatal("the capability patch is audited", audited)
 	}
-	if line := call("primary", CmdAgentCapabilities, map[string]any{"ref": "builder"}); !strings.Contains(line, `"error":"args capability field required"`) {
+	if line := call("primary", opapi.AgentCapabilities, map[string]any{"ref": "builder"}); !strings.Contains(line, `"error":"args capability field required"`) {
 		t.Fatal(line)
 	}
-	for _, cmd := range []string{CmdAgentPermissions, CmdAgentCapabilities} {
+	for _, cmd := range []string{opapi.AgentPermissions, opapi.AgentCapabilities} {
 		if line := call(tenantToken, cmd, map[string]any{"tenant": "acme", "ref": "builder", "workdir": "x"}); !strings.Contains(line, "forbidden") {
 			t.Fatal(cmd, line)
 		}

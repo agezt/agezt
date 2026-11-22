@@ -118,7 +118,7 @@ func TestSettingsTypedFiveOperationsMetadataAdmissionContextAndAudit(t *testing.
 			t.Fatal("register codec changed raw section", wp.section)
 		}
 	}
-	if rf != 2 || wf != 3 || seenRead != ctx || seenWrite != ctx || audit.begin != 3 || audit.end != 3 || !reflect.DeepEqual(audit.operations, []string{"config_set", "config_schema_register", "config_schema_unregister"}) {
+	if rf != 2 || wf != 3 || seenRead != ctx || seenWrite != ctx || audit.begin != 3 || audit.end != 3 || !reflect.DeepEqual(audit.operations, []string{opapi.ConfigSet, "config_schema_register", "config_schema_unregister"}) {
 		t.Fatal(rf, wf, audit)
 	}
 	beforeCalls := len(wp.calls)

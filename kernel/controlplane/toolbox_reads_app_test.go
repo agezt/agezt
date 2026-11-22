@@ -18,7 +18,7 @@ import (
 func TestToolboxReadsNativeCanceledAdmissionRejectsBeforeHost(t *testing.T) {
 	t.Setenv("PATH", t.TempDir())
 	t.Chdir(t.TempDir())
-	for _, cmd := range []string{CmdToolboxDetect, CmdToolboxOutdated} {
+	for _, cmd := range []string{opapi.ToolboxDetect, opapi.ToolboxOutdated} {
 		t.Run(cmd, func(t *testing.T) {
 			k, s, _, p := pulseAppFixture(t)
 			head, hash := k.Journal().Head()
@@ -53,7 +53,7 @@ func TestToolboxReadsNativeCanceledAdmissionRejectsBeforeHost(t *testing.T) {
 }
 
 func TestToolboxReadNativePoliciesAndTypesComeFromTwoAppSpecs(t *testing.T) {
-	want := map[string]reflect.Type{CmdToolboxDetect: reflect.TypeFor[toolbox.Inventory](), CmdToolboxOutdated: reflect.TypeFor[apptools.ToolboxOutdatedOutput]()}
+	want := map[string]reflect.Type{opapi.ToolboxDetect: reflect.TypeFor[toolbox.Inventory](), opapi.ToolboxOutdated: reflect.TypeFor[apptools.ToolboxOutdatedOutput]()}
 	seen := map[string]bool{}
 	for _, op := range registeredAppOperations() {
 		spec := op.Spec()
@@ -62,7 +62,7 @@ func TestToolboxReadNativePoliciesAndTypesComeFromTwoAppSpecs(t *testing.T) {
 			continue
 		}
 		input := reflect.TypeFor[apptools.ToolboxDetectInput]()
-		if spec.Name == CmdToolboxOutdated {
+		if spec.Name == opapi.ToolboxOutdated {
 			input = reflect.TypeFor[apptools.ToolboxOutdatedInput]()
 		}
 		wire, ok := commandRegistry[spec.Name]

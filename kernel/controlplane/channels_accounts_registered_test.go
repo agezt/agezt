@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/channel"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/creds"
 	"github.com/agezt/agezt/kernel/settings"
 	"github.com/agezt/agezt/plugins/builtinchannels"
@@ -40,16 +40,16 @@ func TestChannelAccountsRegisteredFieldsNativeLifecycle(t *testing.T) {
 	}
 	for _, label := range []string{"", "work", "other"} {
 		for _, name := range []string{"AGEZT_W47C_PUBLIC", "AGEZT_W47C_SECRET"} {
-			if _, err := client.Call(ctx, controlplane.CmdChannelAccountSet, map[string]any{"kind": "email", "label": label, "name": name, "value": " owned value "}); err != nil {
+			if _, err := client.Call(ctx, opapi.ChannelAccountSet, map[string]any{"kind": "email", "label": label, "name": name, "value": " owned value "}); err != nil {
 				t.Fatal("registered set", err)
 			}
 		}
 	}
-	before, err := client.Call(ctx, controlplane.CmdChannelList, nil)
+	before, err := client.Call(ctx, opapi.ChannelList, nil)
 	if err != nil || !hasAccount(before, "email", "work") {
 		t.Fatal("registered account not listed", err)
 	}
-	result, err := client.Call(ctx, controlplane.CmdChannelAccountRemove, map[string]any{"kind": "email", "label": "work"})
+	result, err := client.Call(ctx, opapi.ChannelAccountRemove, map[string]any{"kind": "email", "label": "work"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +63,7 @@ func TestChannelAccountsRegisteredFieldsNativeLifecycle(t *testing.T) {
 	}
 	_, publicRemains := store.Get("AGEZT_W47C_PUBLIC#work")
 	secretRemains := vault.Has("AGEZT_W47C_SECRET#work")
-	after, err := client.Call(ctx, controlplane.CmdChannelList, nil)
+	after, err := client.Call(ctx, opapi.ChannelList, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

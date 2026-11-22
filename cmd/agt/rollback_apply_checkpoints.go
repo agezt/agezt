@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 )
 
@@ -67,7 +68,7 @@ func saveWorkflowSnapshotRollbackCheckpointIfFound(ctx context.Context, c *contr
 }
 
 func fetchWorkflowSnapshot(ctx context.Context, c *controlplane.Client, ref string) (map[string]any, bool, error) {
-	res, err := c.Call(ctx, controlplane.CmdWorkflowShow, map[string]any{"ref": ref})
+	res, err := c.Call(ctx, opapi.WorkflowShow, map[string]any{"ref": ref})
 	if err != nil {
 		if strings.Contains(err.Error(), "unknown workflow") {
 			return nil, false, nil
@@ -119,7 +120,7 @@ func saveConfigSettingRollbackCheckpoint(ctx context.Context, c *controlplane.Cl
 }
 
 func fetchConfigValueFields(ctx context.Context, c *controlplane.Client) ([]any, error) {
-	res, err := c.Call(ctx, controlplane.CmdConfigValues, nil)
+	res, err := c.Call(ctx, opapi.ConfigValues, nil)
 	if err != nil {
 		return nil, err
 	}

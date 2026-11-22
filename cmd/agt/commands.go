@@ -13,9 +13,9 @@ import (
 )
 
 // Command is the public command type. Aliased to router.Command so
-// any field on router.Command (Name, Aliases, Description, HelpLong,
-// HelpHandler, Run) is reachable from the same struct literal in
-// cmd_register.go's Register(&Command{...}) calls.
+// any field on router.Command (Name, Aliases, Run) is reachable from
+// the same struct literal in the top-level vocabulary table's
+// Register(&Command{...}) calls.
 type Command = router.Command
 
 // CommandRegistry is the parallel index used by test helpers

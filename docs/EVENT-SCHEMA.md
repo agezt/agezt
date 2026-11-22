@@ -113,7 +113,7 @@ When event schema behavior changes, choose tests based on impact:
 - Causality/forensics output: `go test ./cmd/agt -run Why` plus relevant control-plane tests.
 - Runtime events: package-specific tests for the emitting subsystem.
 - UI/control-plane folds: tests for the fold path that consumes the event.
-- SDK/API visible events: SDK behavioral tests and `docs/SDK-PARITY.md` update when applicable.
+- SDK/API visible events: SDK behavioral tests, and a contract update in `kernel/contract/restapiapi` when applicable.
 
 ## Documentation checklist for event changes
 

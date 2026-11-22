@@ -17,7 +17,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdWorldForget(args []string, stdout, stderr io.Writer) int {
@@ -47,7 +47,7 @@ func cmdWorldForget(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdWorldForget, map[string]any{"id": id})
+	res, err := c.Call(ctx, opapi.WorldForget, map[string]any{"id": id})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s world forget: %v\n", brand.CLI, err)
 		return 1
@@ -113,7 +113,7 @@ func cmdWorldAdd(args []string, stdout, stderr io.Writer) int {
 		callArgs["aliases"] = as
 	}
 
-	res := worldCall(controlplane.CmdWorldAdd, callArgs, "world add", stdout, stderr, asJSON)
+	res := worldCall(opapi.WorldAdd, callArgs, "world add", stdout, stderr, asJSON)
 	if res == nil {
 		return 1
 	}
@@ -150,7 +150,7 @@ func cmdWorldRelate(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	callArgs := map[string]any{"from": positional[0], "verb": positional[1], "to": positional[2]}
-	res := worldCall(controlplane.CmdWorldRelate, callArgs, "world relate", stdout, stderr, asJSON)
+	res := worldCall(opapi.WorldRelate, callArgs, "world relate", stdout, stderr, asJSON)
 	if res == nil {
 		return 1
 	}

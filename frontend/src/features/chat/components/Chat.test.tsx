@@ -16,7 +16,7 @@ vi.mock("@/app/api", () => ({
 
 // ChannelSessions inside the Chat sidebar pulls from the events SSE + inbox;
 // stub it to a noop so the test doesn't drag those surfaces in.
-vi.mock("@/features/channels/components/ChannelSessions", () => ({
+vi.mock("@/components/ChannelSessions", () => ({
   ChannelSessions: () => null,
 }));
 

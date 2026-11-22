@@ -366,7 +366,7 @@ func RepairStatusOperations(provider func(context.Context) *RepairStatusService)
 	if provider == nil {
 		return nil, errors.New("roster repair status provider required")
 	}
-	op, err := app.NewOperation(opapi.Spec{Name: "agent_repair_status", ReadOnly: true, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{},"limit":{},"cursor":{}}}`), HTTP: opapi.HTTP{Method: "GET", Path: "/api/agents/repair_status"}}, func(ctx context.Context, in RepairStatusRequest) (RepairStatusOutput, error) {
+	op, err := app.NewOperation(opapi.Spec{Name: opapi.AgentRepairStatus, ReadOnly: true, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{},"limit":{},"cursor":{}}}`)}, func(ctx context.Context, in RepairStatusRequest) (RepairStatusOutput, error) {
 		return provider(ctx).RepairStatus(ctx, in)
 	})
 	if err != nil {

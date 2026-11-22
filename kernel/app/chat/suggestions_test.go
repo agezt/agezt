@@ -192,7 +192,7 @@ func TestOperations(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s.Name != "chat_suggestions" || !s.ReadOnly || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Stream != opapi.StreamNone || !s.AllowUnknownInput || s.HTTP.Method != "GET" || s.HTTP.Path != "/api/suggestions" || s.Input != reflect.TypeFor[SuggestionsRequest]() || s.Output != reflect.TypeFor[SuggestionsOutput]() || string(s.OutputSchema) != string(out) {
+	if s.Name != "chat_suggestions" || !s.ReadOnly || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Stream != opapi.StreamNone || !s.AllowUnknownInput || s.Input != reflect.TypeFor[SuggestionsRequest]() || s.Output != reflect.TypeFor[SuggestionsOutput]() || string(s.OutputSchema) != string(out) {
 		t.Fatalf("spec: %+v", s)
 	}
 	for _, in := range []string{`{}`, `{"session_id":null,"tools":5,"tenant":"t"}`} {

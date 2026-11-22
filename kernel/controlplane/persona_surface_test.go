@@ -3,6 +3,7 @@ package controlplane
 
 import (
 	"github.com/agezt/agezt/kernel/app/binding"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"testing"
 
 	"github.com/agezt/agezt/kernel/runtime"
@@ -27,7 +28,7 @@ func TestThePersonaSurfaceEditsTheDaemonsIdentity(t *testing.T) {
 	server := NewServer(binding.ScopeFromKernel(k, dir))
 	server.token = "primary"
 
-	response := callAppHost(t, server, Request{ID: "persona-set", Cmd: CmdPersonaSet, Token: "primary", Args: map[string]any{"system": "after"}})[0]
+	response := callAppHost(t, server, Request{ID: "persona-set", Cmd: opapi.PersonaSet, Token: "primary", Args: map[string]any{"system": "after"}})[0]
 	if response.Type != RespResult {
 		t.Fatalf("the persona surface refused the change: %+v", response)
 	}

@@ -64,7 +64,7 @@ func ToolboxInstallOperations(provider func(context.Context) *ToolboxInstall) ([
 	if provider == nil {
 		return nil, errors.New("toolbox installer provider required")
 	}
-	operation, err := app.NewStreamingOperation(opapi.Spec{Name: "toolbox_install", Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, Stream: opapi.StreamEvents, AllowUnknownInput: true, InputSchema: toolboxInstallSchema, EmissionSchema: toolboxProgressSchema}, func(ctx context.Context, in ToolboxInstallRequest, emit func(event.Event) error) (ToolboxInstallOutput, error) {
+	operation, err := app.NewStreamingOperation(opapi.Spec{Name: opapi.ToolboxInstall, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, Stream: opapi.StreamEvents, AllowUnknownInput: true, InputSchema: toolboxInstallSchema, EmissionSchema: toolboxProgressSchema}, func(ctx context.Context, in ToolboxInstallRequest, emit func(event.Event) error) (ToolboxInstallOutput, error) {
 		names := toolboxInstallNames(in.Names)
 		if len(names) == 0 {
 			return ToolboxInstallOutput{}, errors.New("args.names (non-empty list) required")

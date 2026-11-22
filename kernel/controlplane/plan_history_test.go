@@ -6,7 +6,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -41,7 +41,7 @@ func TestPlanHistory_ListsAndJoinsOutcome(t *testing.T) {
 	started("plan-3", "running-one", 3) // no terminal → running
 
 	// All three.
-	res, err := c.Call(context.Background(), controlplane.CmdPlanHistory, nil)
+	res, err := c.Call(context.Background(), opapi.PlanHistory, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +59,7 @@ func TestPlanHistory_ListsAndJoinsOutcome(t *testing.T) {
 	}
 
 	// --status failed → just plan-2.
-	fres, err := c.Call(context.Background(), controlplane.CmdPlanHistory,
+	fres, err := c.Call(context.Background(), opapi.PlanHistory,
 		map[string]any{"status": "failed"})
 	if err != nil {
 		t.Fatal(err)
@@ -98,7 +98,7 @@ func TestPlanStats_Aggregates(t *testing.T) {
 	term("p3", event.KindPlanFailed)
 	started("p4") // running
 
-	res, err := c.Call(context.Background(), controlplane.CmdPlanStats, nil)
+	res, err := c.Call(context.Background(), opapi.PlanStats, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

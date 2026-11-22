@@ -12,7 +12,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 // cmdPlanHistory implements `agt plan history [N] [--status <s>] [--json]` — the
@@ -69,7 +69,7 @@ func cmdPlanHistory(args []string, stdout, stderr io.Writer) int {
 	if status != "" {
 		callArgs["status"] = status
 	}
-	res, err := c.Call(ctx, controlplane.CmdPlanHistory, withTenant(tenant, callArgs))
+	res, err := c.Call(ctx, opapi.PlanHistory, withTenant(tenant, callArgs))
 	if err != nil {
 		fmt.Fprintf(stderr, "%s plan history: %v\n", brand.CLI, err)
 		return 1
@@ -139,7 +139,7 @@ func cmdPlanStats(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdPlanStats, withTenant(tenant, nil))
+	res, err := c.Call(ctx, opapi.PlanStats, withTenant(tenant, nil))
 	if err != nil {
 		fmt.Fprintf(stderr, "%s plan stats: %v\n", brand.CLI, err)
 		return 1

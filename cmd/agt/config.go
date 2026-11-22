@@ -18,39 +18,19 @@ import (
 
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdConfig(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintf(stderr, "%s config: subcommand required (show, ls, get, set, schema)\n", brand.CLI)
+		fmt.Fprintf(stderr, "%s config: subcommand required %s\n", brand.CLI, cliConfig.listNames())
 		return 2
 	}
-	switch args[0] {
-	case "show":
-		return cmdConfigShow(args[1:], stdout, stderr)
-	case "ls":
-		return cmdConfigLs(args[1:], stdout, stderr)
-	case "get":
-		return cmdConfigGet(args[1:], stdout, stderr)
-	case "set":
-		return cmdConfigSet(args[1:], stdout, stderr)
-	case "schema":
-		return cmdConfigSchema(args[1:], stdout, stderr)
-	case "-h", "--help":
-		fmt.Fprintf(stdout, "usage: %s config <subcommand>\n\n", brand.CLI)
-		fmt.Fprintf(stdout, "  show [--json]            resolved config (paths, model, env presence)\n")
-		fmt.Fprintf(stdout, "  ls [--json]              every Config Center setting + its state\n")
-		fmt.Fprintf(stdout, "  get <ENV>                one setting's value (secrets: presence only)\n")
-		fmt.Fprintf(stdout, "  set <ENV> <value>        write a setting (live for provider/model, else restart)\n")
-		fmt.Fprintf(stdout, "  schema [--json]          list the editable schema (built-in + registered)\n")
-		fmt.Fprintf(stdout, "  schema register <file>   register a skill/plugin schema section (JSON)\n")
-		fmt.Fprintf(stdout, "  schema unregister <id>   remove a registered schema section\n")
-		return 0
-	default:
-		fmt.Fprintf(stderr, "%s config: unknown subcommand %q (show, ls, get, set, schema)\n", brand.CLI, args[0])
-		return 2
+	if sub, ok := cliConfig.lookup(args[0]); ok {
+		return sub.run(nil, args, stdout, stderr)
 	}
+	fmt.Fprintf(stderr, "%s config: unknown subcommand %q %s\n", brand.CLI, args[0], cliConfig.listNames())
+	return 2
 }
 func sortedKeys(m map[string]any) []string {
 	keys := make([]string, 0, len(m))
@@ -82,7 +62,7 @@ func cmdConfigSet(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s config set: checkpoint: %v\n", brand.CLI, cerr)
 		return 1
 	}
-	res, err := c.Call(ctx, controlplane.CmdConfigSet, map[string]any{"name": env, "value": value})
+	res, err := c.Call(ctx, opapi.ConfigSet, map[string]any{"name": env, "value": value})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s config set: %v\n", brand.CLI, err)
 		return 1

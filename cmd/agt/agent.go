@@ -17,50 +17,14 @@ func cmdAgent(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
 		return agentUsage(stderr)
 	}
-	switch args[0] {
-	case "list":
-		return cmdAgentList(args[1:], stdout, stderr)
-	case "add", "create":
-		return cmdAgentAdd(args[1:], stdout, stderr)
-	case "show":
-		return cmdAgentShow(args[1:], stdout, stderr)
-	case "authority":
-		return cmdAgentAuthority(args[1:], stdout, stderr)
-	case "impact":
-		return cmdAgentImpact(args[1:], stdout, stderr)
-	case "tombstone":
-		return cmdAgentTombstone(args[1:], stdout, stderr)
-	case "graveyard":
-		return cmdAgentGraveyard(args[1:], stdout, stderr)
-	case "set", "edit":
-		return cmdAgentSet(args[1:], stdout, stderr)
-	case "task", "tasks":
-		return cmdAgentTask(args[1:], stdout, stderr)
-	case "wake":
-		return cmdAgentWake(args[1:], stdout, stderr)
-	case "repair":
-		return cmdAgentRepair(args[1:], stdout, stderr)
-	case "repair-status":
-		return cmdAgentRepairStatus(args[1:], stdout, stderr)
-	case "pause":
-		return cmdAgentSetEnabled(args[1:], stdout, stderr, false)
-	case "resume":
-		return cmdAgentSetEnabled(args[1:], stdout, stderr, true)
-	case "retire":
-		return cmdAgentRetire(args[1:], stdout, stderr)
-	case "revive":
-		return cmdAgentRevive(args[1:], stdout, stderr)
-	case "remove", "rm":
-		return cmdAgentRemove(args[1:], stdout, stderr)
-	case "-h", "--help", "help":
-		return agentUsage(stdout)
-	default:
-		fmt.Fprintf(stderr, "%s agent: unknown subcommand %q\n", brand.CLI, args[0])
-		return agentUsage(stderr)
+	if sub, ok := cliAgent.lookup(args[0]); ok {
+		return sub.run(nil, args, stdout, stderr)
 	}
+	fmt.Fprintf(stderr, "%s agent: unknown subcommand %q\n", brand.CLI, args[0])
+	return agentUsage(stderr)
 }
 func agentUsage(w io.Writer) int {
-	fmt.Fprintf(w, "usage: %s agent <list|add|show|impact|tombstone|graveyard|set|task|wake|repair|repair-status|pause|resume|retire|revive|remove>\n", brand.CLI)
+	fmt.Fprintf(w, "usage: %s agent %s\n", brand.CLI, cliAgent.synopsis())
 	fmt.Fprintf(w, "  list [--json]                                  show the agent roster\n")
 	fmt.Fprintf(w, "  add <slug> [--name N] [--soul TEXT] [--model M] [--fallbacks m1,m2]\n")
 	fmt.Fprintf(w, "      [--task TYPE] [--max-cost USD] [--max-daily USD] [--memory-scope S] [--workdir DIR] [--desc TEXT]\n")

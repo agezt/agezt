@@ -40,23 +40,15 @@ func cmdRollback(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
 		return rollbackUsage(stderr)
 	}
-	switch args[0] {
-	case "list", "ls":
-		return cmdRollbackList(args[1:], stdout, stderr)
-	case "show", "dry-run", "preview":
-		return cmdRollbackShow(args[0], args[1:], stdout, stderr)
-	case "apply":
-		return cmdRollbackApply(args[1:], stdout, stderr)
-	case "-h", "--help", "help":
-		return rollbackUsage(stdout)
-	default:
-		fmt.Fprintf(stderr, "%s rollback: unknown subcommand %q\n", brand.CLI, args[0])
-		return rollbackUsage(stderr)
+	if sub, ok := cliRollback.lookup(args[0]); ok {
+		return sub.run(nil, args, stdout, stderr)
 	}
+	fmt.Fprintf(stderr, "%s rollback: unknown subcommand %q\n", brand.CLI, args[0])
+	return rollbackUsage(stderr)
 }
 
 func rollbackUsage(w io.Writer) int {
-	fmt.Fprintf(w, "usage: %s rollback <list|show|dry-run|apply>\n", brand.CLI)
+	fmt.Fprintf(w, "usage: %s rollback %s\n", brand.CLI, cliRollback.synopsis())
 	fmt.Fprintf(w, "  list [--run <id>] [--json]  list local mutation checkpoints\n")
 	fmt.Fprintf(w, "  show <checkpoint> [--json]   inspect a checkpoint without changing state\n")
 	fmt.Fprintf(w, "  dry-run <checkpoint> [--json] preview the restore target\n")

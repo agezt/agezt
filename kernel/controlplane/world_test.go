@@ -6,7 +6,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
@@ -15,7 +15,7 @@ func TestWorldAddResolveNeighbors(t *testing.T) {
 	ctx := context.Background()
 
 	// Add an entity with an alias.
-	res, err := c.Call(ctx, controlplane.CmdWorldAdd, map[string]any{
+	res, err := c.Call(ctx, opapi.WorldAdd, map[string]any{
 		"name": "Lictor", "kind": "project", "aliases": []any{"the portfolio"},
 	})
 	if err != nil {
@@ -26,7 +26,7 @@ func TestWorldAddResolveNeighbors(t *testing.T) {
 	}
 
 	// Resolve the alias phrase back to the entity.
-	res, err = c.Call(ctx, controlplane.CmdWorldResolve, map[string]any{"query": "the portfolio"})
+	res, err = c.Call(ctx, opapi.WorldResolve, map[string]any{"query": "the portfolio"})
 	if err != nil {
 		t.Fatalf("resolve: %v", err)
 	}
@@ -41,12 +41,12 @@ func TestWorldAddResolveNeighbors(t *testing.T) {
 	}
 
 	// Relate + neighbors.
-	if _, err := c.Call(ctx, controlplane.CmdWorldRelate, map[string]any{
+	if _, err := c.Call(ctx, opapi.WorldRelate, map[string]any{
 		"from": "Lictor", "verb": "depends_on", "to": "go-stdlib",
 	}); err != nil {
 		t.Fatalf("relate: %v", err)
 	}
-	res, err = c.Call(ctx, controlplane.CmdWorldNeighbors, map[string]any{"query": "Lictor"})
+	res, err = c.Call(ctx, opapi.WorldNeighbors, map[string]any{"query": "Lictor"})
 	if err != nil {
 		t.Fatalf("neighbors: %v", err)
 	}
@@ -66,7 +66,7 @@ func TestWorldEdit(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
 
-	add, err := c.Call(ctx, controlplane.CmdWorldAdd, map[string]any{
+	add, err := c.Call(ctx, opapi.WorldAdd, map[string]any{
 		"name": "Ada", "kind": "person",
 		"aliases": []any{"the boss"},
 		"attrs":   map[string]any{"brief": "morning", "tz": "UTC"},
@@ -79,7 +79,7 @@ func TestWorldEdit(t *testing.T) {
 		t.Fatalf("add returned no id: %v", add)
 	}
 
-	edit, err := c.Call(ctx, controlplane.CmdWorldEdit, map[string]any{
+	edit, err := c.Call(ctx, opapi.WorldEdit, map[string]any{
 		"id":      id,
 		"aliases": []any{"ada k"},
 		"attrs":   map[string]any{"brief": "evening, terse", "role": "owner"},
@@ -92,7 +92,7 @@ func TestWorldEdit(t *testing.T) {
 	}
 
 	// Get reflects the replaced state.
-	got, err := c.Call(ctx, controlplane.CmdWorldGet, map[string]any{"id": id})
+	got, err := c.Call(ctx, opapi.WorldGet, map[string]any{"id": id})
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
@@ -110,7 +110,7 @@ func TestWorldEdit(t *testing.T) {
 	}
 
 	// Unknown id → updated:false, not an error.
-	miss, err := c.Call(ctx, controlplane.CmdWorldEdit, map[string]any{"id": "deadbeef"})
+	miss, err := c.Call(ctx, opapi.WorldEdit, map[string]any{"id": "deadbeef"})
 	if err != nil {
 		t.Fatalf("edit unknown id errored: %v", err)
 	}
@@ -121,14 +121,14 @@ func TestWorldEdit(t *testing.T) {
 
 func TestWorldAddRejectsEmptyName(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
-	if _, err := c.Call(context.Background(), controlplane.CmdWorldAdd, map[string]any{"kind": "project"}); err == nil {
+	if _, err := c.Call(context.Background(), opapi.WorldAdd, map[string]any{"kind": "project"}); err == nil {
 		t.Error("add without name must error")
 	}
 }
 
 func TestWorldListEmpty(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
-	res, err := c.Call(context.Background(), controlplane.CmdWorldList, nil)
+	res, err := c.Call(context.Background(), opapi.WorldList, nil)
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -141,13 +141,13 @@ func TestWorldListEmpty(t *testing.T) {
 func TestWorldListReturnsEdges(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
-	if _, err := c.Call(ctx, controlplane.CmdWorldRelate, map[string]any{
+	if _, err := c.Call(ctx, opapi.WorldRelate, map[string]any{
 		"from": "Lictor", "verb": "depends_on", "to": "go-stdlib",
 	}); err != nil {
 		t.Fatalf("relate: %v", err)
 	}
 
-	res, err := c.Call(ctx, controlplane.CmdWorldList, nil)
+	res, err := c.Call(ctx, opapi.WorldList, nil)
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -171,7 +171,7 @@ func TestWorldListReturnsEdges(t *testing.T) {
 func TestWorldForgetExcludesFromList(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
-	res, err := c.Call(ctx, controlplane.CmdWorldAdd, map[string]any{"name": "Ephemeral", "kind": "project"})
+	res, err := c.Call(ctx, opapi.WorldAdd, map[string]any{"name": "Ephemeral", "kind": "project"})
 	if err != nil {
 		t.Fatalf("add: %v", err)
 	}
@@ -180,7 +180,7 @@ func TestWorldForgetExcludesFromList(t *testing.T) {
 		t.Fatal("add returned no id")
 	}
 
-	res, err = c.Call(ctx, controlplane.CmdWorldForget, map[string]any{"id": id})
+	res, err = c.Call(ctx, opapi.WorldForget, map[string]any{"id": id})
 	if err != nil {
 		t.Fatalf("forget: %v", err)
 	}
@@ -189,12 +189,12 @@ func TestWorldForgetExcludesFromList(t *testing.T) {
 	}
 
 	// Gone from the active list...
-	res, _ = c.Call(ctx, controlplane.CmdWorldList, nil)
+	res, _ = c.Call(ctx, opapi.WorldList, nil)
 	if ents, _ := res["entities"].([]any); len(ents) != 0 {
 		t.Fatalf("forgotten entity must not appear in list, got %d", len(ents))
 	}
 	// ...but still retrievable by id (reversibility) and marked tombstoned.
-	res, _ = c.Call(ctx, controlplane.CmdWorldGet, map[string]any{"id": id})
+	res, _ = c.Call(ctx, opapi.WorldGet, map[string]any{"id": id})
 	if found, _ := res["found"].(bool); !found {
 		t.Fatal("forgotten entity must remain retrievable by id")
 	}
@@ -206,7 +206,7 @@ func TestWorldForgetExcludesFromList(t *testing.T) {
 
 func TestWorldForgetRequiresID(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
-	if _, err := c.Call(context.Background(), controlplane.CmdWorldForget, map[string]any{}); err == nil {
+	if _, err := c.Call(context.Background(), opapi.WorldForget, map[string]any{}); err == nil {
 		t.Error("world_forget without id should error")
 	}
 }

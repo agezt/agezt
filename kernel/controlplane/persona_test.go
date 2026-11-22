@@ -6,7 +6,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/settings"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -19,7 +19,7 @@ func TestPersona_GetSet_LiveAndPersisted(t *testing.T) {
 	k, _, c, dir := startPair(t, mock.New(mock.FinalText("ok")))
 
 	// Initially no default identity.
-	res, err := c.Call(context.Background(), controlplane.CmdPersonaGet, nil)
+	res, err := c.Call(context.Background(), opapi.PersonaGet, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -29,7 +29,7 @@ func TestPersona_GetSet_LiveAndPersisted(t *testing.T) {
 
 	// Set a default identity.
 	defaultIdentity := "You are Jarvis. Be terse and proactive."
-	if _, err := c.Call(context.Background(), controlplane.CmdPersonaSet, map[string]any{"system": defaultIdentity}); err != nil {
+	if _, err := c.Call(context.Background(), opapi.PersonaSet, map[string]any{"system": defaultIdentity}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -38,7 +38,7 @@ func TestPersona_GetSet_LiveAndPersisted(t *testing.T) {
 		t.Errorf("kernel.System() = %q, want the new default identity applied live", got)
 	}
 	// Readback through the control plane.
-	res, _ = c.Call(context.Background(), controlplane.CmdPersonaGet, nil)
+	res, _ = c.Call(context.Background(), opapi.PersonaGet, nil)
 	if res["system"] != defaultIdentity || res["set"] != true {
 		t.Errorf("persona_get = %v, want the set default identity", res)
 	}
@@ -52,7 +52,7 @@ func TestPersona_GetSet_LiveAndPersisted(t *testing.T) {
 	}
 
 	// Clearing removes it, live and persisted.
-	if _, err := c.Call(context.Background(), controlplane.CmdPersonaSet, map[string]any{"system": ""}); err != nil {
+	if _, err := c.Call(context.Background(), opapi.PersonaSet, map[string]any{"system": ""}); err != nil {
 		t.Fatal(err)
 	}
 	if k.System() != "" {
@@ -68,11 +68,11 @@ func TestPersona_GetSet_LiveAndPersisted(t *testing.T) {
 // TestPersona_Set_RequiresStringArg guards the arg contract.
 func TestPersona_Set_RequiresStringArg(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
-	_, err := c.Call(context.Background(), controlplane.CmdPersonaSet, map[string]any{"system": 42})
+	_, err := c.Call(context.Background(), opapi.PersonaSet, map[string]any{"system": 42})
 	if err == nil {
 		t.Error("persona_set with a non-string system should error")
 	}
-	if _, err := c.Call(context.Background(), controlplane.CmdPersonaSet, nil); err == nil {
+	if _, err := c.Call(context.Background(), opapi.PersonaSet, nil); err == nil {
 		t.Error("persona_set without args.system should error")
 	}
 }

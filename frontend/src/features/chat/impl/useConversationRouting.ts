@@ -9,7 +9,7 @@ export function useConversationRouting() {
 
   useEffect(() => {
     let live = true;
-    getJSON<{ chains?: Record<string, string[]> }>("/api/routing")
+    getJSON("/api/routing")
       .then((r) => {
         if (live) setChatChain(r.chains?.chat || []);
       })

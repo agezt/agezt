@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -38,7 +38,7 @@ func TestToolforge_WireRoundTrip(t *testing.T) {
 	defer cancel()
 
 	// Draft.
-	res, err := c.Call(ctx, controlplane.CmdToolforgeDraft, map[string]any{
+	res, err := c.Call(ctx, opapi.ToolforgeDraft, map[string]any{
 		"tool": map[string]any{
 			"name": "echo", "description": "echoes input", "language": "python",
 			"code": "print(open('stdin.txt').read())",
@@ -53,13 +53,13 @@ func TestToolforge_WireRoundTrip(t *testing.T) {
 	}
 
 	// Promote before any test → refused (the forge's core invariant).
-	if _, err := c.Call(ctx, controlplane.CmdToolforgePromote, map[string]any{"ref": "echo"}); err == nil ||
+	if _, err := c.Call(ctx, opapi.ToolforgePromote, map[string]any{"ref": "echo"}); err == nil ||
 		!strings.Contains(err.Error(), "test") {
 		t.Fatalf("untested promote: got %v, want a test-first refusal", err)
 	}
 
 	// Test (sandbox pass) → recorded.
-	res, err = c.Call(ctx, controlplane.CmdToolforgeTest, map[string]any{"ref": "echo", "input": `{"x":1}`})
+	res, err = c.Call(ctx, opapi.ToolforgeTest, map[string]any{"ref": "echo", "input": `{"x":1}`})
 	if err != nil {
 		t.Fatalf("test: %v", err)
 	}
@@ -68,7 +68,7 @@ func TestToolforge_WireRoundTrip(t *testing.T) {
 	}
 
 	// Promote → ACTIVE, callable as forge_echo.
-	res, err = c.Call(ctx, controlplane.CmdToolforgePromote, map[string]any{"ref": "echo"})
+	res, err = c.Call(ctx, opapi.ToolforgePromote, map[string]any{"ref": "echo"})
 	if err != nil {
 		t.Fatalf("promote: %v", err)
 	}
@@ -78,7 +78,7 @@ func TestToolforge_WireRoundTrip(t *testing.T) {
 	}
 
 	// List counts it as live; the code body stays out of the list view.
-	res, err = c.Call(ctx, controlplane.CmdToolforgeList, nil)
+	res, err = c.Call(ctx, opapi.ToolforgeList, nil)
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -91,7 +91,7 @@ func TestToolforge_WireRoundTrip(t *testing.T) {
 	}
 
 	// Show carries the full record.
-	res, err = c.Call(ctx, controlplane.CmdToolforgeShow, map[string]any{"ref": "echo"})
+	res, err = c.Call(ctx, opapi.ToolforgeShow, map[string]any{"ref": "echo"})
 	if err != nil {
 		t.Fatalf("show: %v", err)
 	}
@@ -101,7 +101,7 @@ func TestToolforge_WireRoundTrip(t *testing.T) {
 	}
 
 	// Quarantine (kill switch).
-	res, err = c.Call(ctx, controlplane.CmdToolforgeQuarantine, map[string]any{"ref": "echo", "reason": "smoke"})
+	res, err = c.Call(ctx, opapi.ToolforgeQuarantine, map[string]any{"ref": "echo", "reason": "smoke"})
 	if err != nil {
 		t.Fatalf("quarantine: %v", err)
 	}
@@ -111,7 +111,7 @@ func TestToolforge_WireRoundTrip(t *testing.T) {
 	}
 
 	// Edit the code → demoted to draft, test record cleared.
-	res, err = c.Call(ctx, controlplane.CmdToolforgeEdit, map[string]any{
+	res, err = c.Call(ctx, opapi.ToolforgeEdit, map[string]any{
 		"ref": "echo", "tool": map[string]any{"code": "print('v2')"},
 	})
 	if err != nil {
@@ -123,7 +123,7 @@ func TestToolforge_WireRoundTrip(t *testing.T) {
 	}
 
 	// Remove.
-	res, err = c.Call(ctx, controlplane.CmdToolforgeRemove, map[string]any{"ref": "echo"})
+	res, err = c.Call(ctx, opapi.ToolforgeRemove, map[string]any{"ref": "echo"})
 	if err != nil {
 		t.Fatalf("remove: %v", err)
 	}
@@ -143,19 +143,19 @@ func TestToolforge_FailedTestKeepsGateShut(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	if _, err := c.Call(ctx, controlplane.CmdToolforgeDraft, map[string]any{
+	if _, err := c.Call(ctx, opapi.ToolforgeDraft, map[string]any{
 		"tool": map[string]any{"name": "broken", "description": "d", "language": "python", "code": "boom("},
 	}); err != nil {
 		t.Fatalf("draft: %v", err)
 	}
-	res, err := c.Call(ctx, controlplane.CmdToolforgeTest, map[string]any{"ref": "broken"})
+	res, err := c.Call(ctx, opapi.ToolforgeTest, map[string]any{"ref": "broken"})
 	if err != nil {
 		t.Fatalf("test: %v", err)
 	}
 	if ok, _ := res["ok"].(bool); ok {
 		t.Fatal("failing run reported ok")
 	}
-	if _, err := c.Call(ctx, controlplane.CmdToolforgePromote, map[string]any{"ref": "broken"}); err == nil {
+	if _, err := c.Call(ctx, opapi.ToolforgePromote, map[string]any{"ref": "broken"}); err == nil {
 		t.Fatal("promote accepted after a failed test")
 	}
 }

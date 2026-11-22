@@ -262,11 +262,7 @@ func TestSteerOperations(t *testing.T) {
 	for _, op := range ops {
 		spec := op.Spec()
 		w, ok := want[spec.Name]
-		http := opapi.HTTP{}
-		if w.path != "" {
-			http = opapi.HTTP{Method: "POST", Path: w.path}
-		}
-		if !ok || spec.ReadOnly || spec.Authz != opapi.OwnTenant || spec.Tenancy != opapi.CallerTenant || !spec.AllowUnknownInput || spec.Input != w.in || spec.Output != w.out || spec.HTTP != http {
+		if !ok || spec.ReadOnly || spec.Authz != opapi.OwnTenant || spec.Tenancy != opapi.CallerTenant || !spec.AllowUnknownInput || spec.Input != w.in || spec.Output != w.out {
 			t.Fatal(spec)
 		}
 		delete(want, spec.Name)

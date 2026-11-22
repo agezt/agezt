@@ -16,6 +16,7 @@ import (
 
 	"encoding/json"
 	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"path/filepath"
 )
@@ -77,7 +78,7 @@ func ProbeExisting(baseDir string) (addr string, alive bool) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 1500*time.Millisecond)
 	defer cancel()
-	if _, err := c.Call(ctx, CmdStatus, nil); err != nil {
+	if _, err := c.Call(ctx, opapi.Status, nil); err != nil {
 		return c.addr, false // recorded but unreachable → stale
 	}
 	return c.addr, true
@@ -206,7 +207,7 @@ func (c *Client) Stream(ctx context.Context, cmd string, args map[string]any, on
 }
 
 // StreamUntilCancel is Stream's open-ended sibling for commands
-// like CmdPulseSubscribe that never send RespResult — the server
+// like opapi.PulseSubscribe that never send RespResult — the server
 // keeps streaming events until either side closes the connection.
 //
 // Lifecycle: the call returns when:

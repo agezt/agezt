@@ -4,6 +4,7 @@ package controlplane_test
 import (
 	"context"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -40,7 +41,7 @@ func TestToolObservationsSocketTenantJournalIsolationAndUnauditedReads(t *testin
 		heads[id], hashes[id] = k.Journal().Head()
 	}
 	client := tenantClient(t, dir, token)
-	for _, command := range []string{controlplane.CmdToolLog, controlplane.CmdToolStats} {
+	for _, command := range []string{opapi.ToolLog, opapi.ToolStats} {
 		for _, read := range []struct {
 			client *controlplane.Client
 			args   map[string]any

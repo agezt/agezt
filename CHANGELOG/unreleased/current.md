@@ -361,6 +361,27 @@ This file holds the active `[Unreleased]` working set.
 
 ### Added
 
+- **The Rust SDK joins the generated catalog.** `tools/sdkgen` now renders the
+  REST contract into `sdk/rust/src/generated.rs`: the path constants (plus
+  `paths::ALL`) and one flat struct per wire row, each with `from_value` and
+  `to_value`. The Rust SDK has no runtime dependency at all — standard library
+  only, with its own HTTP client and its own JSON codec — so the generated
+  Rust leans on the crate's own `json::Value` instead of serde. `client.rs`
+  now calls the generated paths and rows and spells no path and no wire field
+  of its own.
+
+- **The server's own answers, recorded (`sdk/fixtures/`).** The SDKs parse what
+  this daemon answers, but until now each SDK test wrote its own payload and
+  called it a contract — so a change in the daemon's wire shape (a renamed
+  field, a different envelope) could pass every SDK test and still break every
+  SDK. `sdk/fixtures/` holds the bytes the daemon's **real handlers** answered,
+  recorded by `kernel/restapi`'s golden test (a deterministic engine and a
+  deterministic board driving the real routes) and compared byte-for-byte with
+  the committed files. `manifest.json` names, for every SDK-contract endpoint,
+  the id, the verb, the contract's path TEMPLATE, the concrete request, the
+  status and the fixture's file. `AGEZT_UPDATE_GOLDEN=1 go test ./kernel/restapi/`
+  regenerates them.
+
 - **Architecture codemap + target architecture (`architecture/`).** `00-README.md` … `12-*.md`
   map every package and file of the current system (purpose, persistence, events, wiring,
   gotchas) with a findings register; `20-target-architecture.md` defines the clean layering
@@ -816,6 +837,106 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The browser's payload types come from the daemon's registry.** The console
+  described every payload in its operation registry, and the browser described
+  the same payloads **again**, by hand: **352** hand-written `interface`
+  declarations and **217** call sites naming their payload type themselves.
+  The types are now **generated** from the registry's own JSON Schema
+  (`tools/openapi` writes `frontend/src/app/api/types.generated.ts`: 358
+  interfaces, 143 aliases, 203 response paths, 65 request paths), the client
+  answers with the shape the **path** carries (`ResponseOf<P>` /
+  `RequestOf<P>`), and every type argument at the call site is gone. The
+  browser's own **views** survive — which fields it reads, and whether it reads
+  them as required — but every field's *type* is now the daemon's. A field the
+  daemon renames breaks the browser at compile time, on the view and at the
+  call site. Nine real bugs died on the way: the build row that read "—"
+  forever, the roster that said "0 agents" on a fleet of twelve, the approvals
+  history that was always empty, the skills that all read "never used", the
+  bundled files that rendered as blank lines, and the Research panel that was
+  empty in every section. The registry's exact nullable contract is not lost —
+  `docs/openapi.json` is generated from the same schemas and keeps every null
+  arm; the browser's view folds `null` into absent, which is what its code has
+  always done.
+
+- **The self-repair module holds capabilities, not the daemon.** The agents
+  module's doctor asked the kernel handle for **eleven** verbs over
+  **twenty-two** call sites — the bus, the journal, the provider, the reaper's
+  scan, the roster's reads and writes, the run engine, the correlation and the
+  two run-context doors. It now holds a **Ports** struct
+  (`kernel/modules/agents/selfrepair/ports.go`) with one field per capability,
+  and the composition root fills them (`cmd/agezt/selfrepair_port.go`). Every
+  port answers for a host that supplied nothing: no roster means "no such
+  agent", no scanner means "an empty fleet", no journal means "no repair
+  history". The one exception is the wake — a wake without the run engine, the
+  correlation or the profile binding **refuses**, because a wake that ran
+  without a profile would run somebody else. The daemon's own doors for the
+  run context (`WithAgentProfile`, `WithMaxCost`) stayed the daemon's, and the
+  module asks for them through a port instead of importing the run context's
+  vocabulary, so no second spelling was created. Auto-repair behaves the same:
+  the same claims, the same cooldown, the same escalations.
+
+- **The console's module boundaries are lint-enforced, and the debt is zero.**
+  A new `frontend/src/boundaries.test.ts` resolves the whole import graph and
+  fails on two crossings: a feature importing another feature, and the shared
+  layer (`components/`, `lib/`) reaching up into a feature. The ratchet has two
+  teeth — an unlisted crossing fails, and so does a listed crossing that no
+  longer happens — and its debt ledger is **empty**: the 67 crossings that
+  existed (35 feature-to-feature, 32 shared-layer-to-feature) were paid by
+  moving the shared pieces down into `src/lib/` and `src/components/` and each
+  feature's own view into its feature. The two feature cycles that existed are
+  gone with them.
+
+- **The design-system guard now sees the views.** `designsystem.test.ts`
+  scanned `src/components/` only, so the thirty-odd views in `src/features/`
+  were unpoliced. It now scans both, and it found two real copies of the stat
+  tile — a local `Metric` in Mission Control and a local `Stat` in Jarvis.
+  Both are the shared `<StatTile>` now.
+
+- **The Rust SDK reads the daemon's own answers.** `sdk/rust/tests/golden.rs`
+  parses `sdk/fixtures/` — recorded from the daemon's REST handlers — with the
+  SDK's own types, and checks that the SDK's generated path constants and the
+  server's path templates are one set. A renamed field in the daemon now
+  fails the Rust suite the same way it fails the Python and TypeScript ones.
+  The SDK's ratchets cover Rust too: no Rust source outside the catalog may
+  spell a REST path, and every contract path must be reached through the
+  generated constant.
+
+- **The SDK tests now assert against the daemon's own bytes.** The Python and
+  TypeScript suites read `sdk/fixtures/` and parse it with the SDK's own types
+  (7 and 4 new tests); both also check that the SDK's generated path constants
+  and the server's path templates are **one set**, so a path the server serves
+  but the SDK does not know — or the other way round — fails there. The
+  mailbox **watch** has no fixture on purpose: it is an open-ended SSE stream,
+  and a recorded frame would be a snapshot of a race rather than a contract.
+
+- **The SDK surface has one home.** The daemon's `/api/v1` REST contract moved
+  into `kernel/contract/restapiapi`: every route, tier, query parameter and
+  wire row is data. The daemon now registers its routes FROM that table, and
+  `tools/sdkgen` generates the Python and TypeScript SDK catalogs (paths and
+  wire-row types) from it. The Python and TypeScript clients call the
+  generated paths and use the generated types; the Go SDK's board wire names
+  are derived from the app layer's own rows. New gates: `tools/sdkgen -check`
+  (the catalogs are in sync with the contract), plus ratchets that fail when
+  an SDK source spells a REST path of its own, when a contract path is not
+  reached by an SDK, and when the daemon's registered routes and the contract
+  disagree. `docs/API-STABILITY.md` and the SDK codemap describe the new
+  arrangement.
+
+- **The console's API is written down once, and the browser reads it.** The
+  daemon's operations and the console's route table already said what every
+  path accepts and returns; the browser's client said it a third time, in
+  string literals, and the two could disagree. The API document
+  (`docs/openapi.json`) and the browser's client are now generated from those
+  two sources: a path the console does not answer no longer compiles in the
+  browser, and neither does a route called with the wrong verb or with a
+  parameter the route does not forward. Three real defects died on the way —
+  eight console calls sent a JSON body to a route that read the query string,
+  so their arguments never reached the daemon; two reads dropped the
+  parameter their operation declares; and one bulk-forget tried to send a list
+  of ids in a query string, which a query string cannot carry. The console's
+  own endpoints (login, files, voice, rollback, the event feed) keep working
+  and are now named in one place instead of a test file. The browser's token
+  handling, error shape and event feed are unchanged.
 - **The workflow engine's lifecycle moves into the workflows module.** The daemon
   held eight forwarders over the workflows module's own engine operations — a
   second spelling of every engine verb — and the contract had named the family
@@ -3187,6 +3308,15 @@ This file holds the active `[Unreleased]` working set.
   that owns the quiet action). Board chips stopped saying the same thing three times, and
   "All agents ()" lost its empty parens. Autonomy folds consecutive same-shaped events (the 16
   built-in skills promoted at boot) into one row with a ×N badge.
+
+- **The operation vocabulary has one home.** The 325 names the daemon answers to now live in
+  `kernel/contract/opapi/names*.go`, one constant each, with the documentation that used to sit
+  beside the transport's own `Cmd*` alias. The application layer binds those constants into the
+  operation's spec, and the CLI, the Web UI's route tables and the Go SDK name the same
+  constants. A name is written once in the repository instead of twice, and a ratchet
+  (`kernel/controlplane/op_vocabulary_ratchet_test.go`) fails the build when the registry and the
+  catalogue drift apart, or when the application layer repeats a name as a literal. The names and
+  their values did not change: the wire protocol is exactly what it was.
 
 ### Fixed
 
@@ -5612,6 +5742,53 @@ This file holds the active `[Unreleased]` working set.
 
 ### Removed
 
+- **The last architecture allowlist entry, and the module's handle behind it.**
+  `tools/archcheck/allowlist.txt` carried one line for years:
+  `cross-module kernel/modules/agents/selfrepair -> kernel/runtime`. The
+  self-repair module no longer imports the daemon, so the line is gone and both
+  allowlists hold comments only — `go run ./tools/archcheck -summary` reads
+  **340 packages, 0 violations, 0 allowlisted import violations and 0
+  allowlisted call sites**. Every module boundary in the tree is now a rule the
+  gate enforces rather than a line in a debt ledger. Eight new tests hold the
+  line: five in the module (the daemon's package may not be imported; the
+  ports answer for the host that supplied nothing; the wake refuses; the scan
+  arrives in the module's own vocabulary; the profile binding is asked of the
+  host) and three in the daemon (every port is filled; the profile door really
+  binds the run; a host with no kernel holds no healer).
+
+- **The console's test-only modules — nine of them, and the chain that fell
+  with them.** `lib/{catalog,insights,routingSuggest,snapshot,telemetry,toolbox}.ts`,
+  `components/{FlightRecorder,JarvisPresenceCard}.tsx` and
+  `components/ui/advanced.tsx` were imported only by their own tests: leftovers
+  of retired views (Catalog, Insights, Routing, Backup snapshot, Toolbox,
+  Dashboard) and two components nothing rendered. knip could not catch them —
+  it counts a test's import as usage — so the boundary measurement did. Deleting
+  them fell a chain: `lib/replay.ts` existed only to serve the deleted
+  `FlightRecorder`, and the voice feature's `index.ts` barrel existed only to
+  re-export `transcribeAudio`, which had moved down to the shared layer. Both
+  are gone, with their tests.
+
+- **The `api-keys` and `configcenter` features.** Neither was a feature: both
+  were shared primitives wearing a feature's name, and each was reachable from
+  three others (`Models & Keys`, `Connections`, `Channels`, `Voice`, `Setup`).
+  They live in `src/components/apikeys/` and `src/components/configcenter/`
+  now, where the shared layer belongs.
+
+- **`contract/fixtures/` — the self-validating fixtures.** Eight hand-written
+  event payloads and `fixtures_test.go` (194 lines) checked a fixture's own
+  shape instead of asking any emitter to produce it: they could not fail when
+  the daemon changed. The two fixtures the console actually reads moved next to
+  their only consumer (`frontend/fixtures/`); the other six, their Go test and
+  the package are gone. A payload the daemon produces now belongs in
+  `sdk/fixtures/` — recorded, not written by hand.
+
+- **`tools/sdkparity` and `docs/SDK-PARITY.md`.** The static report scraped the
+  daemon's routes with a regex over `kernel/restapi/restapi*.go` and each SDK's
+  sources for the same strings; its `-check` failed only when the REPORT was
+  stale, and it never failed because an SDK lacked a route. The routes now come
+  from a table and the SDKs hold generated constants, so the coverage question
+  is a test. `make sdk-parity` becomes `make sdk-gen-check`.
+
 - **Removed: the kernel's reach on the world model (W3.54).** The kernel held
   the world-model module's concrete graph and **opened the graph's file**
   itself; the reflection engine and the run executor named the module's
@@ -6412,3 +6589,81 @@ This file holds the active `[Unreleased]` working set.
   errors, each the mutation's fault, because a removed binding or import became
   unused — the two rules that could not survive that, the cost function and
   the rescue marker, are now package-level values in the module).
+
+- **The control plane's `Cmd*` constants.** The five hand-written
+  `kernel/controlplane/protocol_commands*.go` files (1,515 lines) and the 325
+  `Cmd*` string constants they declared are gone. Every reference — 1,162 of
+  them across 597 files — now names the operation through the catalogue in
+  `kernel/contract/opapi`. The values are unchanged, so nothing on the wire
+  moved; the `whoami` command stays native by design, and is now the one
+  catalogue name without a typed operation behind it. The pre-existing
+  registry ratchet was repointed at the catalogue rather than deleted, so the
+  dispatch surface is still pinned to the declared vocabulary.
+
+- **The CLI's command vocabulary has one home.** `agt`'s **46** command domains
+  and **311** sub-commands were written out **four or five times** each — the
+  dispatcher's `switch args[0]`, the usage line, the unknown-sub-command
+  message, the "subcommand required" guard and the help table — and the copies
+  had already drifted (nine stale lists; `agt agent`'s own usage line was
+  missing `authority`). The names now live in **one table per domain**,
+  `cmd/agt/commands_dict.go`, and everything else derives from it: the
+  dispatchers look the table up instead of switching, and **35** messages
+  (usage lines, unknown-sub-command messages, guards, the help table) print the
+  derived list rather than a copy of it. The table also names the catalogue
+  operation each command drives — **247** commands, by the catalogue's
+  constants, so a name the catalogue does not carry does not compile. The
+  command names, the domains, the exit codes and the wire protocol did not
+  change; the derived lists are simply correct now (`agt agent` names
+  `authority`, `rollback` names `preview` next to `dry-run`). Two domains were
+  written by hand rather than forced: `provider creds` opened its credential
+  store before dispatching, and `seats list` fell through to the listing below
+  the switch — both now point at the table like every other domain. A new
+  ratchet, `cmd/agt/commands_dict_ratchet_test.go`, proves that no message
+  spells a command list out any more, that a command's operations match the
+  handler that runs it, and that no dispatcher keeps a list of its own; it was
+  proved to fire by two reverted mutations (an operation swapped in the table,
+  and a usage line written out by hand again).
+
+- **The CLI's top-level vocabulary has one home.** The 71 top-level commands were
+  written out twice — `cmd_register.go` declared them (name, aliases, runner) and
+  `help_data.go` declared the same names again with their summaries and usage
+  blocks — and the root dispatcher switched on `args[0]` a third time to answer
+  "version" and "help" before the registry ever saw them. The names now live in
+  **one table**, `cmd/agt/commands_top.go`: the registry is derived from it and
+  the help overview is derived from it, so the two copies cannot drift. The root
+  dispatch keeps no list of its own any more; `agt version` is a real command
+  (it used to be a no-op stub the root dispatcher answered instead), and the
+  router's three dead fields — `Description`, `HelpLong`, `HelpHandler`, none of
+  which was ever read — are gone. The command names, the aliases, the exit codes
+  and the help output did not change. A new ratchet,
+  `cmd/agt/commands_top_ratchet_test.go`, proves that no file registers a command
+  outside the table, that no file switches on `args[0]`, that no name is answered
+  by two commands, that every command has a runner, a summary and a usage block,
+  and that the registry and the help overview are the table; it was proved to fire
+  by two reverted mutations (a second registration outside the table, and an alias
+  that shadowed another command).
+
+- **The console's route table has one home.** The Web UI bound **198** routes
+  by hand across two tables (`kernel/webui/webui_read_routes.go`,
+  `webui_write_routes.go`), and the application layer repeated a third of the
+  same paths on **118** operation specs as an `opapi.Spec.HTTP` "hint" that no
+  production code ever read. The console's binding now lives in **one place**,
+  `kernel/contract/opapi/http.go` — next to the operation names it binds, which
+  is the only layer that sees every operation (70 of the 198 routed operations
+  have no spec literal at all, so no generator reading the specs could have
+  covered them). The catalogue holds **203** routes (36 reads, 41 reads with
+  arguments, 64 writes, 57 JSON writes, 5 streamed), each naming the operation
+  by its constant, the method, the path and the argument allowlist; the console
+  derives its routes from it in one loop and binds one proxy per kind. The two
+  route tables (509 lines), the `writeRoute` type, the `opapi.HTTP` type and
+  the `Spec.HTTP` field are gone, along with the 118 path copies and the 86
+  test clauses that compared them — the tests that carried a real promise
+  ("this operation has no public route") were repointed at the catalogue. Eight
+  new tests guard the line: the catalogue's invariants, the console's (no file
+  in the console may declare a path of its own), and the strongest one — every
+  operation the console binds is one **the daemon registers**, because the
+  console routes by name and an unregistered name answers 502. Proved to fire
+  by two reverted mutations (a route registered outside the catalogue, and a
+  catalogue entry bound to a hand-written operation name). The console answers
+  at the same paths, with the same methods, allowlists and timeouts; the
+  operation names and the wire protocol did not change.

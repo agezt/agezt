@@ -6,12 +6,12 @@ import { cn } from "@/app/utils";
 
 // PendingApproval is one HITL request awaiting the operator's decision, as
 // returned by /api/approvals.
-export interface PendingApproval {
+export type PendingApproval = {
   id?: string;
   capability?: string;
   tool_name?: string;
   reason?: string;
-}
+};
 
 // approvalLabel is the one-line summary shown for a pending request. Pure +
 // unit-tested.
@@ -35,7 +35,7 @@ export function ApprovalsBell() {
 
   const reload = useCallback(async () => {
     try {
-      const d = await getJSON<{ pending?: PendingApproval[] }>("/api/approvals");
+      const d = await getJSON("/api/approvals");
       setPending(d.pending || []);
     } catch {
       /* control plane momentarily unavailable — keep the last known list */

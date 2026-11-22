@@ -1,3 +1,4 @@
+import type { WritePath, NativePath } from "@/app/api";
 import { useState } from "react";
 import { ArrowUpRight, Brain, FileCode, Heart, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -5,7 +6,7 @@ import { Disclosure } from "@/components/ui/disclosure";
 import { TabNav } from "@/components/ui/tab-nav";
 import { KeyValue } from "@/components/JsonView";
 import { type AgentProfile } from "@/features/agents/components/Roster";
-import { agentScope, type AgentConfigOverrideSummary, type MemoryRecord, type SkillLite } from "@/features/agents/lib/agentdetail";
+import { agentScope, type AgentConfigOverrideSummary, type MemoryRecord, type SkillLite } from "@/lib/agentdetail";
 import { ConfigOverrideBox, LifecycleConfigEditor } from "@/features/agents/components/agentdetail/shared";
 import { AgentTaskList, ToolPolicyBox } from "@/features/agents/components/agentdetail/tasks";
 import { FilesTab } from "@/features/agents/components/agentdetail/FilesTab";
@@ -42,7 +43,7 @@ export function MindTab({
   onMutateTask: (id: string, op: "update" | "remove", status?: string) => void;
   onAddTask: (title: string, scope: "cycle" | "total") => void;
   onAction: (
-    path: string,
+    path: WritePath | NativePath,
     params: Record<string, string>,
     success: string,
   ) => Promise<void> | void;

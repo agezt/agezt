@@ -6,7 +6,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -18,7 +18,7 @@ import (
 // real prev_hash any first event would chain off of.
 func TestJournalHead_EmptyJournalReportsZeroAndGenesisHash(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
-	res, err := c.Call(context.Background(), controlplane.CmdJournalHead, nil)
+	res, err := c.Call(context.Background(), opapi.JournalHead, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -51,7 +51,7 @@ func TestJournalHead_TracksAppends(t *testing.T) {
 			t.Fatalf("Publish: %v", err)
 		}
 	}
-	res, err := c.Call(context.Background(), controlplane.CmdJournalHead, nil)
+	res, err := c.Call(context.Background(), opapi.JournalHead, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}

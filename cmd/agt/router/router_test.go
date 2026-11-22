@@ -13,10 +13,9 @@ import (
 // given exit code. Keeps the per-test setup minimal.
 func noopCmd(name string, code int, aliases ...string) *Command {
 	return &Command{
-		Name:        name,
-		Aliases:     aliases,
-		Description: name + " (test)",
-		Run:         func(args []string, stdout, stderr io.Writer) int { return code },
+		Name:    name,
+		Aliases: aliases,
+		Run:     func(args []string, stdout, stderr io.Writer) int { return code },
 	}
 }
 

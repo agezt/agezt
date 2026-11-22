@@ -121,9 +121,9 @@ func TestOperations(t *testing.T) {
 	if err != nil || len(ops) != 2 {
 		t.Fatal(ops, err)
 	}
-	for i, name := range []string{"state_list", "state_get"} {
+	for i, name := range []string{opapi.StateList, "state_get"} {
 		spec := ops[i].Spec()
-		if spec.Name != name || !spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.HTTP != (opapi.HTTP{}) {
+		if spec.Name != name || !spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput {
 			t.Fatal(spec)
 		}
 	}

@@ -11,7 +11,7 @@ import (
 
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 // cmdProviderChatGPT handles `agt provider chatgpt <login|import|logout|status>`
@@ -20,22 +20,14 @@ import (
 // it over the control plane.
 func cmdProviderChatGPT(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintf(stderr, "%s provider chatgpt: subcommand required (login, import, logout, status)\n", brand.CLI)
+		fmt.Fprintf(stderr, "%s provider chatgpt: subcommand required %s\n", brand.CLI, cliProviderChatGPT.listNames())
 		return 2
 	}
-	switch args[0] {
-	case "login", "signin", "connect":
-		return chatgptLogin(stdout, stderr)
-	case "import":
-		return chatgptImport(args[1:], stdout, stderr)
-	case "logout", "disconnect":
-		return chatgptLogout(stdout, stderr)
-	case "status":
-		return chatgptStatus(stdout, stderr)
-	default:
-		fmt.Fprintf(stderr, "%s provider chatgpt: unknown subcommand %q (login, import, logout, status)\n", brand.CLI, args[0])
-		return 2
+	if sub, ok := cliProviderChatGPT.lookup(args[0]); ok {
+		return sub.run(nil, args, stdout, stderr)
 	}
+	fmt.Fprintf(stderr, "%s provider chatgpt: unknown subcommand %q %s\n", brand.CLI, args[0], cliProviderChatGPT.listNames())
+	return 2
 }
 
 // chatgptLogin starts the OAuth flow, prints the authorize URL for the operator
@@ -47,7 +39,7 @@ func chatgptLogin(stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdProviderOAuthStart, map[string]any{"provider": "chatgpt"})
+	res, err := c.Call(ctx, opapi.ProviderOAuthStart, map[string]any{"provider": "chatgpt"})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s provider chatgpt login: %v\n", brand.CLI, err)
 		return 1
@@ -66,7 +58,7 @@ func chatgptLogin(stdout, stderr io.Writer) int {
 	for i := 0; i < deadline; i++ {
 		time.Sleep(2 * time.Second)
 		sctx, scancel := context.WithTimeout(context.Background(), 15*time.Second)
-		st, err := c.Call(sctx, controlplane.CmdProviderOAuthStatus, map[string]any{"state": state})
+		st, err := c.Call(sctx, opapi.ProviderOAuthStatus, map[string]any{"state": state})
 		scancel()
 		if err != nil {
 			continue // transient; keep polling
@@ -98,7 +90,7 @@ func chatgptImport(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdProviderOAuthImport, map[string]any{"path": path})
+	res, err := c.Call(ctx, opapi.ProviderOAuthImport, map[string]any{"path": path})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s provider chatgpt import: %v\n", brand.CLI, err)
 		return 1
@@ -115,7 +107,7 @@ func chatgptLogout(stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	if _, err := c.Call(ctx, controlplane.CmdProviderOAuthLogout, nil); err != nil {
+	if _, err := c.Call(ctx, opapi.ProviderOAuthLogout, nil); err != nil {
 		fmt.Fprintf(stderr, "%s provider chatgpt logout: %v\n", brand.CLI, err)
 		return 1
 	}
@@ -130,7 +122,7 @@ func chatgptStatus(stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdProviderOAuthStatus, map[string]any{"state": ""})
+	res, err := c.Call(ctx, opapi.ProviderOAuthStatus, map[string]any{"state": ""})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s provider chatgpt status: %v\n", brand.CLI, err)
 		return 1

@@ -18,7 +18,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdEdictStats(args []string, stdout, stderr io.Writer) int {
@@ -114,7 +114,7 @@ func cmdEdictStats(args []string, stdout, stderr io.Writer) int {
 	if sinceMS > 0 {
 		callArgs["since_ms"] = sinceMS
 	}
-	res, err := c.Call(ctx, controlplane.CmdEdictStats, callArgs)
+	res, err := c.Call(ctx, opapi.EdictStats, callArgs)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s edict stats: %v\n", brand.CLI, err)
 		return 1

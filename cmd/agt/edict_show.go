@@ -18,7 +18,7 @@ import (
 
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 // cmdEdictShow implements `agt edict show [--json]`. Operators
@@ -47,7 +47,7 @@ func cmdEdictShow(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdEdictShow, withTenant(tenant, nil))
+	res, err := c.Call(ctx, opapi.EdictShow, withTenant(tenant, nil))
 	if err != nil {
 		fmt.Fprintf(stderr, "%s edict show: %v\n", brand.CLI, err)
 		return 1
@@ -155,7 +155,7 @@ func cmdEdictTest(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdEdictTest, withTenant(tenant, map[string]any{
+	res, err := c.Call(ctx, opapi.EdictTest, withTenant(tenant, map[string]any{
 		"capability": capability,
 		"input":      input,
 	}))

@@ -12,7 +12,7 @@ import (
 
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdAgentSetEnabled(args []string, stdout, stderr io.Writer, enabled bool) int {
@@ -30,7 +30,7 @@ func cmdAgentSetEnabled(args []string, stdout, stderr io.Writer, enabled bool) i
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdAgentSetEnabled, map[string]any{"ref": args[0], "enabled": enabled})
+	res, err := c.Call(ctx, opapi.AgentSetEnabled, map[string]any{"ref": args[0], "enabled": enabled})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s agent %s: %v\n", brand.CLI, verb, err)
 		return 1

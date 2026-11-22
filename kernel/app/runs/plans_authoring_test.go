@@ -203,15 +203,15 @@ func TestPlanAuthoringOperations(t *testing.T) {
 	for i, want := range []struct {
 		name, path string
 	}{
-		{"plan_generate", "/api/plan/generate"},
-		{"plan_refine", "/api/plan/refine"},
+		{opapi.PlanGenerate, "/api/plan/generate"},
+		{opapi.PlanRefine, "/api/plan/refine"},
 	} {
 		s := ops[i].Spec()
 		out, err := schema.FromType(reflect.TypeFor[PlanOutput](), false)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if s.Name != want.name || s.ReadOnly || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Stream != opapi.StreamLive || !s.AllowUnknownInput || s.HTTP.Method != "POST" || s.HTTP.Path != want.path || s.Output != reflect.TypeFor[PlanOutput]() || string(s.OutputSchema) != string(out) {
+		if s.Name != want.name || s.ReadOnly || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Stream != opapi.StreamLive || !s.AllowUnknownInput || s.Output != reflect.TypeFor[PlanOutput]() || string(s.OutputSchema) != string(out) {
 			t.Fatalf("%s spec: %+v", want.name, s)
 		}
 		if len(s.EmissionSchema) == 0 {

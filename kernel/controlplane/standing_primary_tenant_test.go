@@ -3,6 +3,7 @@ package controlplane_test
 
 import (
 	"context"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/standing"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -26,7 +27,7 @@ func TestStandingPrimaryOperationsSocketTenantDenialPreservesStateAndCallback(t 
 	}
 	before := k.Standing().List()
 	client := tenantClient(t, dir, token)
-	for _, cmd := range []string{controlplane.CmdStandingList, controlplane.CmdStandingAdd, controlplane.CmdStandingEdit, controlplane.CmdStandingSetEnabled, controlplane.CmdStandingRemove, controlplane.CmdStandingWhy, controlplane.CmdStandingFire} {
+	for _, cmd := range []string{opapi.StandingList, opapi.StandingAdd, opapi.StandingEdit, opapi.StandingSetEnabled, opapi.StandingRemove, opapi.StandingWhy, opapi.StandingFire} {
 		if _, err := client.Call(context.Background(), cmd, map[string]any{"tenant": "acme", "id": entry.ID, "name": "edited", "enabled": false}); err == nil || (!strings.Contains(err.Error(), "forbidden") && !strings.Contains(err.Error(), "unauthorized")) {
 			t.Fatal(cmd, err)
 		}

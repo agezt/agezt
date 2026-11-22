@@ -1,0 +1,1 @@
+{"count":2,"name":"agent-b","waiting":[{"from":"agent-a","id":"m-2","text":"announcement","to":"*","topic":"status","ts_unix_ms":1700000000001},{"from":"agent-a","id":"m-1","text":"first message","to":"agent-b","topic":"dm","ts_unix_ms":1700000000000}]}

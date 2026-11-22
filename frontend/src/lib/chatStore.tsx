@@ -212,7 +212,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
   // The daemon's default model — shown so you always know what you're talking to.
   useEffect(() => {
-    getJSON<{ model?: string }>("/api/config")
+    getJSON("/api/config")
       .then((c) => setActiveModel(String(c.model || "")))
       .catch(() => {
         /* config momentarily unavailable — the picker just shows "default" */
@@ -357,7 +357,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     if (fold.length === 0) return cur;
     const turns: ChatHistoryTurn[] = cur?.text.trim() ? [summaryBriefingTurn(cur.text), ...fold] : fold;
     try {
-      const r = await postJSON<{ summary?: string }>("/api/chat/summarize", { turns });
+      const r = await postJSON("/api/chat/summarize", { turns });
       const text = String(r.summary || "").trim();
       if (!text) return cur;
       const next: HistorySummary = { text, upto: range.to };

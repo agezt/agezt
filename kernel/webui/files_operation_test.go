@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/agezt/agezt/kernel/app/binding"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -68,9 +69,9 @@ func TestFileMutationsHaveCorrelatedOperationAndToolAudit(t *testing.T) {
 				k.Edict().SetLevel(edict.CapFileDelete, edict.LevelDeny)
 			}
 			for _, tc := range []struct{ route, command, body string }{
-				{"mkdir", controlplane.CmdFileMkdir, `{"path":"new-dir"}`},
-				{"rename", controlplane.CmdFileRename, `{"from":"rename-source","to":"renamed"}`},
-				{"delete", controlplane.CmdFileDelete, `{"path":"delete-target"}`},
+				{"mkdir", opapi.FileMkdir, `{"path":"new-dir"}`},
+				{"rename", opapi.FileRename, `{"from":"rename-source","to":"renamed"}`},
+				{"delete", opapi.FileDelete, `{"path":"delete-target"}`},
 			} {
 				t.Run(tc.route, func(t *testing.T) {
 					sub, err := k.Bus().Subscribe("op.>", 16)
@@ -131,7 +132,7 @@ func TestFileMutationsHaveCorrelatedOperationAndToolAudit(t *testing.T) {
 								t.Errorf("tool identity=%s", e.Payload)
 							}
 							wantCapability := "file.write"
-							if tc.command == controlplane.CmdFileDelete {
+							if tc.command == opapi.FileDelete {
 								wantCapability = "file.delete"
 							}
 							if e.Kind == event.KindPolicyDecision && payload.Capability != wantCapability {

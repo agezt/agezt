@@ -2,17 +2,17 @@ import { useMemo } from "react";
 import { ReactFlow, Background, Controls, MarkerType, type Node, type Edge } from "@xyflow/react";
 import { clip } from "@/app/utils";
 
-interface Entity {
+type Entity = {
   id: string;
   name?: string;
   kind?: string;
   weight?: number;
-}
-interface WorldEdge {
+};
+type WorldEdge = {
   from: string;
   to: string;
   verb?: string;
-}
+};
 
 const MAX = 40;
 

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -32,7 +33,7 @@ func TestWebhookNativeSelectedTenantJournal(t *testing.T) {
 		}
 	}
 	client := tenantClient(t, dir, token)
-	for _, cmd := range []string{controlplane.CmdWebhookLog, controlplane.CmdWebhookStats} {
+	for _, cmd := range []string{opapi.WebhookLog, opapi.WebhookStats} {
 		for _, read := range []struct {
 			client *controlplane.Client
 			args   map[string]any

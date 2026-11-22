@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdWorkboardPolicy(args []string, stdout, stderr io.Writer) int {
@@ -62,7 +62,7 @@ func cmdWorkboardPolicy(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	callArgs["id"] = id
-	res, code := callWorkboard(controlplane.CmdWorkboardPolicy, callArgs, stderr)
+	res, code := callWorkboard(opapi.WorkboardPolicy, callArgs, stderr)
 	return renderWorkboardMutation(res, code, asJSON, stdout)
 }
 
@@ -99,7 +99,7 @@ func cmdWorkboardDepend(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	callArgs["id"] = id
-	res, code := callWorkboard(controlplane.CmdWorkboardDepend, callArgs, stderr)
+	res, code := callWorkboard(opapi.WorkboardDepend, callArgs, stderr)
 	return renderWorkboardMutation(res, code, asJSON, stdout)
 }
 
@@ -147,6 +147,6 @@ func cmdWorkboardReclaim(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	callArgs["id"] = id
-	res, code := callWorkboard(controlplane.CmdWorkboardReclaim, callArgs, stderr)
+	res, code := callWorkboard(opapi.WorkboardReclaim, callArgs, stderr)
 	return renderWorkboardMutation(res, code, asJSON, stdout)
 }

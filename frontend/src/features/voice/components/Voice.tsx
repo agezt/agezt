@@ -76,7 +76,7 @@ export function Voice() {
   // Load the roster for the optional agent picker (degrade silently — Voice works
   // with the daemon's default routing when none is chosen).
   useEffect(() => {
-    getJSON<{ profiles?: { slug: string; name?: string; enabled?: boolean }[] }>("/api/agents")
+    getJSON("/api/agents")
       .then((r) => setAgents((r.profiles ?? []).filter((p) => p.enabled !== false).map((p) => ({ slug: p.slug, name: p.name }))))
       .catch(() => {});
     getVoiceReadiness().then(setReadiness).catch(() => setReadiness(null));

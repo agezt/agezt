@@ -69,7 +69,7 @@ import { LoadMoreFooter } from "@/components/ui/load-more-footer";
 
 // ---- types (extracted to ./types) ----
 import type {
-  WfSettings, Wf,
+  WfSettings, Wf, WfNode,
   WorkflowChainKind,
   WfTemplate, WfRunNodeEvent, WfRun,
 } from "./types";
@@ -234,7 +234,7 @@ export function fromFlow(
   description: string,
   rfNodes: RFNode[],
   rfEdges: RFEdge[],
-): Wf {
+): Wf & { nodes: WfNode[] } {
   return {
     name,
     description,
@@ -800,11 +800,11 @@ export function CopilotPanel({
     try {
       const res =
         mode === "refine"
-          ? await postJSON<{ workflow?: Wf }>("/api/workflows/refine", {
+          ? await postJSON("/api/workflows/refine", {
               workflow: graph,
               instruction: description,
             })
-          : await postJSON<{ workflow?: Wf }>("/api/workflows/draft", { description, name });
+          : await postJSON("/api/workflows/draft", { description, name });
       if (!res.workflow) throw new Error("the copilot returned no workflow");
       onDraft(res.workflow);
       setText("");
@@ -953,7 +953,7 @@ export function RunsDrawer({
 
   const load = useCallback(async () => {
     try {
-      const d = await getJSON<{ runs?: WfRun[] }>("/api/workflows/runs", { ref: name });
+      const d = await getJSON("/api/workflows/runs", { ref: name });
       setRuns(d.runs || []);
     } catch (e) {
       onError((e as Error).message);
@@ -1049,7 +1049,7 @@ export function Workflows() {
       // with_runs makes the daemon fold the journal ONCE for the whole list, so
       // every row can say whether it last succeeded. Without it the list is the
       // cheap answer the CLI wants.
-      const d = await getJSON<{ workflows?: Wf[] }>("/api/workflows", { with_runs: "true" });
+      const d = await getJSON("/api/workflows", { with_runs: "true" });
       setList(d.workflows || []);
       setErr(null);
     } catch (e) {
@@ -1113,7 +1113,7 @@ export function Workflows() {
   // The gallery loads lazily, the first time the create form opens.
   useEffect(() => {
     if (!creating || templates !== null) return;
-    getJSON<{ templates?: WfTemplate[] }>("/api/workflows/templates")
+    getJSON("/api/workflows/templates")
       .then((d) => setTemplates(d.templates || []))
       .catch(() => setTemplates([]));
   }, [creating, templates]);
@@ -1129,7 +1129,7 @@ export function Workflows() {
 
   async function openByName(name: string) {
     try {
-      const d = await getJSON<{ workflow?: Wf }>("/api/workflows/show", { ref: name });
+      const d = await getJSON("/api/workflows/show", { ref: name });
       if (d.workflow) openEditor(d.workflow);
     } catch (e) {
       ui.toast((e as Error).message, "error");
@@ -1346,7 +1346,7 @@ export function Workflows() {
                 // the SSE event the probe publishes.
                 const wf = fromFlow(editing.name, editing.description || "", nodes, edges);
                 try {
-                  const res = await postJSON<{ port?: string; attempts?: number }>(
+                  const res = await postJSON(
                     "/api/workflows/test_node",
                     { workflow: wf, node: selectedNode.id, data },
                   );

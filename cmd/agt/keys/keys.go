@@ -12,7 +12,7 @@ import (
 
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func Run(args []string, stdout, stderr io.Writer) int {
@@ -57,7 +57,7 @@ func listCmd(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdProviderKeyList, keyRequest(provider, args[0]))
+	res, err := c.Call(ctx, opapi.ProviderKeyList, keyRequest(provider, args[0]))
 	if err != nil {
 		fmt.Fprintf(stderr, "%s provider keys list: %v\n", brand.CLI, err)
 		return 1

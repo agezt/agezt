@@ -11,7 +11,7 @@ import (
 
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 // cmdEdict dispatches `agt edict <subcommand>`. The only
@@ -23,41 +23,11 @@ func cmdEdict(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s edict: subcommand required (show|test|deny)\n", brand.CLI)
 		return 2
 	}
-	switch args[0] {
-	case "show":
-		return cmdEdictShow(args[1:], stdout, stderr)
-	case "overlay":
-		return cmdEdictOverlay(args[1:], stdout, stderr)
-	case "compact":
-		return cmdEdictCompact(args[1:], stdout, stderr)
-	case "test":
-		return cmdEdictTest(args[1:], stdout, stderr)
-	case "deny":
-		return cmdEdictDeny(args[1:], stdout, stderr)
-	case "level":
-		return cmdEdictLevel(args[1:], stdout, stderr)
-	case "mode":
-		return cmdEdictMode(args[1:], stdout, stderr)
-	case "log":
-		return cmdEdictLog(args[1:], stdout, stderr)
-	case "stats":
-		return cmdEdictStats(args[1:], stdout, stderr)
-	case "-h", "--help", "help":
-		fmt.Fprintf(stdout, "usage: %s edict <subcommand>\n", brand.CLI)
-		fmt.Fprintf(stdout, "  show [--json]                          display loaded policies\n")
-		fmt.Fprintf(stdout, "  overlay [--json]                       net runtime policy overlay (level/mode/deny changes in effect)\n")
-		fmt.Fprintf(stdout, "  compact [--json]                       snapshot the overlay so boot replays it + later changes only\n")
-		fmt.Fprintf(stdout, "  log [N] [--denied] [--json]            recent policy decisions (allow/deny audit)\n")
-		fmt.Fprintf(stdout, "  stats [--since <dur>] [--json]         policy-decision aggregate (denial rate, by capability)\n")
-		fmt.Fprintf(stdout, "  test <capability> [<input>] [--json]   dry-run a decision; no side effects\n")
-		fmt.Fprintf(stdout, "  deny list|add|rm ...                   manage hard-deny rules at runtime\n")
-		fmt.Fprintf(stdout, "  level <capability> <level> [--json]    set a capability's trust level at runtime\n")
-		fmt.Fprintf(stdout, "  mode <allow|deny|prompt> [--json]      set the approval mode at runtime\n")
-		return 0
-	default:
-		fmt.Fprintf(stderr, "%s edict: unknown subcommand %q (show|test|deny|level|mode|log)\n", brand.CLI, args[0])
-		return 2
+	if sub, ok := cliEdict.lookup(args[0]); ok {
+		return sub.run(nil, args, stdout, stderr)
 	}
+	fmt.Fprintf(stderr, "%s edict: unknown subcommand %q (show|test|deny|level|mode|log)\n", brand.CLI, args[0])
+	return 2
 }
 
 // cmdEdictLog implements `agt edict log [N] [--denied] [--tenant <id>] [--json]`
@@ -95,7 +65,7 @@ func cmdEdictMode(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdEdictSetMode, withTenant(tenant, map[string]any{"mode": mode}))
+	res, err := c.Call(ctx, opapi.EdictSetMode, withTenant(tenant, map[string]any{"mode": mode}))
 	if err != nil {
 		fmt.Fprintf(stderr, "%s edict mode: %v\n", brand.CLI, err)
 		return 1
@@ -154,7 +124,7 @@ func cmdEdictLevel(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdEdictSetLevel, withTenant(tenant, map[string]any{
+	res, err := c.Call(ctx, opapi.EdictSetLevel, withTenant(tenant, map[string]any{
 		"capability": capability,
 		"level":      level,
 	}))

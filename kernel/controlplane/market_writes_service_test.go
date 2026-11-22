@@ -3,7 +3,7 @@ package controlplane_test
 
 import (
 	"context"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/internal/testfixtures"
 	"github.com/agezt/agezt/kernel/market"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -28,10 +28,10 @@ func TestMarketWriteNativeFiveTenantDenialsPreserveOwnedStoreAndJournal(t *testi
 	head, hash := k.Journal().Head()
 	installed, _ := store.Installed()
 	sources, _ := store.Sources()
-	for _, cmd := range []string{controlplane.CmdMarketInstall, controlplane.CmdMarketUninstall, controlplane.CmdMarketAddSource, controlplane.CmdMarketRemoveSource, controlplane.CmdMarketSync} {
+	for _, cmd := range []string{opapi.MarketInstall, opapi.MarketUninstall, opapi.MarketAddSource, opapi.MarketRemoveSource, opapi.MarketSync} {
 		args := map[string]any{"name": "owned", "url": "http://127.0.0.1:1/owned", "tenant": "acme"}
 		var err error
-		if cmd == controlplane.CmdMarketInstall || cmd == controlplane.CmdMarketUninstall {
+		if cmd == opapi.MarketInstall || cmd == opapi.MarketUninstall {
 			_, err = client.Stream(context.Background(), cmd, args, nil)
 		} else {
 			_, err = client.Call(context.Background(), cmd, args)
@@ -52,10 +52,10 @@ func TestMarketWriteNativeUnavailableBeforeRequiredArguments(t *testing.T) {
 	p := mock.New()
 	k, _, client, _ := startPair(t, p)
 	head, hash := k.Journal().Head()
-	for _, cmd := range []string{controlplane.CmdMarketInstall, controlplane.CmdMarketUninstall, controlplane.CmdMarketAddSource, controlplane.CmdMarketRemoveSource, controlplane.CmdMarketSync} {
+	for _, cmd := range []string{opapi.MarketInstall, opapi.MarketUninstall, opapi.MarketAddSource, opapi.MarketRemoveSource, opapi.MarketSync} {
 		var err error
 		args := map[string]any{"name": false, "url": false, "unknown": true}
-		if cmd == controlplane.CmdMarketInstall || cmd == controlplane.CmdMarketUninstall {
+		if cmd == opapi.MarketInstall || cmd == opapi.MarketUninstall {
 			_, err = client.Stream(context.Background(), cmd, args, nil)
 		} else {
 			_, err = client.Call(context.Background(), cmd, args)

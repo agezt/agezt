@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/settings"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -105,7 +106,7 @@ func (f *fakePulse) ResolveAsk(issueKey string, approve bool) (bool, bool) {
 
 func TestPulseStatusDisabledWhenNoEngine(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
-	res, err := c.Call(context.Background(), controlplane.CmdPulseStatus, nil)
+	res, err := c.Call(context.Background(), opapi.PulseStatus, nil)
 	if err != nil {
 		t.Fatalf("status: %v", err)
 	}
@@ -116,7 +117,7 @@ func TestPulseStatusDisabledWhenNoEngine(t *testing.T) {
 
 func TestPulsePauseDisabledErrors(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
-	if _, err := c.Call(context.Background(), controlplane.CmdPulsePause, nil); err == nil {
+	if _, err := c.Call(context.Background(), opapi.PulsePause, nil); err == nil {
 		t.Fatal("pause with no engine should error")
 	}
 }
@@ -129,7 +130,7 @@ func TestPulseAsksListAndResolve(t *testing.T) {
 	ctx := context.Background()
 
 	// List surfaces the pending asks.
-	res, err := c.Call(ctx, controlplane.CmdPulseAsks, nil)
+	res, err := c.Call(ctx, opapi.PulseAsks, nil)
 	if err != nil {
 		t.Fatalf("asks: %v", err)
 	}
@@ -139,7 +140,7 @@ func TestPulseAsksListAndResolve(t *testing.T) {
 	}
 
 	// Approve routes through to ResolveAsk with the right key + flag.
-	res, err = c.Call(ctx, controlplane.CmdPulseAskResolve, map[string]any{"issue_key": "k1", "approve": true})
+	res, err = c.Call(ctx, opapi.PulseAskResolve, map[string]any{"issue_key": "k1", "approve": true})
 	if err != nil {
 		t.Fatalf("resolve: %v", err)
 	}
@@ -154,11 +155,11 @@ func TestPulseAsksListAndResolve(t *testing.T) {
 	}
 
 	// An unknown key errors (already resolved / never existed).
-	if _, err := c.Call(ctx, controlplane.CmdPulseAskResolve, map[string]any{"issue_key": "nope", "approve": true}); err == nil {
+	if _, err := c.Call(ctx, opapi.PulseAskResolve, map[string]any{"issue_key": "nope", "approve": true}); err == nil {
 		t.Fatal("resolving an unknown ask should error")
 	}
 	// A missing key errors.
-	if _, err := c.Call(ctx, controlplane.CmdPulseAskResolve, map[string]any{"approve": false}); err == nil {
+	if _, err := c.Call(ctx, opapi.PulseAskResolve, map[string]any{"approve": false}); err == nil {
 		t.Fatal("resolve without issue_key should error")
 	}
 }
@@ -175,7 +176,7 @@ func TestPulseStatusPauseResumeWithEngine(t *testing.T) {
 	})
 	ctx := context.Background()
 
-	res, err := c.Call(ctx, controlplane.CmdPulseStatus, nil)
+	res, err := c.Call(ctx, opapi.PulseStatus, nil)
 	if err != nil {
 		t.Fatalf("status: %v", err)
 	}
@@ -186,14 +187,14 @@ func TestPulseStatusPauseResumeWithEngine(t *testing.T) {
 		t.Fatal("engine should start running")
 	}
 
-	if _, err := c.Call(ctx, controlplane.CmdPulsePause, nil); err != nil {
+	if _, err := c.Call(ctx, opapi.PulsePause, nil); err != nil {
 		t.Fatalf("pause: %v", err)
 	}
 	if !fp.paused {
 		t.Fatal("pause should have paused the engine")
 	}
 
-	if _, err := c.Call(ctx, controlplane.CmdPulseResume, nil); err != nil {
+	if _, err := c.Call(ctx, opapi.PulseResume, nil); err != nil {
 		t.Fatalf("resume: %v", err)
 	}
 	if fp.paused {
@@ -201,7 +202,7 @@ func TestPulseStatusPauseResumeWithEngine(t *testing.T) {
 	}
 
 	// Beat (M756) reaches the engine.
-	if _, err := c.Call(ctx, controlplane.CmdPulseBeat, nil); err != nil {
+	if _, err := c.Call(ctx, opapi.PulseBeat, nil); err != nil {
 		t.Fatalf("beat: %v", err)
 	}
 	if fp.beats != 1 {
@@ -209,7 +210,7 @@ func TestPulseStatusPauseResumeWithEngine(t *testing.T) {
 	}
 
 	// SetCadence (M757) reaches the engine with the seconds converted to a duration.
-	res, err = c.Call(ctx, controlplane.CmdPulseCadence, map[string]any{"seconds": 45})
+	res, err = c.Call(ctx, opapi.PulseCadence, map[string]any{"seconds": 45})
 	if err != nil {
 		t.Fatalf("cadence: %v", err)
 	}
@@ -221,7 +222,7 @@ func TestPulseStatusPauseResumeWithEngine(t *testing.T) {
 	}
 
 	// SetDial (M758) reaches the engine and echoes the applied dial.
-	res, err = c.Call(ctx, controlplane.CmdPulseDial, map[string]any{"dial": "chatty"})
+	res, err = c.Call(ctx, opapi.PulseDial, map[string]any{"dial": "chatty"})
 	if err != nil {
 		t.Fatalf("dial: %v", err)
 	}
@@ -233,7 +234,7 @@ func TestPulseStatusPauseResumeWithEngine(t *testing.T) {
 	}
 
 	// SetQuietHours (M770) reaches the engine and is persisted.
-	res, err = c.Call(ctx, controlplane.CmdPulseQuiet, map[string]any{"hours": "22-7"})
+	res, err = c.Call(ctx, opapi.PulseQuiet, map[string]any{"hours": "22-7"})
 	if err != nil {
 		t.Fatalf("quiet: %v", err)
 	}
@@ -245,7 +246,7 @@ func TestPulseStatusPauseResumeWithEngine(t *testing.T) {
 	}
 
 	// FlushDigest (M761) reaches the engine and returns the count flushed.
-	res, err = c.Call(ctx, controlplane.CmdPulseFlush, nil)
+	res, err = c.Call(ctx, opapi.PulseFlush, nil)
 	if err != nil {
 		t.Fatalf("flush: %v", err)
 	}
@@ -262,7 +263,7 @@ func TestPulseStatusPauseResumeWithEngine(t *testing.T) {
 	// no production caller and were deleted 2026-08-12.
 	obsFake = &fakePulseObservers{}
 	obs = obsFake
-	wres, err := c.Call(ctx, controlplane.CmdPulseWatch, map[string]any{"path": "/data", "min_pct": 10})
+	wres, err := c.Call(ctx, opapi.PulseWatch, map[string]any{"path": "/data", "min_pct": 10})
 	if err != nil {
 		t.Fatalf("pulse_watch: %v", err)
 	}
@@ -270,13 +271,13 @@ func TestPulseStatusPauseResumeWithEngine(t *testing.T) {
 		t.Fatalf("expected observer disk:/data, got %v", wres["observer"])
 	}
 	// An out-of-range threshold is rejected.
-	if _, err := c.Call(ctx, controlplane.CmdPulseWatch, map[string]any{"path": "/data", "min_pct": 150}); err == nil {
+	if _, err := c.Call(ctx, opapi.PulseWatch, map[string]any{"path": "/data", "min_pct": 150}); err == nil {
 		t.Error("min_pct of 150 should be rejected")
 	}
 
 	// pulse_probe (M768): the command is split into argv and the registry names
 	// the observer.
-	pres, err := c.Call(ctx, controlplane.CmdPulseProbe, map[string]any{"name": "ci", "command": "make test"})
+	pres, err := c.Call(ctx, opapi.PulseProbe, map[string]any{"name": "ci", "command": "make test"})
 	if err != nil {
 		t.Fatalf("pulse_probe: %v", err)
 	}
@@ -287,13 +288,13 @@ func TestPulseStatusPauseResumeWithEngine(t *testing.T) {
 		t.Fatalf("command not split into argv: %v", obsFake.probeArgv)
 	}
 	// Missing command is rejected.
-	if _, err := c.Call(ctx, controlplane.CmdPulseProbe, map[string]any{"name": "ci"}); err == nil {
+	if _, err := c.Call(ctx, opapi.PulseProbe, map[string]any{"name": "ci"}); err == nil {
 		t.Error("probe with no command should be rejected")
 	}
 
 	// pulse_unwatch (M769): removing by observer name reaches the engine and returns
 	// the count dropped.
-	ures, err := c.Call(ctx, controlplane.CmdPulseUnwatch, map[string]any{"name": "probe:ci"})
+	ures, err := c.Call(ctx, opapi.PulseUnwatch, map[string]any{"name": "probe:ci"})
 	if err != nil {
 		t.Fatalf("pulse_unwatch: %v", err)
 	}
@@ -304,7 +305,7 @@ func TestPulseStatusPauseResumeWithEngine(t *testing.T) {
 		t.Fatalf("expected engine to be asked to remove probe:ci, got %q", fp.removed)
 	}
 	// A missing name is rejected.
-	if _, err := c.Call(ctx, controlplane.CmdPulseUnwatch, map[string]any{}); err == nil {
+	if _, err := c.Call(ctx, opapi.PulseUnwatch, map[string]any{}); err == nil {
 		t.Error("unwatch with no name should be rejected")
 	}
 

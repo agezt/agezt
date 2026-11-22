@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Users, RefreshCw, Pause, Play, Trash2, Plus, Pencil, Bot, Archive, ArchiveRestore, Skull, Activity, Sparkles, IdCard, ShieldCheck, Zap, Wrench, Megaphone, Mail, CalendarClock, GitBranch, AlertTriangle, Network } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/app/api";
-import { openAgent } from "@/features/agents/lib/agentnav";
-import { openIncident } from "@/features/incidents/lib/incidentnav";
+import { openAgent } from "@/lib/agentnav";
+import { openIncident } from "@/lib/incidentnav";
 import { cn, fmtDateTime } from "@/app/utils";
 import { money } from "@/app/format";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,7 @@ import { ErrorText, KeyValue } from "@/components/JsonView";
 import { Disclosure } from "@/components/ui/disclosure";
 import { AgentAvatar } from "@/components/AgentAvatar";
 import { AgentActivity } from "@/features/agents/components/AgentActivity";
-import { summarizeConfigOverrides, summarizeAgentRuntimeStatus } from "@/features/agents/lib/agentdetail";
+import { summarizeConfigOverrides, summarizeAgentRuntimeStatus } from "@/lib/agentdetail";
 import { useEvents } from "@/app/events";
 import { applyAgentLivePatches, reduceAgentLivePatchMap, shouldReloadAgentCatalog, type AgentLivePatchMap } from "@/features/agents/lib/agentlive";
 import {
@@ -33,7 +33,7 @@ import {
   type AgentReviveResult,
   type RosterBoardMessage,
   type RosterSchedule,
-} from "./roster/shared";
+} from "@/lib/agentshared";
 import { agentNeedsAttention, agentNeedsRepair, filterAgentRoster, sortAgentRoster, type RosterFilter } from "./roster/filters";
 import {
   agentNoiseBudgetPassport,
@@ -77,7 +77,7 @@ import {
 // colored identity avatar across the UI. The deterministic hue + monogram now
 // live in @/features/agents/lib/agent so the avatar can be shared; re-exported here for
 // existing importers.
-import { agentHue, initials } from "@/features/agents/lib/agent";
+import { agentHue, initials } from "@/lib/agent";
 import { SectionPanel } from "@/components/ui/section-panel";
 import { Segmented } from "@/components/ui/segmented";
 export { agentHue, initials };
@@ -122,7 +122,7 @@ export {
   NewAgentForm,
 };
 export type { AgentEnableResult, AgentProfile, AgentRemoveResult, AgentRetireResult, AgentReviveResult };
-export { slugOk, usdToMc } from "./roster/shared";
+export { slugOk, usdToMc } from "@/lib/agentshared";
 export { systemGuardianSafetyIssues } from "./roster/guardians";
 export { profileFields } from "./roster/form";
 
@@ -238,10 +238,10 @@ export function Roster() {
     setLoading(true);
     try {
       const [d, sk, bd, sch] = await Promise.all([
-        getJSON<{ profiles?: AgentProfile[] }>("/api/agents", undefined, { signal: ac.signal, timeoutMs }),
-        getJSON<{ skills?: { agent?: string }[] }>("/api/skills", undefined, { signal: ac.signal }).catch(() => ({ skills: [] })),
-        getJSON<{ messages?: RosterBoardMessage[] }>("/api/board", undefined, { signal: ac.signal }).catch(() => ({ messages: [] })),
-        getJSON<{ schedules?: RosterSchedule[] }>("/api/schedules", undefined, { signal: ac.signal }).catch(() => ({ schedules: [] })),
+        getJSON("/api/agents", undefined, { signal: ac.signal, timeoutMs }),
+        getJSON("/api/skills", { signal: ac.signal }).catch(() => ({ skills: [] })),
+        getJSON("/api/board", undefined, { signal: ac.signal }).catch(() => ({ messages: [] })),
+        getJSON("/api/schedules", { signal: ac.signal }).catch(() => ({ schedules: [] })),
       ]);
       // If the user navigated or another reload fired, drop this tick's data.
       if (reloadAbortRef.current !== ac) return;
@@ -357,7 +357,7 @@ export function Roster() {
     setRetiring(null);
     setBusy(slug);
     try {
-      const res = await postAction<AgentRetireResult>(
+      const res = await postAction(
         "/api/agents/retire",
         reason ? { ref: slug, reason } : { ref: slug },
       );
@@ -373,7 +373,7 @@ export function Roster() {
   async function revive(slug: string) {
     setBusy(slug);
     try {
-      const res = await postAction<AgentReviveResult>("/api/agents/revive", { ref: slug });
+      const res = await postAction("/api/agents/revive", { ref: slug });
       ui.toast(agentReviveToast(slug, res), "success");
       await reload();
     } catch (e) {
@@ -386,7 +386,7 @@ export function Roster() {
   async function setAgentEnabled(slug: string, enabled: boolean) {
     setBusy(slug);
     try {
-      const res = await postAction<AgentEnableResult>("/api/agents/enable", {
+      const res = await postAction("/api/agents/enable", {
         ref: slug,
         enabled: enabled ? "true" : "false",
       });
@@ -402,7 +402,7 @@ export function Roster() {
   async function wakeAgent(slug: string) {
     setBusy(slug);
     try {
-      const res = await postAction<{ correlation_id?: string }>("/api/agents/wake", { ref: slug, reason: "manual operator wake" });
+      const res = await postJSON("/api/agents/wake", { ref: slug, reason: "manual operator wake" });
       ui.toast(`${slug} wake queued`, "success");
       if (res?.correlation_id) setActivityFocus((prev) => ({ ...prev, [slug]: res.correlation_id || "" }));
       setActivityFor(slug);
@@ -417,7 +417,7 @@ export function Roster() {
   async function repairAgent(slug: string) {
     setBusy(slug);
     try {
-      const res = await postJSON<{ correlation_id?: string }>("/api/agents/repair", {
+      const res = await postJSON("/api/agents/repair", {
         ref: slug,
         reason: `operator requested repair from ${slug} roster card`,
       });
@@ -518,7 +518,7 @@ export function Roster() {
     const target = removing;
     setBusy(target.slug);
     try {
-      const res = await postJSON<AgentRemoveResult>("/api/agents/remove", { ref: target.slug, cascade: target.cascade });
+      const res = await postJSON("/api/agents/remove", { ref: target.slug, cascade: target.cascade });
       setRemoving(null);
       ui.toast(
         agentRemoveToast(target.slug, res),
@@ -541,11 +541,16 @@ export function Roster() {
     if (targets.length === 0 && frequentScheduleIds.length === 0) return;
     setBusy("guardians");
     try {
-      await Promise.all(
-        targets.map((profile) =>
+      // Two kinds of work: quiet the guardian, pause its frequent schedules.
+      // The answers differ, so the batch is a list of promises, not a
+      // concatenation of two lists of different shapes.
+      const jobs: Promise<unknown>[] = [
+        ...targets.map((profile) =>
           postJSON("/api/agents/capabilities", guardianQuietPolicyPayload(profile)),
-        ).concat(frequentScheduleIds.map((id) => postAction("/api/schedule/enable", { id, enabled: "false" }))),
-      );
+        ),
+        ...frequentScheduleIds.map((id) => postAction("/api/schedule/enable", { id, enabled: "false" })),
+      ];
+      await Promise.all(jobs);
       ui.toast(
         `${targets.length} system guardian${targets.length === 1 ? "" : "s"} quieted${frequentScheduleIds.length > 0 ? `; ${frequentScheduleIds.length} frequent schedule${frequentScheduleIds.length === 1 ? "" : "s"} paused` : ""}`,
         "success",

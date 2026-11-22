@@ -11,8 +11,8 @@ import { EmptyState } from "@/components/ui/empty";
 import { Badge } from "@/components/ui/badge";
 import { ModelPicker } from "@/components/ModelPicker";
 import { ModelChip } from "@/components/ModelChip";
-import { validateChainName, moveItem, removeAt, renameChain, deleteChain } from "@/features/workflows/lib/chains";
-import { modelHealth, type ModelCatalog } from "@/features/models/lib/models";
+import { validateChainName, moveItem, removeAt, renameChain, deleteChain } from "@/lib/chains";
+import { modelHealth, type ModelCatalog } from "@/lib/models";
 
 // Chains is the registry of named, reusable fallback ladders (M963). A chain is
 // an ordered model list; anywhere a model is picked (agent, routing, chat) you
@@ -29,13 +29,11 @@ export interface ChainUsage {
   default?: boolean;
 }
 
-interface ChainsResp {
+type ChainsResp = {
   chains?: Record<string, string[]>;
   default?: string;
-  // usage maps chain name → ChainUsage, plus a reserved "__dangling__" key whose
-  // value is the list of @names referenced somewhere but no longer defined.
-  usage?: Record<string, ChainUsage | string[]>;
-}
+  usage?: Record<string, any>;
+};
 
 export function Chains() {
   const { toast, confirm, prompt } = useUI();
@@ -52,7 +50,7 @@ export function Chains() {
   const reload = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await getJSON<ChainsResp>("/api/chains");
+      const r = await getJSON("/api/chains");
       setChains(r.chains || {});
       setSavedChains(r.chains || {});
       setDef(r.default || "");
@@ -72,7 +70,7 @@ export function Chains() {
 
   // The catalog drives per-model health dots (does a keyed provider serve it?).
   useEffect(() => {
-    getJSON<ModelCatalog>("/api/catalog")
+    getJSON("/api/catalog")
       .then(setCat)
       .catch(() => {
         /* health is best-effort — a missing catalog just hides the dots */
@@ -173,7 +171,7 @@ export function Chains() {
     }
     setSaving(true);
     try {
-      const r = await postJSON<{ unknown_models?: string[]; chain_count?: number }>("/api/chains/set", {
+      const r = await postJSON("/api/chains/set", {
         chains,
         default: def,
       });

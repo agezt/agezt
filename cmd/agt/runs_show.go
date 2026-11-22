@@ -13,12 +13,12 @@ import (
 
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 // cmdRunsShow implements `agt runs show <correlation> [--json]`.
 //
-// Walks the correlation chain (via CmdWhy on the daemon) and
+// Walks the correlation chain (via opapi.Why on the daemon) and
 // renders the events as a task arc: intent → per-round
 // (llm.request → tool calls → llm.response) → final answer.
 // Different from `agt why <event_id> --payload`, which dumps
@@ -71,11 +71,11 @@ func cmdRunsShow(args []string, stdout, stderr io.Writer) int {
 
 	// First-pass: ask the daemon to enumerate runs and find the
 	// chain whose correlation matches. We pull the first event ID
-	// in that chain and use it as the seed for CmdWhy (which
+	// in that chain and use it as the seed for opapi.Why (which
 	// requires any event ID in the chain, not the correlation
 	// itself). This indirection means `runs show` works with the
 	// existing Why contract without a new server endpoint.
-	listRes, err := c.Call(ctx, controlplane.CmdRunsList, map[string]any{"limit": 1000})
+	listRes, err := c.Call(ctx, opapi.RunsList, map[string]any{"limit": 1000})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s runs show: %v\n", brand.CLI, err)
 		return 1
@@ -109,7 +109,7 @@ func cmdRunsShow(args []string, stdout, stderr io.Writer) int {
 	// or "plan-<ULID>", neither of which match an event ID. So we
 	// instead pull events via the journal_tail endpoint and filter
 	// client-side.
-	tailRes, err := c.Call(ctx, controlplane.CmdJournalTail, map[string]any{"n": 10_000})
+	tailRes, err := c.Call(ctx, opapi.JournalTail, map[string]any{"n": 10_000})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s runs show: %v\n", brand.CLI, err)
 		return 1

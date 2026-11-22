@@ -11,7 +11,7 @@ import (
 
 func TestSkillNativeExitCompleteTypedRegistry(t *testing.T) {
 	type expected struct{ readOnly bool }
-	want := map[string]expected{CmdSkillList: {readOnly: true}, CmdSkillGet: {readOnly: true}, CmdSkillHistory: {readOnly: true}, CmdSkillFiles: {readOnly: true}, CmdSkillReadFile: {readOnly: true}, CmdSkillHygiene: {readOnly: true}, CmdSkillPromote: {}, CmdSkillQuarantine: {}, CmdSkillArchive: {}, CmdSkillRevert: {}, CmdSkillRestore: {}, CmdSkillShare: {}, CmdSkillReassign: {}, CmdSkillImport: {}}
+	want := map[string]expected{opapi.SkillList: {readOnly: true}, opapi.SkillGet: {readOnly: true}, opapi.SkillHistory: {readOnly: true}, opapi.SkillFiles: {readOnly: true}, opapi.SkillReadFile: {readOnly: true}, opapi.SkillHygiene: {readOnly: true}, opapi.SkillPromote: {}, opapi.SkillQuarantine: {}, opapi.SkillArchive: {}, opapi.SkillRevert: {}, opapi.SkillRestore: {}, opapi.SkillShare: {}, opapi.SkillReassign: {}, opapi.SkillImport: {}}
 	seen := map[string]bool{}
 	for _, operation := range registeredAppOperations() {
 		spec := operation.Spec()

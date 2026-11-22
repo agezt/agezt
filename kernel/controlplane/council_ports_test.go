@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
-	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/runtime"
 )
 
@@ -35,7 +35,7 @@ func TestTheCouncilPanelReachesTheApplication(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	res, err := client.Call(ctx, controlplane.CmdCouncilMembers, nil)
+	res, err := client.Call(ctx, opapi.CouncilMembers, nil)
 	if err != nil {
 		t.Fatalf("CmdCouncilMembers: %v", err)
 	}
@@ -54,7 +54,7 @@ func TestTheCouncilPanelReachesTheApplication(t *testing.T) {
 
 	// Seating a panel goes the same way: the application asks the kernel to
 	// hold it, and the model it seats is one the application knows.
-	set, err := client.Call(ctx, controlplane.CmdCouncilSet, map[string]any{
+	set, err := client.Call(ctx, opapi.CouncilSet, map[string]any{
 		"members": []map[string]any{{"seat": "Chair", "model": "model-a"}},
 	})
 	if err != nil {
@@ -64,7 +64,7 @@ func TestTheCouncilPanelReachesTheApplication(t *testing.T) {
 		t.Errorf("saved = %v, want true: %v", set["saved"], set)
 	}
 
-	after, err := client.Call(ctx, controlplane.CmdCouncilMembers, nil)
+	after, err := client.Call(ctx, opapi.CouncilMembers, nil)
 	if err != nil {
 		t.Fatalf("CmdCouncilMembers after the set: %v", err)
 	}

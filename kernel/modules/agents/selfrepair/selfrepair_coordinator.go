@@ -14,7 +14,6 @@ import (
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/contract/boardapi"
 	"github.com/agezt/agezt/kernel/event"
-	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 )
 
 type autoRepairWakeResult struct {
@@ -114,7 +113,7 @@ func autoRepairRoutingRollbackProbation() time.Duration {
 	}
 	return d
 }
-func (c *autoRepairCoordinator) run(ctx context.Context, sub *bus.Subscription, k *kernelruntime.Kernel, src autoRepairSource, mailbox Mailbox, postNotify func(boardapi.Message, string)) {
+func (c *autoRepairCoordinator) run(ctx context.Context, sub *bus.Subscription, ports Ports, src autoRepairSource, mailbox Mailbox, postNotify func(boardapi.Message, string)) {
 	defer sub.Cancel()
 	for {
 		select {
@@ -127,7 +126,7 @@ func (c *autoRepairCoordinator) run(ctx context.Context, sub *bus.Subscription, 
 			if !autoRepairShouldHandle(ev) {
 				continue
 			}
-			c.handleTick(ctx, k, src, mailbox, postNotify)
+			c.handleTick(ctx, ports, src, mailbox, postNotify)
 		}
 	}
 }
@@ -139,7 +138,7 @@ func (c *autoRepairCoordinator) run(ctx context.Context, sub *bus.Subscription, 
 // per tick rather than around the whole loop also keeps auto-repair ARMED after a
 // bad event â€” disarming the fleet's healer on one malformed pulse would be a
 // silent, permanent degradation.
-func (c *autoRepairCoordinator) handleTick(ctx context.Context, k *kernelruntime.Kernel, src autoRepairSource, mailbox Mailbox, postNotify func(boardapi.Message, string)) {
+func (c *autoRepairCoordinator) handleTick(ctx context.Context, ports Ports, src autoRepairSource, mailbox Mailbox, postNotify func(boardapi.Message, string)) {
 	// claim() marks candidates in-flight and dispatch() is what releases them, so
 	// a panic between the two would leak the claim and wedge every future repair
 	// of that agent. Track the hand-off point and release whatever never made it.
@@ -156,10 +155,10 @@ func (c *autoRepairCoordinator) handleTick(ctx context.Context, k *kernelruntime
 			c.release(cand.Slug)
 		}
 		fmt.Fprintf(os.Stderr, "auto-repair tick panicked: %v\n", r)
-		if k == nil || k.Bus() == nil {
+		if ports.Bus == nil {
 			return
 		}
-		_, _ = k.Bus().Publish(event.Spec{
+		_, _ = ports.Bus.Publish(event.Spec{
 			Subject: autoRepairPulseSubject,
 			Kind:    event.KindSelfRepairPanic,
 			Actor:   "selfrepair",
@@ -172,10 +171,10 @@ func (c *autoRepairCoordinator) handleTick(ctx context.Context, k *kernelruntime
 	}()
 
 	cut := c.now().Add(-autoRepairReaperWindow).UnixMilli()
-	rep := k.ReaperScan(cut, cut)
-	pending = c.claim(k, rep, k.RosterList())
+	rep := ports.scan(cut, cut)
+	pending = c.claim(ports, rep, ports.profiles())
 	for _, cand := range pending {
-		publishAutoRepair(k.Bus(), "", map[string]any{
+		publishAutoRepair(ports.Bus, "", map[string]any{
 			"phase":                             autoRepairQueuedPhase(cand),
 			"agent":                             cand.Slug,
 			"mode":                              cand.Mode,
@@ -191,7 +190,7 @@ func (c *autoRepairCoordinator) handleTick(ctx context.Context, k *kernelruntime
 			"root_incident_id":                  autoRepairRootChainID(cand),
 			"parent_incident_id":                strings.TrimSpace(cand.ParentHopID),
 		})
-		go c.dispatch(ctx, k, k.Bus(), src, mailbox, postNotify, cand)
+		go c.dispatch(ctx, ports, src, mailbox, postNotify, cand)
 		launched++
 	}
 }

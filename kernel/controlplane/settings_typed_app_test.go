@@ -19,7 +19,7 @@ import (
 )
 
 func TestSettingsTypedNativeMandatoryAuditAndCanceledAdmission(t *testing.T) {
-	for _, command := range []string{CmdConfigSet, CmdConfigSchemaRegister, CmdConfigSchemaUnregister} {
+	for _, command := range []string{opapi.ConfigSet, opapi.ConfigSchemaRegister, opapi.ConfigSchemaUnregister} {
 		for _, gate := range []string{"closed-journal", "canceled"} {
 			t.Run(command+"/"+gate, func(t *testing.T) {
 				dir := t.TempDir()
@@ -38,11 +38,11 @@ func TestSettingsTypedNativeMandatoryAuditAndCanceledAdmission(t *testing.T) {
 				s.token = "primary"
 				args := map[string]any{}
 				switch command {
-				case CmdConfigSet:
+				case opapi.ConfigSet:
 					args = map[string]any{"name": "AGEZT_W45C_PUBLIC", "value": "owned"}
-				case CmdConfigSchemaRegister:
+				case opapi.ConfigSchemaRegister:
 					args = map[string]any{"section": map[string]any{"id": "owned-add", "name": "Owned Added", "fields": []any{map[string]any{"env": "AGEZT_W45C_ADDED", "type": "text"}}}}
-				case CmdConfigSchemaUnregister:
+				case opapi.ConfigSchemaUnregister:
 					args = map[string]any{"id": "owned-seed"}
 				}
 				ctx, cancel := context.WithCancel(context.Background())
@@ -72,13 +72,13 @@ func TestSettingsTypedNativeMandatoryAuditAndCanceledAdmission(t *testing.T) {
 				json.Unmarshal(line, &reply)
 				effect := false
 				switch command {
-				case CmdConfigSet:
+				case opapi.ConfigSet:
 					store := settings.NewStore(dir)
 					store.Load()
 					_, effect = store.Get("AGEZT_W45C_PUBLIC")
-				case CmdConfigSchemaRegister:
+				case opapi.ConfigSchemaRegister:
 					_, effect = reg.FieldByEnv("AGEZT_W45C_ADDED")
-				case CmdConfigSchemaUnregister:
+				case opapi.ConfigSchemaUnregister:
 					_, present := reg.FieldByEnv("AGEZT_W45C_PUBLIC")
 					effect = !present
 				}
@@ -88,7 +88,7 @@ func TestSettingsTypedNativeMandatoryAuditAndCanceledAdmission(t *testing.T) {
 			})
 		}
 	}
-	for _, command := range []string{CmdConfigSchema, CmdConfigValues} {
+	for _, command := range []string{opapi.ConfigSchema, opapi.ConfigValues} {
 		t.Run(command+"/canceled", func(t *testing.T) {
 			dir := t.TempDir()
 			p := mock.New()
@@ -129,7 +129,7 @@ func TestSettingsTypedNativeFivePolicyAndSignatures(t *testing.T) {
 		input, output reflect.Type
 		read          bool
 	}
-	expected := map[string]signature{CmdConfigSchema: {reflect.TypeFor[appsettings.SchemaInput](), reflect.TypeFor[appsettings.SchemaOutput](), true}, CmdConfigValues: {reflect.TypeFor[appsettings.ValuesInput](), reflect.TypeFor[appsettings.ValuesOutput](), true}, CmdConfigSet: {reflect.TypeFor[appsettings.SetRequest](), reflect.TypeFor[appsettings.SetOutput](), false}, CmdConfigSchemaRegister: {reflect.TypeFor[appsettings.RegisterRequest](), reflect.TypeFor[appsettings.RegisterOutput](), false}, CmdConfigSchemaUnregister: {reflect.TypeFor[appsettings.UnregisterRequest](), reflect.TypeFor[appsettings.UnregisterOutput](), false}}
+	expected := map[string]signature{opapi.ConfigSchema: {reflect.TypeFor[appsettings.SchemaInput](), reflect.TypeFor[appsettings.SchemaOutput](), true}, opapi.ConfigValues: {reflect.TypeFor[appsettings.ValuesInput](), reflect.TypeFor[appsettings.ValuesOutput](), true}, opapi.ConfigSet: {reflect.TypeFor[appsettings.SetRequest](), reflect.TypeFor[appsettings.SetOutput](), false}, opapi.ConfigSchemaRegister: {reflect.TypeFor[appsettings.RegisterRequest](), reflect.TypeFor[appsettings.RegisterOutput](), false}, opapi.ConfigSchemaUnregister: {reflect.TypeFor[appsettings.UnregisterRequest](), reflect.TypeFor[appsettings.UnregisterOutput](), false}}
 	seen := map[string]int{}
 	for _, operation := range registeredAppOperations() {
 		sp := operation.Spec()

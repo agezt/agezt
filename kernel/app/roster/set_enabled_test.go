@@ -131,7 +131,7 @@ func TestRosterSetEnabledOperationIsAudited(t *testing.T) {
 		t.Fatal(ops, err)
 	}
 	spec := ops[0].Spec()
-	if spec.Name != "agent_set_enabled" || spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.Input != reflect.TypeFor[SetEnabledRequest]() || spec.Output != reflect.TypeFor[SetEnabledOutput]() || spec.HTTP != (opapi.HTTP{Method: "POST", Path: "/api/agents/enable"}) {
+	if spec.Name != "agent_set_enabled" || spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.Input != reflect.TypeFor[SetEnabledRequest]() || spec.Output != reflect.TypeFor[SetEnabledOutput]() {
 		t.Fatal(spec)
 	}
 	if schema.ValidateJSON(spec.OutputSchema, json.RawMessage(`{"profile":{"id":"i","slug":"s","enabled":true,"created_ms":0,"updated_ms":0,"kind":"custom","managed":false},"standing_paused":"x"}`)) == nil {

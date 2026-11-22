@@ -337,27 +337,27 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 	var ops []app.Operation
 	for _, b := range []func() error{
 		func() error {
-			return bind(&ops, opapi.Spec{Name: "netguard_log", InputSchema: pageSchema, HTTP: opapi.HTTP{Method: "GET", Path: "/api/netguard_log"}}, func(ctx context.Context, in PageRequest) (BlocksOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.NetguardLog, InputSchema: pageSchema}, func(ctx context.Context, in PageRequest) (BlocksOutput, error) {
 				return provider(ctx).NetguardLog(ctx, in)
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: "ratelimit_log", InputSchema: pageSchema, HTTP: opapi.HTTP{Method: "GET", Path: "/api/ratelimit_log"}}, func(ctx context.Context, in PageRequest) (ThrottlesOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.RateLimitLog, InputSchema: pageSchema}, func(ctx context.Context, in PageRequest) (ThrottlesOutput, error) {
 				return provider(ctx).RateLimitLog(ctx, in)
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: "ratelimit_stats", InputSchema: windowSchema}, func(ctx context.Context, in WindowRequest) (RateLimitStatsOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.RateLimitStats, InputSchema: windowSchema}, func(ctx context.Context, in WindowRequest) (RateLimitStatsOutput, error) {
 				return provider(ctx).RateLimitStats(ctx, in)
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: "warden_log", InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"limit":{},"since_ms":{},"cursor":{},"issues":{}}}`), HTTP: opapi.HTTP{Method: "GET", Path: "/api/warden_log"}}, func(ctx context.Context, in WardenLogRequest) (ExecutionsOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.WardenLog, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"limit":{},"since_ms":{},"cursor":{},"issues":{}}}`)}, func(ctx context.Context, in WardenLogRequest) (ExecutionsOutput, error) {
 				return provider(ctx).WardenLog(ctx, in)
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: "warden_stats", InputSchema: windowSchema}, func(ctx context.Context, in WindowRequest) (WardenStatsOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.WardenStats, InputSchema: windowSchema}, func(ctx context.Context, in WindowRequest) (WardenStatsOutput, error) {
 				return provider(ctx).WardenStats(ctx, in)
 			})
 		},

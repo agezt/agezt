@@ -7,7 +7,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Anchor, RefreshCw, Pause, Play, Trash2, Clock, Zap, ShieldCheck, Plus, X, Pencil, Save, Download, Upload, Users, AlertTriangle, ClipboardList, TimerReset, type LucideIcon } from "lucide-react";
 import { AgentPicker } from "@/components/AgentPicker";
-import { getJSON, postAction, postJSON } from "@/app/api";
+import { getJSON, postAction, postJSON, type WritePath, type NativePath } from "@/app/api";
 import { cn, fmtTime } from "@/app/utils";
 import { downloadText } from "@/app/export";
 import { Button } from "@/components/ui/button";
@@ -28,11 +28,11 @@ import { Segmented } from "@/components/ui/segmented";
 // rendered cards are windowed.
 const STANDING_ORDER_WINDOW = 60;
 
-interface Trigger {
+type Trigger = {
   type?: string;
   schedule?: string;
   subject?: string;
-}
+};
 interface Order {
   id: string;
   name?: string;
@@ -68,12 +68,12 @@ interface StandingAgent {
   direct_callable?: boolean;
   kind?: string;
 }
-interface WhyEvent {
+type WhyEvent = {
   seq?: number;
   kind?: string;
   ts_unix_ms?: number;
-  payload?: Record<string, unknown>;
-}
+  payload?: Record<string, any>;
+};
 
 type StandingFilter = "all" | "attention";
 const INITIATIVE_MODES = [
@@ -153,7 +153,7 @@ export function Standing() {
       return;
     }
     try {
-      const d = await getJSON<{ events?: WhyEvent[] }>("/api/standing/why", { id });
+      const d = await getJSON("/api/standing/why", { id });
       setHistory({ id, events: d.events || [] });
     } catch (e) {
       ui.toast((e as Error).message, "error");
@@ -164,8 +164,8 @@ export function Standing() {
     setLoading(true);
     try {
       const [standingRes, agentRes] = await Promise.allSettled([
-        getJSON<{ orders?: Order[] }>("/api/standing"),
-        getJSON<{ profiles?: StandingAgent[] }>("/api/agents"),
+        getJSON("/api/standing"),
+        getJSON("/api/agents"),
       ]);
       if (standingRes.status === "rejected") throw standingRes.reason;
       setOrders(standingRes.value.orders || []);
@@ -186,7 +186,7 @@ export function Standing() {
 
   async function act(
     id: string,
-    path: string,
+    path: WritePath | NativePath,
     params?: Record<string, string>,
     opts?: { confirm?: ConfirmOptions; success?: string },
   ) {

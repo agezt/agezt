@@ -7,9 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { Disclosure } from "@/components/ui/disclosure";
 import { useUI } from "@/components/ui/feedback";
-import { openIncident } from "@/features/incidents/lib/incidentnav";
+import { openIncident } from "@/lib/incidentnav";
 import { type AgentProfile } from "@/features/agents/components/Roster";
-import { incidentLineageLabel, type AgentHealthSnapshot, type AgentConfigOverrideSummary, type AgentRepairStatus, type AgentRepairSnapshot, type RunLite } from "@/features/agents/lib/agentdetail";
+import { incidentLineageLabel, type AgentHealthSnapshot, type AgentConfigOverrideSummary, type AgentRepairStatus, type AgentRepairSnapshot, type RunLite } from "@/lib/agentdetail";
 import { AgentPermissionsSnapshot, ApprovalDecision, MiniPolicy, PolicyDecision, PolicyStats, RepairCommandCell, Stat, ToolCatalogRow, ToolInvocation } from "@/features/agents/components/agentdetail/shared";
 import { CapabilityControlPanel } from "@/features/agents/components/agentdetail/CapabilityPanel";
 import { WakeAccessSummary, agentManagedSubagent } from "@/features/agents/components/agentdetail/capability";
@@ -68,7 +68,7 @@ export function DiagTab({
     if (repairBlocked) return;
     setRepairing(true);
     try {
-      const res = await postJSON<{ correlation_id?: string }>("/api/agents/repair", {
+      const res = await postJSON("/api/agents/repair", {
         ref: slug,
         reason: `operator requested repair from ${slug} identity page`,
       });

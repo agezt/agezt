@@ -176,7 +176,7 @@ func compareCapabilities() []compareCapability {
 			Status:      compareStatusSupported,
 			Expectation: "Guided first-run setup, provider/channel configuration, and dashboard visibility.",
 			Agezt:       "AGEZT has quickstart, Config Center, Setup, Channels, Connect docs, and a broad Web UI console.",
-			Evidence:    []string{"cmd/agt/quickstart.go", "frontend/src/features/setup/components/Setup.tsx", "frontend/src/features/configcenter/components/ConfigCenter.tsx", "frontend/src/features/channels/components/Channels.tsx", "docs/CONSOLE.md"},
+			Evidence:    []string{"cmd/agt/quickstart.go", "frontend/src/features/setup/components/Setup.tsx", "frontend/src/components/configcenter/ConfigCenter.tsx", "frontend/src/features/channels/components/Channels.tsx", "docs/CONSOLE.md"},
 			Next:        "Make one-pass provider/channel/MCP/skill/sandbox validation visible from setup.",
 		},
 		{

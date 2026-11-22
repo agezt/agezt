@@ -17,9 +17,10 @@ import (
 func TestWireAutoRepair_Disabled(t *testing.T) {
 	noNotify := func(board.Message, string) {}
 
-	// Nil kernel → "disabled" (guards the k == nil branch).
-	if got := WireAutoRepair(context.Background(), nil, nil, &fakeAutoRepairMailbox{}, noNotify); got != "disabled" {
-		t.Errorf("nil kernel = %q, want disabled", got)
+	// No ports → "disabled" (guards the ports.Bus == nil branch): a host
+	// that hands the module no bus holds no healer.
+	if got := WireAutoRepair(context.Background(), Ports{}, nil, &fakeAutoRepairMailbox{}, noNotify); got != "disabled" {
+		t.Errorf("no ports = %q, want disabled", got)
 	}
 
 	// A real kernel but AGEZT_AUTO_REPAIR=off → disabled via opt-out.
@@ -33,7 +34,7 @@ func TestWireAutoRepair_Disabled(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	got := WireAutoRepair(context.Background(), k, nil, &fakeAutoRepairMailbox{}, noNotify)
+	got := WireAutoRepair(context.Background(), autoRepairPorts(k), nil, &fakeAutoRepairMailbox{}, noNotify)
 	if !strings.HasPrefix(got, "disabled") {
 		t.Errorf("AUTO_REPAIR=off = %q, want a disabled string", got)
 	}
@@ -55,7 +56,7 @@ func TestWireAutoRepair_Armed(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	got := WireAutoRepair(ctx, k, nil, &fakeAutoRepairMailbox{}, func(board.Message, string) {})
+	got := WireAutoRepair(ctx, autoRepairPorts(k), nil, &fakeAutoRepairMailbox{}, func(board.Message, string) {})
 	if !strings.HasPrefix(got, "armed") {
 		t.Errorf("WireAutoRepair = %q, want an 'armed' string", got)
 	}

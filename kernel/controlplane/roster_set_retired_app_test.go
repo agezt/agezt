@@ -24,7 +24,7 @@ import (
 )
 
 func TestAgentRetireReviveNativeTypedRegistry(t *testing.T) {
-	for cmd, path := range map[string]string{CmdAgentRetire: "/api/agents/retire", CmdAgentRevive: "/api/agents/revive"} {
+	for _, cmd := range []string{opapi.AgentRetire, opapi.AgentRevive} {
 		found := 0
 		for _, operation := range registeredAppOperations() {
 			spec := operation.Spec()
@@ -32,7 +32,7 @@ func TestAgentRetireReviveNativeTypedRegistry(t *testing.T) {
 				continue
 			}
 			found++
-			if spec.Input == nil || spec.Output == nil || len(spec.OutputSchema) == 0 || spec.ReadOnly || !spec.AllowUnknownInput || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || spec.HTTP != (opapi.HTTP{Method: "POST", Path: path}) {
+			if spec.Input == nil || spec.Output == nil || len(spec.OutputSchema) == 0 || spec.ReadOnly || !spec.AllowUnknownInput || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary {
 				t.Fatalf("%s metadata=%+v", cmd, spec)
 			}
 		}
@@ -105,13 +105,13 @@ func TestAgentRetireReviveNativePorts(t *testing.T) {
 		}
 		return string(line)
 	}
-	retire := call(CmdAgentRetire, map[string]any{"ref": "lead", "reason": "done"})
+	retire := call(opapi.AgentRetire, map[string]any{"ref": "lead", "reason": "done"})
 	for _, want := range []string{`"impact":["watch`, `"schedule_count":2`, `"schedules":["refresh (sched-`, `"schedules_paused":2,"skill_count":0`, `"standing_paused":1`, `"retired":true`, `"retired_reason":"done"`} {
 		if !strings.Contains(retire, want) {
 			t.Fatalf("retire missing %s: %s", want, retire)
 		}
 	}
-	revive := call(CmdAgentRevive, map[string]any{"ref": "lead"})
+	revive := call(opapi.AgentRevive, map[string]any{"ref": "lead"})
 	if !strings.Contains(revive, `"schedules_paused":2`) || !strings.Contains(revive, `"standing_paused":1`) || strings.Contains(revive, `"retired":true`) || strings.Contains(revive, "impact") {
 		t.Fatalf("revive: %s", revive)
 	}

@@ -126,7 +126,7 @@ func TestOperations(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s.Name != "node_registry" || !s.ReadOnly || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Stream != opapi.StreamNone || !s.AllowUnknownInput || s.HTTP.Method != "GET" || s.HTTP.Path != "/api/nodes" || s.Input != reflect.TypeFor[RegistryRequest]() || s.Output != reflect.TypeFor[RegistryOutput]() || string(s.OutputSchema) != string(out) {
+	if s.Name != "node_registry" || !s.ReadOnly || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Stream != opapi.StreamNone || !s.AllowUnknownInput || s.Input != reflect.TypeFor[RegistryRequest]() || s.Output != reflect.TypeFor[RegistryOutput]() || string(s.OutputSchema) != string(out) {
 		t.Fatalf("spec: %+v", s)
 	}
 	for _, in := range []string{`{}`, `{"tenant":"t","junk":[1]}`} {

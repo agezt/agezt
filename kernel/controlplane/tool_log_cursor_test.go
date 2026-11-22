@@ -6,7 +6,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
@@ -29,7 +29,7 @@ func TestToolLog_CursorPagination(t *testing.T) {
 	}
 
 	// Page 1: limit 2 → newest 2, plus a next_cursor because the page is full.
-	p1, err := c.Call(context.Background(), controlplane.CmdToolLog, map[string]any{"limit": float64(2)})
+	p1, err := c.Call(context.Background(), opapi.ToolLog, map[string]any{"limit": float64(2)})
 	if err != nil {
 		t.Fatalf("page 1 Call: %v", err)
 	}
@@ -43,7 +43,7 @@ func TestToolLog_CursorPagination(t *testing.T) {
 	}
 
 	// Page 2: same limit, carrying the cursor → the next 2 older rows.
-	p2, err := c.Call(context.Background(), controlplane.CmdToolLog, map[string]any{"limit": float64(2), "cursor": cursor})
+	p2, err := c.Call(context.Background(), opapi.ToolLog, map[string]any{"limit": float64(2), "cursor": cursor})
 	if err != nil {
 		t.Fatalf("page 2 Call: %v", err)
 	}
@@ -70,7 +70,7 @@ func TestToolLog_CursorPagination(t *testing.T) {
 	if c2 == "" {
 		t.Fatalf("page 2 next_cursor empty; 1 row remains, want a token")
 	}
-	p3, err := c.Call(context.Background(), controlplane.CmdToolLog, map[string]any{"limit": float64(2), "cursor": c2})
+	p3, err := c.Call(context.Background(), opapi.ToolLog, map[string]any{"limit": float64(2), "cursor": c2})
 	if err != nil {
 		t.Fatalf("page 3 Call: %v", err)
 	}
@@ -91,7 +91,7 @@ func TestToolLog_MalformedCursorFallsBack(t *testing.T) {
 	toolResult(k, "call-1", "shell", "ok", false)
 	toolResult(k, "call-2", "http", "ok", false)
 
-	res, err := c.Call(context.Background(), controlplane.CmdToolLog, map[string]any{"cursor": "not-a-valid-cursor"})
+	res, err := c.Call(context.Background(), opapi.ToolLog, map[string]any{"cursor": "not-a-valid-cursor"})
 	if err != nil {
 		t.Fatalf("Call with bad cursor errored: %v", err)
 	}

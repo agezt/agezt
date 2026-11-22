@@ -19,7 +19,7 @@ import (
 
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdConfigCenterRating(args []string, stdout, stderr io.Writer) int {
@@ -77,7 +77,7 @@ func cmdConfigCenterRating(args []string, stdout, stderr io.Writer) int {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		res, err := c.Call(ctx, controlplane.CmdConfigCenterSetRating, map[string]any{
+		res, err := c.Call(ctx, opapi.ConfigCenterSetRating, map[string]any{
 			"key":    key,
 			"rating": rating,
 		})
@@ -100,7 +100,7 @@ func cmdConfigCenterRating(args []string, stdout, stderr io.Writer) int {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		res, err := c.Call(ctx, controlplane.CmdConfigCenterGet, map[string]any{"key": key})
+		res, err := c.Call(ctx, opapi.ConfigCenterGet, map[string]any{"key": key})
 		if err != nil {
 			fmt.Fprintf(stderr, "%s configcenter rating: %v\n", brand.CLI, err)
 			return 1
@@ -176,7 +176,7 @@ func cmdConfigCenterAccessLog(args []string, stdout, stderr io.Writer) int {
 		params["since"] = since
 	}
 
-	res, err := c.Call(ctx, controlplane.CmdConfigCenterAccessLog, params)
+	res, err := c.Call(ctx, opapi.ConfigCenterAccessLog, params)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s configcenter access-log: %v\n", brand.CLI, err)
 		return 1
@@ -262,7 +262,7 @@ func cmdConfigCenterAudit(args []string, stdout, stderr io.Writer) int {
 		params["since"] = since
 	}
 
-	res, err := c.Call(ctx, controlplane.CmdConfigCenterAudit, params)
+	res, err := c.Call(ctx, opapi.ConfigCenterAudit, params)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s configcenter audit: %v\n", brand.CLI, err)
 		return 1
@@ -317,7 +317,7 @@ func cmdConfigCenterHealth(args []string, stdout, stderr io.Writer) int {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	res, err := c.Call(ctx, controlplane.CmdConfigCenterHealth, nil)
+	res, err := c.Call(ctx, opapi.ConfigCenterHealth, nil)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s configcenter health: %v\n", brand.CLI, err)
 		return 1

@@ -14,7 +14,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 // cmdSkillImport implements `agt skill import <bundle>` (M269) — the read-back
@@ -74,7 +74,7 @@ func cmdSkillImport(args []string, stdout, stderr io.Writer) int {
 
 // importSkillBundleBytes parses raw bundle bytes, verifies the content address
 // OFFLINE (a tampered bundle is rejected before the daemon is dialed), then
-// installs it via CmdSkillImport and reports. Shared by the file path
+// installs it via opapi.SkillImport and reports. Shared by the file path
 // (`agt skill import <bundle>`) and the remote registry install
 // (`agt skill registry <url> --install <name>`).
 func importSkillBundleBytes(data []byte, asJSON bool, stdout, stderr io.Writer) int {
@@ -108,7 +108,7 @@ func importSkillBundleBytes(data []byte, asJSON bool, stdout, stderr io.Writer) 
 	if len(bundle.Skill.ToolsRequired) > 0 {
 		callArgs["tools_required"] = bundle.Skill.ToolsRequired
 	}
-	res, err := c.Call(ctx, controlplane.CmdSkillImport, callArgs)
+	res, err := c.Call(ctx, opapi.SkillImport, callArgs)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s skill import: %v\n", brand.CLI, err)
 		return 1

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
 )
@@ -215,8 +216,8 @@ func TestRuns_SendsLimitAndParses(t *testing.T) {
 		t.Errorf("Runs returned %+v", runs)
 	}
 	req := f.lastRequest(t)
-	if req.Cmd != controlplane.CmdRunsList {
-		t.Errorf("cmd = %q, want %q", req.Cmd, controlplane.CmdRunsList)
+	if req.Cmd != opapi.RunsList {
+		t.Errorf("cmd = %q, want %q", req.Cmd, opapi.RunsList)
 	}
 	if req.Args["limit"] != float64(7) {
 		t.Errorf("limit arg = %v (%T), want 7", req.Args["limit"], req.Args["limit"])
@@ -278,7 +279,7 @@ func TestPendingApprovals_Parses(t *testing.T) {
 	if a.Timeout.IsZero() {
 		t.Error("timeout_unix should decode to a non-zero time")
 	}
-	if f.lastRequest(t).Cmd != controlplane.CmdApprovals {
+	if f.lastRequest(t).Cmd != opapi.Approvals {
 		t.Errorf("cmd = %q", f.lastRequest(t).Cmd)
 	}
 }
@@ -314,7 +315,7 @@ func TestApproveAndDeny_SendDecideArgs(t *testing.T) {
 	if len(reqs) != 2 {
 		t.Fatalf("want 2 decide calls, got %d", len(reqs))
 	}
-	if reqs[0].Cmd != controlplane.CmdDecide || reqs[0].Args["decision"] != "grant" || reqs[0].Args["id"] != "a1" {
+	if reqs[0].Cmd != opapi.Decide || reqs[0].Args["decision"] != "grant" || reqs[0].Args["id"] != "a1" {
 		t.Errorf("Approve sent wrong decide args: %+v", reqs[0].Args)
 	}
 	if reqs[1].Args["decision"] != "deny" || reqs[1].Args["reason"] != "nope" {
@@ -349,7 +350,7 @@ func TestSendMail_And_Broadcast(t *testing.T) {
 	if m.ID != "m-1" || m.To != "planner" || m.Text != "hi" {
 		t.Errorf("SendMail returned %+v", m)
 	}
-	if f.lastRequest(t).Cmd != controlplane.CmdBoardSend {
+	if f.lastRequest(t).Cmd != opapi.BoardSend {
 		t.Errorf("cmd = %q", f.lastRequest(t).Cmd)
 	}
 
@@ -388,7 +389,7 @@ func TestInbox_SendsArgsAndParses(t *testing.T) {
 		t.Errorf("Inbox returned %+v", mails)
 	}
 	req := f.lastRequest(t)
-	if req.Cmd != controlplane.CmdBoardInbox || req.Args["to"] != "me" || req.Args["all"] != true || req.Args["limit"] != float64(5) {
+	if req.Cmd != opapi.BoardInbox || req.Args["to"] != "me" || req.Args["all"] != true || req.Args["limit"] != float64(5) {
 		t.Errorf("Inbox sent wrong args: %+v", req.Args)
 	}
 }
@@ -412,7 +413,7 @@ func TestAckMail(t *testing.T) {
 		t.Fatalf("AckMail: %v", err)
 	}
 	req := f.lastRequest(t)
-	if req.Cmd != controlplane.CmdBoardAck || req.Args["id"] != "m-1" || req.Args["by"] != "me" {
+	if req.Cmd != opapi.BoardAck || req.Args["id"] != "m-1" || req.Args["by"] != "me" {
 		t.Errorf("AckMail sent wrong args: %+v", req.Args)
 	}
 }
@@ -433,7 +434,7 @@ func TestMailReplies(t *testing.T) {
 		t.Errorf("MailReplies returned %+v", rs)
 	}
 	req := f.lastRequest(t)
-	if req.Cmd != controlplane.CmdBoardReplies || req.Args["id"] != "m-1" || req.Args["limit"] != float64(3) {
+	if req.Cmd != opapi.BoardReplies || req.Args["id"] != "m-1" || req.Args["limit"] != float64(3) {
 		t.Errorf("MailReplies sent wrong args: %+v", req.Args)
 	}
 }
@@ -464,7 +465,7 @@ func TestMailMessages(t *testing.T) {
 		t.Errorf("MailMessages returned %+v", msgs)
 	}
 	req := f.lastRequest(t)
-	if req.Cmd != controlplane.CmdBoardRead || req.Args["topic"] != "dm" || req.Args["limit"] != float64(4) {
+	if req.Cmd != opapi.BoardRead || req.Args["topic"] != "dm" || req.Args["limit"] != float64(4) {
 		t.Errorf("MailMessages sent wrong args: %+v", req.Args)
 	}
 }
@@ -506,10 +507,10 @@ func TestWatchMail_DeliversPostedMails(t *testing.T) {
 		return b
 	}
 	f := startFakeCP(t, func(req controlplane.Request) ([]controlplane.Response, bool) {
-		// The CmdBoardGet metadata fetch (fired per delivered event) gets a
+		// The opapi.BoardGet metadata fetch (fired per delivered event) gets a
 		// proper {message:{...}} result so WatchMail's success branch — which
 		// replaces the event-derived Mail with the fuller board view — runs.
-		if req.Cmd == controlplane.CmdBoardGet {
+		if req.Cmd == opapi.BoardGet {
 			return resultLine(map[string]any{"message": map[string]any{
 				"id": req.Args["id"], "from": "planner", "to": "me",
 				"text": "full view", "topic": "dm",
@@ -584,7 +585,7 @@ func TestWatchMail_DeliversPostedMails(t *testing.T) {
 	}
 
 	// WatchMail first opens a pulse subscription, then (per delivered event)
-	// fetches the full message view via CmdBoardGet. So we assert the
+	// fetches the full message view via opapi.BoardGet. So we assert the
 	// subscription request exists among ALL requests rather than checking the
 	// last one, which is a board_get metadata fetch.
 	f.mu.Lock()
@@ -592,13 +593,13 @@ func TestWatchMail_DeliversPostedMails(t *testing.T) {
 	f.mu.Unlock()
 	var sub *controlplane.Request
 	for i := range reqs {
-		if reqs[i].Cmd == controlplane.CmdPulseSubscribe {
+		if reqs[i].Cmd == opapi.PulseSubscribe {
 			sub = &reqs[i]
 			break
 		}
 	}
 	if sub == nil {
-		t.Fatalf("no %q subscription request seen; got %d requests", controlplane.CmdPulseSubscribe, len(reqs))
+		t.Fatalf("no %q subscription request seen; got %d requests", opapi.PulseSubscribe, len(reqs))
 	}
 	if sub.Args["pattern"] != "board.>" {
 		t.Errorf("pattern arg = %v, want board.>", sub.Args["pattern"])
@@ -606,7 +607,7 @@ func TestWatchMail_DeliversPostedMails(t *testing.T) {
 }
 
 // TestWatchMail_BoardGetErrorFallsBackToEvent covers WatchMail's fallback path:
-// when the per-event CmdBoardGet metadata fetch fails, it keeps the Mail it
+// when the per-event opapi.BoardGet metadata fetch fails, it keeps the Mail it
 // already built from the event payload instead of the fuller board view. We
 // make board_get return a server error and assert the delivered Mail still
 // carries the event-derived fields.
@@ -615,7 +616,7 @@ func TestWatchMail_BoardGetErrorFallsBackToEvent(t *testing.T) {
 		"id": "ev-1", "from": "planner", "to": "me", "text": "from-event", "help": false,
 	})
 	f := startFakeCP(t, func(req controlplane.Request) ([]controlplane.Response, bool) {
-		if req.Cmd == controlplane.CmdBoardGet {
+		if req.Cmd == opapi.BoardGet {
 			// Fail the metadata fetch so WatchMail keeps the event-derived Mail.
 			return []controlplane.Response{{Type: controlplane.RespError, Error: "evicted"}}, false
 		}
@@ -682,7 +683,7 @@ func TestRun_ParsesFinalResult(t *testing.T) {
 		t.Errorf("Run result wrong: %+v", res)
 	}
 	req := f.lastRequest(t)
-	if req.Cmd != controlplane.CmdRun || req.Args["intent"] != "the question" || req.Args["model"] != "m1" {
+	if req.Cmd != opapi.Run || req.Args["intent"] != "the question" || req.Args["model"] != "m1" {
 		t.Errorf("Run sent wrong args: %+v", req.Args)
 	}
 }

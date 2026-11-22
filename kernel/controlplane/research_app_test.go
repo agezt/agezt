@@ -4,6 +4,7 @@ package controlplane
 
 import (
 	"github.com/agezt/agezt/kernel/app/binding"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"sort"
 	"testing"
 
@@ -47,7 +48,7 @@ func TestResearchAskBindsTheKernel(t *testing.T) {
 	k := researchKernel(t)
 	s := NewServer(binding.ScopeFromKernel(k, t.TempDir()))
 	s.token = "primary"
-	resp := callAppHost(t, s, Request{ID: "c", Cmd: CmdResearchAsk, Token: "primary", Args: map[string]any{
+	resp := callAppHost(t, s, Request{ID: "c", Cmd: opapi.ResearchAsk, Token: "primary", Args: map[string]any{
 		"question": "why?", "corr": "client-corr",
 	}})[0]
 	if resp.Type != RespResult {
@@ -74,16 +75,16 @@ func TestResearchAskBindsTheKernel(t *testing.T) {
 	if result["question"] != "why?" {
 		t.Fatalf("the harness ran the question: %v", result["question"])
 	}
-	if _, exists := commandRegistry[CmdResearchAsk]; !exists {
+	if _, exists := commandRegistry[opapi.ResearchAsk]; !exists {
 		t.Fatal("research_ask is not registered")
 	}
-	wire := commandRegistry[CmdResearchAsk]
+	wire := commandRegistry[opapi.ResearchAsk]
 	if !wire.AppOwned || wire.ReadOnly || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamLive {
 		t.Fatalf("native wire %+v", wire)
 	}
 	var audited []event.Event
 	_ = k.Journal().Range(func(e *event.Event) error {
-		if e.Subject == "op."+CmdResearchAsk {
+		if e.Subject == "op."+opapi.ResearchAsk {
 			audited = append(audited, *e)
 		}
 		return nil
@@ -98,7 +99,7 @@ func TestResearchAskRejectsAMissingQuestion(t *testing.T) {
 	k := researchKernel(t)
 	s := NewServer(binding.ScopeFromKernel(k, t.TempDir()))
 	s.token = "primary"
-	resp := callAppHost(t, s, Request{ID: "c", Cmd: CmdResearchAsk, Token: "primary", Args: map[string]any{}})[0]
+	resp := callAppHost(t, s, Request{ID: "c", Cmd: opapi.ResearchAsk, Token: "primary", Args: map[string]any{}})[0]
 	if resp.Type != RespError || resp.Error == "" {
 		t.Fatalf("response=%+v", resp)
 	}

@@ -186,10 +186,10 @@ func TestRosterImpactOperations(t *testing.T) {
 		t.Fatal(ops, err)
 	}
 	impact, tombstone := ops[0].Spec(), ops[1].Spec()
-	if impact.Name != "agent_impact" || !impact.ReadOnly || impact.Authz != opapi.PrimaryOnly || impact.Tenancy != opapi.Primary || !impact.AllowUnknownInput || impact.Input != reflect.TypeFor[RefPageRequest]() || impact.Output != reflect.TypeFor[ImpactOutput]() || impact.HTTP != (opapi.HTTP{Method: "GET", Path: "/api/agents/impact"}) {
+	if impact.Name != "agent_impact" || !impact.ReadOnly || impact.Authz != opapi.PrimaryOnly || impact.Tenancy != opapi.Primary || !impact.AllowUnknownInput || impact.Input != reflect.TypeFor[RefPageRequest]() || impact.Output != reflect.TypeFor[ImpactOutput]() {
 		t.Fatal(impact)
 	}
-	if tombstone.Name != "agent_tombstone" || !tombstone.ReadOnly || tombstone.Authz != opapi.PrimaryOnly || tombstone.Tenancy != opapi.Primary || !tombstone.AllowUnknownInput || tombstone.Output != reflect.TypeFor[TombstoneOutput]() || tombstone.HTTP != (opapi.HTTP{}) {
+	if tombstone.Name != "agent_tombstone" || !tombstone.ReadOnly || tombstone.Authz != opapi.PrimaryOnly || tombstone.Tenancy != opapi.Primary || !tombstone.AllowUnknownInput || tombstone.Output != reflect.TypeFor[TombstoneOutput]() {
 		t.Fatal(tombstone)
 	}
 	raw, _ := json.Marshal(ImpactOutput{Subagents: []string{}})
@@ -197,7 +197,7 @@ func TestRosterImpactOperations(t *testing.T) {
 		t.Fatal("impact schema", string(raw))
 	}
 	d, _ := app.NewDispatcher(ops, app.Dependencies{Auth: listAuth{opapi.Principal{Kind: opapi.Operator}}, Router: listRoute{}})
-	for name, want := range map[string]reflect.Type{"agent_impact": reflect.TypeFor[ImpactOutput](), "agent_tombstone": reflect.TypeFor[TombstoneOutput]()} {
+	for name, want := range map[string]reflect.Type{opapi.AgentImpact: reflect.TypeFor[ImpactOutput](), opapi.AgentTombstone: reflect.TypeFor[TombstoneOutput]()} {
 		out, err := d.Dispatch(context.Background(), opapi.Caller{}, name, json.RawMessage(`{"ref":"lead"}`), nil)
 		if err != nil || reflect.TypeOf(out) != want {
 			t.Fatal(name, out, err)
@@ -205,7 +205,7 @@ func TestRosterImpactOperations(t *testing.T) {
 	}
 	for _, principal := range []opapi.Principal{{Kind: opapi.Tenant, Tenant: "acme"}, {Kind: opapi.Agent}} {
 		denied, _ := app.NewDispatcher(ops, app.Dependencies{Auth: listAuth{principal}, Router: listRoute{}})
-		for _, name := range []string{"agent_impact", "agent_tombstone"} {
+		for _, name := range []string{opapi.AgentImpact, "agent_tombstone"} {
 			if _, err := denied.Dispatch(context.Background(), opapi.Caller{}, name, json.RawMessage(`{"ref":"lead"}`), nil); err == nil {
 				t.Fatal("non-primary read", name)
 			}

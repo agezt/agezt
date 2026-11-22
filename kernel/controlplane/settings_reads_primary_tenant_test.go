@@ -3,7 +3,7 @@ package controlplane_test
 
 import (
 	"context"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"strings"
 	"testing"
@@ -14,7 +14,7 @@ func TestSettingsReadsNativeTenantDenialNoAuditOrProvider(t *testing.T) {
 	k, _, _, dir, registry := startPairWithTenants(t, p)
 	client := tenantClient(t, dir, mustTenant(t, registry, "acme"))
 	head, hash := k.Journal().Head()
-	for _, command := range []string{controlplane.CmdConfigSchema, controlplane.CmdConfigValues} {
+	for _, command := range []string{opapi.ConfigSchema, opapi.ConfigValues} {
 		if _, err := client.Call(context.Background(), command, map[string]any{"tenant": "acme", "unknown": true}); err == nil || (!strings.Contains(err.Error(), "forbidden") && !strings.Contains(err.Error(), "unauthorized")) {
 			t.Fatal(command, err)
 		}

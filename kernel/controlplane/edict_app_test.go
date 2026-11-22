@@ -24,7 +24,7 @@ import (
 )
 
 func TestEdictReadsNativeTypedRegistry(t *testing.T) {
-	for _, cmd := range []string{CmdEdictShow, CmdEdictDenyList, CmdEdictTest} {
+	for _, cmd := range []string{opapi.EdictShow, opapi.EdictDenyList, opapi.EdictTest} {
 		found := 0
 		for _, operation := range registeredAppOperations() {
 			spec := operation.Spec()
@@ -96,30 +96,30 @@ func TestEdictReadsNativeRouting(t *testing.T) {
 		args       map[string]any
 		has        bool
 	}{
-		{"primary", CmdEdictShow, nil, false},
-		{"primary", CmdEdictDenyList, nil, false},
-		{"primary", CmdEdictShow, map[string]any{"tenant": " acme "}, true},
-		{tenantToken, CmdEdictShow, acme, true},
-		{tenantToken, CmdEdictDenyList, acme, true},
+		{"primary", opapi.EdictShow, nil, false},
+		{"primary", opapi.EdictDenyList, nil, false},
+		{"primary", opapi.EdictShow, map[string]any{"tenant": " acme "}, true},
+		{tenantToken, opapi.EdictShow, acme, true},
+		{tenantToken, opapi.EdictDenyList, acme, true},
 	} {
 		if line := call(c.token, c.cmd, c.args); strings.Contains(line, `"substring":"curl evil.example"`) != c.has || !strings.Contains(line, `"type":"result"`) {
 			t.Fatalf("%s %v: %s", c.cmd, c.args, line)
 		}
 	}
 	probe := map[string]any{"tenant": "acme", "capability": "shell", "input": "curl evil.example"}
-	if line := call(tenantToken, CmdEdictTest, probe); !strings.Contains(line, `"hard_denied":true`) {
+	if line := call(tenantToken, opapi.EdictTest, probe); !strings.Contains(line, `"hard_denied":true`) {
 		t.Fatal(line)
 	}
-	if line := call("primary", CmdEdictTest, map[string]any{"capability": "shell", "input": "curl evil.example"}); !strings.Contains(line, `"hard_denied":false`) {
+	if line := call("primary", opapi.EdictTest, map[string]any{"capability": "shell", "input": "curl evil.example"}); !strings.Contains(line, `"hard_denied":false`) {
 		t.Fatal(line)
 	}
-	if line := call("primary", CmdEdictShow, map[string]any{"tenant": 3}); !strings.Contains(line, `"error":"args.tenant must be a string"`) {
+	if line := call("primary", opapi.EdictShow, map[string]any{"tenant": 3}); !strings.Contains(line, `"error":"args.tenant must be a string"`) {
 		t.Fatal(line)
 	}
 }
 
 func TestEdictWritesNativeTypedRegistry(t *testing.T) {
-	for _, cmd := range []string{CmdEdictDenyAdd, CmdEdictDenyRemove, CmdEdictSetLevel, CmdEdictSetMode} {
+	for _, cmd := range []string{opapi.EdictDenyAdd, opapi.EdictDenyRemove, opapi.EdictSetLevel, opapi.EdictSetMode} {
 		found := 0
 		for _, operation := range registeredAppOperations() {
 			spec := operation.Spec()
@@ -127,7 +127,7 @@ func TestEdictWritesNativeTypedRegistry(t *testing.T) {
 				continue
 			}
 			found++
-			if spec.Input == nil || spec.Output == nil || len(spec.OutputSchema) == 0 || spec.ReadOnly || !spec.AllowUnknownInput || spec.Authz != opapi.OwnTenant || spec.Tenancy != opapi.CallerTenant || spec.HTTP.Method != "POST" {
+			if spec.Input == nil || spec.Output == nil || len(spec.OutputSchema) == 0 || spec.ReadOnly || !spec.AllowUnknownInput || spec.Authz != opapi.OwnTenant || spec.Tenancy != opapi.CallerTenant {
 				t.Fatalf("%s metadata=%+v", cmd, spec)
 			}
 		}
@@ -181,17 +181,17 @@ func TestEdictWritesNativeRouting(t *testing.T) {
 	}
 	countRules := func(kk *runtime.Kernel) int { return len(kk.Edict().HardDenyRules()) }
 	primaryRules, tenantRules := countRules(k), countRules(tk)
-	if line := call(tenantToken, CmdEdictDenyAdd, map[string]any{"tenant": "acme", "rule": "shell:curl evil.example"}); !strings.Contains(line, `"substring":"curl evil.example"`) {
+	if line := call(tenantToken, opapi.EdictDenyAdd, map[string]any{"tenant": "acme", "rule": "shell:curl evil.example"}); !strings.Contains(line, `"substring":"curl evil.example"`) {
 		t.Fatal(line)
 	}
 	if countRules(tk) != tenantRules+1 || countRules(k) != primaryRules {
 		t.Fatal("the tenant rule lands on the tenant engine only")
 	}
 	mode := edict.AskPolicy(1).String()
-	if line := call("primary", CmdEdictSetMode, map[string]any{"tenant": " acme ", "mode": mode}); !strings.Contains(line, `"to":"`+mode+`"`) || tk.Edict().AskPolicy().String() != mode {
+	if line := call("primary", opapi.EdictSetMode, map[string]any{"tenant": " acme ", "mode": mode}); !strings.Contains(line, `"to":"`+mode+`"`) || tk.Edict().AskPolicy().String() != mode {
 		t.Fatal(line)
 	}
-	if line := call("primary", CmdEdictSetMode, map[string]any{"mode": mode, "tenant": 3}); !strings.Contains(line, `"error":"args.tenant must be a string"`) {
+	if line := call("primary", opapi.EdictSetMode, map[string]any{"mode": mode, "tenant": 3}); !strings.Contains(line, `"error":"args.tenant must be a string"`) {
 		t.Fatal(line)
 	}
 	events, err := tk.Journal().Tail(1000)
@@ -210,7 +210,7 @@ func TestEdictWritesNativeRouting(t *testing.T) {
 }
 
 func TestEdictDecisionsNativeTypedRegistry(t *testing.T) {
-	for _, cmd := range []string{CmdEdictLog, CmdEdictStats} {
+	for _, cmd := range []string{opapi.EdictLog, opapi.EdictStats} {
 		found := 0
 		for _, operation := range registeredAppOperations() {
 			spec := operation.Spec()
@@ -218,7 +218,7 @@ func TestEdictDecisionsNativeTypedRegistry(t *testing.T) {
 				continue
 			}
 			found++
-			if spec.Input == nil || spec.Output == nil || len(spec.OutputSchema) == 0 || !spec.ReadOnly || !spec.AllowUnknownInput || spec.Authz != opapi.OwnTenant || spec.Tenancy != opapi.CallerTenant || spec.HTTP.Method != "GET" {
+			if spec.Input == nil || spec.Output == nil || len(spec.OutputSchema) == 0 || !spec.ReadOnly || !spec.AllowUnknownInput || spec.Authz != opapi.OwnTenant || spec.Tenancy != opapi.CallerTenant {
 				t.Fatalf("%s metadata=%+v", cmd, spec)
 			}
 		}
@@ -282,18 +282,18 @@ func TestEdictDecisionsNativeRouting(t *testing.T) {
 		args       map[string]any
 		want       string
 	}{
-		{"primary", CmdEdictLog, nil, `"tool":"primary-tool"`},
-		{"primary", CmdEdictLog, map[string]any{"tenant": " acme "}, `"tool":"tenant-tool"`},
-		{tenantToken, CmdEdictLog, map[string]any{"tenant": "acme", "denied": true}, `"tool":"tenant-tool"`},
-		{"primary", CmdEdictStats, nil, `"allowed":1`},
-		{tenantToken, CmdEdictStats, map[string]any{"tenant": "acme", "since_ms": 600000}, `"denied":1`},
-		{"primary", CmdEdictLog, map[string]any{"denied": "yes"}, `"error":"args.denied must be a boolean"`},
+		{"primary", opapi.EdictLog, nil, `"tool":"primary-tool"`},
+		{"primary", opapi.EdictLog, map[string]any{"tenant": " acme "}, `"tool":"tenant-tool"`},
+		{tenantToken, opapi.EdictLog, map[string]any{"tenant": "acme", "denied": true}, `"tool":"tenant-tool"`},
+		{"primary", opapi.EdictStats, nil, `"allowed":1`},
+		{tenantToken, opapi.EdictStats, map[string]any{"tenant": "acme", "since_ms": 600000}, `"denied":1`},
+		{"primary", opapi.EdictLog, map[string]any{"denied": "yes"}, `"error":"args.denied must be a boolean"`},
 	} {
 		if line := call(c.token, c.cmd, c.args); !strings.Contains(line, c.want) {
 			t.Fatalf("%s %v: %s", c.cmd, c.args, line)
 		}
 	}
-	if line := call(tenantToken, CmdEdictLog, map[string]any{"tenant": "acme"}); strings.Contains(line, "primary-tool") {
+	if line := call(tenantToken, opapi.EdictLog, map[string]any{"tenant": "acme"}); strings.Contains(line, "primary-tool") {
 		t.Fatal("a tenant reads only its own decisions", line)
 	}
 	// A 1 ms window excludes every decision only once the clock has moved past
@@ -305,13 +305,13 @@ func TestEdictDecisionsNativeRouting(t *testing.T) {
 	for time.Now().UnixMilli() <= newest[0].TSUnixMS+1 {
 		time.Sleep(time.Millisecond)
 	}
-	if line := call("primary", CmdEdictStats, map[string]any{"since_ms": 1}); !strings.Contains(line, `"total":0`) || !strings.Contains(line, `"window_ms":1`) {
+	if line := call("primary", opapi.EdictStats, map[string]any{"since_ms": 1}); !strings.Contains(line, `"total":0`) || !strings.Contains(line, `"window_ms":1`) {
 		t.Fatal("the window follows the daemon clock", line)
 	}
 }
 
 func TestEdictOverlayNativeTypedRegistry(t *testing.T) {
-	for cmd, tenantAllowed := range map[string]bool{CmdEdictOverlay: true, CmdEdictCompact: false} {
+	for cmd, tenantAllowed := range map[string]bool{opapi.EdictOverlay: true, opapi.EdictCompact: false} {
 		found := 0
 		for _, operation := range registeredAppOperations() {
 			spec := operation.Spec()
@@ -319,7 +319,7 @@ func TestEdictOverlayNativeTypedRegistry(t *testing.T) {
 				continue
 			}
 			found++
-			if spec.Input == nil || spec.Output == nil || len(spec.OutputSchema) == 0 || spec.ReadOnly || !spec.AllowUnknownInput || (spec.Authz == opapi.OwnTenant) != tenantAllowed || spec.Tenancy != opapi.CallerTenant || spec.HTTP != (opapi.HTTP{}) {
+			if spec.Input == nil || spec.Output == nil || len(spec.OutputSchema) == 0 || spec.ReadOnly || !spec.AllowUnknownInput || (spec.Authz == opapi.OwnTenant) != tenantAllowed || spec.Tenancy != opapi.CallerTenant {
 				t.Fatalf("%s metadata=%+v", cmd, spec)
 			}
 		}
@@ -371,23 +371,23 @@ func TestEdictOverlayNativeRouting(t *testing.T) {
 		}
 		return string(line)
 	}
-	if line := call(tenantToken, CmdEdictDenyAdd, map[string]any{"tenant": "acme", "rule": "shell:tenant-only"}); !strings.Contains(line, `"type":"result"`) {
+	if line := call(tenantToken, opapi.EdictDenyAdd, map[string]any{"tenant": "acme", "rule": "shell:tenant-only"}); !strings.Contains(line, `"type":"result"`) {
 		t.Fatal(line)
 	}
-	if line := call("primary", CmdEdictOverlay, nil); !strings.Contains(line, `"empty":true`) {
+	if line := call("primary", opapi.EdictOverlay, nil); !strings.Contains(line, `"empty":true`) {
 		t.Fatal("the primary overlay is untouched", line)
 	}
-	if line := call(tenantToken, CmdEdictOverlay, map[string]any{"tenant": "acme"}); !strings.Contains(line, `"substring":"tenant-only"`) || !strings.Contains(line, `"changes_folded":1`) {
+	if line := call(tenantToken, opapi.EdictOverlay, map[string]any{"tenant": "acme"}); !strings.Contains(line, `"substring":"tenant-only"`) || !strings.Contains(line, `"changes_folded":1`) {
 		t.Fatal(line)
 	}
-	if line := call(tenantToken, CmdEdictCompact, map[string]any{"tenant": "acme"}); !strings.Contains(line, `"type":"error"`) {
+	if line := call(tenantToken, opapi.EdictCompact, map[string]any{"tenant": "acme"}); !strings.Contains(line, `"type":"error"`) {
 		t.Fatal("a tenant token may not compact", line)
 	}
 	snapshot := func(kk *runtime.Kernel) string {
 		raw, _ := os.ReadFile(filepath.Join(kk.BaseDir(), "runtime", edict.OverlaySnapshotFile))
 		return string(raw)
 	}
-	if line := call("primary", CmdEdictCompact, map[string]any{"tenant": " acme "}); !strings.Contains(line, `"folded":1`) || !strings.Contains(line, `"compacted":1`) || !strings.Contains(snapshot(tk), "tenant-only") || snapshot(k) != "" {
+	if line := call("primary", opapi.EdictCompact, map[string]any{"tenant": " acme "}); !strings.Contains(line, `"folded":1`) || !strings.Contains(line, `"compacted":1`) || !strings.Contains(snapshot(tk), "tenant-only") || snapshot(k) != "" {
 		t.Fatal("an operator-named compaction writes the tenant snapshot only", line)
 	}
 	events, err := tk.Journal().Tail(1)

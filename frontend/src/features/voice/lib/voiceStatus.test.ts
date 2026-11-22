@@ -7,7 +7,7 @@ const speechSupported = vi.fn();
 vi.mock("@/app/api", () => ({
   getJSON: (...a: unknown[]) => getJSON(...a),
 }));
-vi.mock("@/features/voice/lib/speech", () => ({
+vi.mock("@/lib/speech", () => ({
   speechSupported: () => speechSupported(),
 }));
 

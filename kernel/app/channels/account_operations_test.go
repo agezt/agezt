@@ -39,11 +39,11 @@ func TestChannelAccountOperationTypedSpecsAndOutputPresence(t *testing.T) {
 	}
 	for i, op := range ops {
 		s := op.Spec()
-		name, path, input, output, count := "channel_account_set", "/api/channel/account/set", reflect.TypeFor[SetAccountRequest](), reflect.TypeFor[SetAccountOutput](), 5
+		name, input, output, count := "channel_account_set", reflect.TypeFor[SetAccountRequest](), reflect.TypeFor[SetAccountOutput](), 5
 		if i == 1 {
-			name, path, input, output, count = "channel_account_remove", "/api/channel/account/remove", reflect.TypeFor[RemoveAccountRequest](), reflect.TypeFor[RemoveAccountOutput](), 4
+			name, input, output, count = "channel_account_remove", reflect.TypeFor[RemoveAccountRequest](), reflect.TypeFor[RemoveAccountOutput](), 4
 		}
-		if s.Name != name || s.ReadOnly || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Stream != opapi.StreamNone || !s.AllowUnknownInput || s.HTTP.Method != "POST" || s.HTTP.Path != path || s.Input != input || s.Output != output {
+		if s.Name != name || s.ReadOnly || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Stream != opapi.StreamNone || !s.AllowUnknownInput || s.Input != input || s.Output != output {
 			t.Fatal(s)
 		}
 		var node map[string]any
@@ -79,7 +79,7 @@ func TestChannelAccountOperationTypedSpecsAndOutputPresence(t *testing.T) {
 }
 
 func TestChannelAccountOperationArgumentOrderAndAuditedValidation(t *testing.T) {
-	for _, command := range []string{"channel_account_set", "channel_account_remove"} {
+	for _, command := range []string{opapi.ChannelAccountSet, "channel_account_remove"} {
 		keys := []string{"kind", "label"}
 		if command == "channel_account_set" {
 			keys = append(keys, "name", "value")
@@ -111,7 +111,7 @@ func TestChannelAccountOperationArgumentOrderAndAuditedValidation(t *testing.T) 
 }
 
 func TestChannelAccountOperationAdmissionAndSelectedRoute(t *testing.T) {
-	for _, command := range []string{"channel_account_set", "channel_account_remove"} {
+	for _, command := range []string{opapi.ChannelAccountSet, "channel_account_remove"} {
 		for _, mode := range []string{"success", "audit-error", "audit-missing", "canceled", "tenant", "agent"} {
 			p := newAccountProbe(false)
 			p.config.values["AGEZT_PUBLIC#work"] = "before"

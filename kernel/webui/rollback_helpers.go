@@ -8,7 +8,7 @@ package webui
 import (
 	"context"
 	"fmt"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/platform/rollbackstore"
 	"strings"
 )
@@ -21,7 +21,7 @@ func (s *Server) applyRollbackCheckpoint(ctx context.Context, cp rollbackCheckpo
 		}
 		callCtx, cancel := context.WithTimeout(ctx, rollbackApplyTimeout)
 		defer cancel()
-		return s.client.Call(callCtx, controlplane.CmdSkillRestore, map[string]any{
+		return s.client.Call(callCtx, opapi.SkillRestore, map[string]any{
 			"id": cp.SubjectID, "status": cp.BeforeStatus, "reason": reason,
 		})
 	case rollbackCheckpointKindFlow:
@@ -30,7 +30,7 @@ func (s *Server) applyRollbackCheckpoint(ctx context.Context, cp rollbackCheckpo
 		}
 		callCtx, cancel := context.WithTimeout(ctx, rollbackApplyTimeout)
 		defer cancel()
-		return s.client.Call(callCtx, controlplane.CmdWorkflowRestore, map[string]any{
+		return s.client.Call(callCtx, opapi.WorkflowRestore, map[string]any{
 			"workflow": cp.Before, "reason": reason,
 		})
 	case rollbackCheckpointKindConfig:
@@ -53,7 +53,7 @@ func (s *Server) applyRollbackCheckpoint(ctx context.Context, cp rollbackCheckpo
 		}
 		callCtx, cancel := context.WithTimeout(ctx, rollbackApplyTimeout)
 		defer cancel()
-		return s.client.Call(callCtx, controlplane.CmdConfigSet, map[string]any{"name": env, "value": value})
+		return s.client.Call(callCtx, opapi.ConfigSet, map[string]any{"name": env, "value": value})
 	default:
 		return nil, fmt.Errorf("checkpoint kind %q is not supported yet", cp.Kind)
 	}

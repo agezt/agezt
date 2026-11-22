@@ -6,7 +6,7 @@
 
 import { useEffect, useState } from "react";
 import { Plug, PlugZap, RefreshCw, Plus, X, Trash2, Power, PowerOff, Boxes, KeyRound, ListChecks } from "lucide-react";
-import { getJSON, postAction, postJSON } from "@/app/api";
+import { getJSON, postAction, postJSON, type WritePath, type NativePath } from "@/app/api";
 import { cn } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
@@ -431,7 +431,7 @@ export function Mcp() {
   async function reload() {
     setLoading(true);
     try {
-      const d = await getJSON<{ servers?: MCPServer[] }>("/api/mcp");
+      const d = await getJSON("/api/mcp");
       setServers(d.servers || []);
       setErr(null);
     } catch (e) {
@@ -450,7 +450,7 @@ export function Mcp() {
 
   async function act(
     ref: string,
-    path: string,
+    path: WritePath | NativePath,
     params?: Record<string, string>,
     opts?: { confirm?: ConfirmOptions; success?: (res: any) => string },
   ) {

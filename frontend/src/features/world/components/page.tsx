@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
 import { Page } from "@/components/ui/page";
 import { SkeletonList } from "@/components/ui/skeleton";
+import type { WorldAddRequest } from "@/app/api/types.generated";
 import { usePanel } from "@/lib/usePanel";
 import { ErrorText, Muted } from "@/components/JsonView";
 import { EmptyState } from "@/components/ui/empty";
@@ -72,7 +73,7 @@ export function filterEntities(ents: WorldEntity[], query: string, kind: string)
 // file's own entity list (falling back to the raw value, so a hand-written file using
 // names also works). Throws on bad JSON / no valid entities.
 export function parseWorldJSON(text: string): {
-  entities: Record<string, unknown>[];
+  entities: WorldAddRequest[];
   relations: Record<string, unknown>[];
 } {
   const data = JSON.parse(text);
@@ -85,14 +86,14 @@ export function parseWorldJSON(text: string): {
   if (!rawEnts) throw new Error("expected a world with an entities array ({entities:[…], edges:[…]})");
 
   const idToName = new Map<string, string>();
-  const entities: Record<string, unknown>[] = [];
+  const entities: WorldAddRequest[] = [];
   for (const raw of rawEnts) {
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue;
     const e = raw as Record<string, unknown>;
     const name = typeof e.name === "string" ? e.name.trim() : "";
     if (!name) continue;
     if (typeof e.id === "string" && e.id) idToName.set(e.id, name);
-    const ent: Record<string, unknown> = { name };
+    const ent: WorldAddRequest = { name };
     if (typeof e.kind === "string" && e.kind.trim()) ent.kind = e.kind.trim();
     if (Array.isArray(e.aliases)) {
       const al = (e.aliases as unknown[]).filter((a): a is string => typeof a === "string" && a.trim() !== "");

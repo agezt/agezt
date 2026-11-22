@@ -113,7 +113,7 @@ func Operations(reads func(context.Context) *Reads, writes func(context.Context)
 	spec := func(name string, read bool) opapi.Spec {
 		return opapi.Spec{Name: name, ReadOnly: read, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: inputSchema}
 	}
-	get, err := app.NewOperation(spec("configcenter.get", true), func(ctx context.Context, in KeyRequest) (GetOutput, error) {
+	get, err := app.NewOperation(spec(opapi.ConfigCenterGet, true), func(ctx context.Context, in KeyRequest) (GetOutput, error) {
 		key, err := textArg(in.Key, "key", true)
 		if err != nil {
 			return GetOutput{}, err
@@ -123,7 +123,7 @@ func Operations(reads func(context.Context) *Reads, writes func(context.Context)
 	if err != nil {
 		return nil, err
 	}
-	list, err := app.NewOperation(spec("configcenter.list", true), func(ctx context.Context, in ListRequest) (ListOutput, error) {
+	list, err := app.NewOperation(spec(opapi.ConfigCenterList, true), func(ctx context.Context, in ListRequest) (ListOutput, error) {
 		rating, err := textArg(in.Rating, "rating", false)
 		if err != nil {
 			return ListOutput{}, err
@@ -133,7 +133,7 @@ func Operations(reads func(context.Context) *Reads, writes func(context.Context)
 	if err != nil {
 		return nil, err
 	}
-	accessLog, err := app.NewOperation(spec("configcenter.access-log", true), func(ctx context.Context, in AccessLogRequest) (AccessLogOutput, error) {
+	accessLog, err := app.NewOperation(spec(opapi.ConfigCenterAccessLog, true), func(ctx context.Context, in AccessLogRequest) (AccessLogOutput, error) {
 		key, err := textArg(in.Key, "key", false)
 		if err != nil {
 			return AccessLogOutput{}, err
@@ -151,7 +151,7 @@ func Operations(reads func(context.Context) *Reads, writes func(context.Context)
 	if err != nil {
 		return nil, err
 	}
-	audit, err := app.NewOperation(spec("configcenter.audit", true), func(ctx context.Context, in SinceRequest) (AuditOutput, error) {
+	audit, err := app.NewOperation(spec(opapi.ConfigCenterAudit, true), func(ctx context.Context, in SinceRequest) (AuditOutput, error) {
 		since, err := textArg(in.Since, "since", false)
 		if err != nil {
 			return AuditOutput{}, err
@@ -161,11 +161,11 @@ func Operations(reads func(context.Context) *Reads, writes func(context.Context)
 	if err != nil {
 		return nil, err
 	}
-	health, err := app.NewOperation(spec("configcenter.health", true), func(ctx context.Context, in HealthInput) (HealthOutput, error) { return reads(ctx).Health(ctx, in) })
+	health, err := app.NewOperation(spec(opapi.ConfigCenterHealth, true), func(ctx context.Context, in HealthInput) (HealthOutput, error) { return reads(ctx).Health(ctx, in) })
 	if err != nil {
 		return nil, err
 	}
-	set, err := app.NewOperation(spec("configcenter.set", false), func(ctx context.Context, in SetRequest) (SetOutput, error) {
+	set, err := app.NewOperation(spec(opapi.ConfigCenterSet, false), func(ctx context.Context, in SetRequest) (SetOutput, error) {
 		key, err := textArg(in.Key, "key", true)
 		if err != nil {
 			return SetOutput{}, err
@@ -187,7 +187,7 @@ func Operations(reads func(context.Context) *Reads, writes func(context.Context)
 	if err != nil {
 		return nil, err
 	}
-	deleteOp, err := app.NewOperation(spec("configcenter.delete", false), func(ctx context.Context, in KeyRequest) (DeleteOutput, error) {
+	deleteOp, err := app.NewOperation(spec(opapi.ConfigCenterDelete, false), func(ctx context.Context, in KeyRequest) (DeleteOutput, error) {
 		key, err := textArg(in.Key, "key", true)
 		if err != nil {
 			return DeleteOutput{}, err
@@ -197,7 +197,7 @@ func Operations(reads func(context.Context) *Reads, writes func(context.Context)
 	if err != nil {
 		return nil, err
 	}
-	rating, err := app.NewOperation(spec("configcenter.set-rating", false), func(ctx context.Context, in SetRatingRequest) (SetRatingOutput, error) {
+	rating, err := app.NewOperation(spec(opapi.ConfigCenterSetRating, false), func(ctx context.Context, in SetRatingRequest) (SetRatingOutput, error) {
 		key, err := textArg(in.Key, "key", true)
 		if err != nil {
 			return SetRatingOutput{}, err
@@ -211,7 +211,7 @@ func Operations(reads func(context.Context) *Reads, writes func(context.Context)
 	if err != nil {
 		return nil, err
 	}
-	access, err := app.NewOperation(spec("configcenter.access", false), func(ctx context.Context, in SetAccessRequest) (SetAccessOutput, error) {
+	access, err := app.NewOperation(spec(opapi.ConfigCenterSetAccess, false), func(ctx context.Context, in SetAccessRequest) (SetAccessOutput, error) {
 		key, err := textArg(in.Key, "key", true)
 		if err != nil {
 			return SetAccessOutput{}, err

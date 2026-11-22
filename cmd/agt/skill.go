@@ -16,7 +16,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 // cmdSkill dispatches `agt skill <subcommand>`. Forge is the journaled
@@ -27,66 +27,11 @@ func cmdSkill(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s skill: subcommand required (list|show|history|promote|quarantine|archive|revert|share|reassign|diff|export|import|registry|workshop)\n", brand.CLI)
 		return 2
 	}
-	switch args[0] {
-	case "list", "ls":
-		return cmdSkillList(args[1:], stdout, stderr)
-	case "show", "get":
-		return cmdSkillShow(args[1:], stdout, stderr)
-	case "history", "log":
-		return cmdSkillHistory(args[1:], stdout, stderr)
-	case "promote":
-		return cmdSkillTransition(args[1:], controlplane.CmdSkillPromote, "promote", stdout, stderr)
-	case "quarantine":
-		return cmdSkillTransition(args[1:], controlplane.CmdSkillQuarantine, "quarantine", stdout, stderr)
-	case "archive":
-		return cmdSkillTransition(args[1:], controlplane.CmdSkillArchive, "archive", stdout, stderr)
-	case "revert":
-		return cmdSkillTransition(args[1:], controlplane.CmdSkillRevert, "revert", stdout, stderr)
-	case "share":
-		return cmdSkillReassign(args[1:], true, stdout, stderr)
-	case "reassign":
-		return cmdSkillReassign(args[1:], false, stdout, stderr)
-	case "diff":
-		return cmdSkillDiff(args[1:], stdout, stderr)
-	case "export":
-		return cmdSkillExport(args[1:], stdout, stderr)
-	case "import":
-		return cmdSkillImport(args[1:], stdout, stderr)
-	case "files":
-		return cmdSkillFiles(args[1:], stdout, stderr)
-	case "cat":
-		return cmdSkillCat(args[1:], stdout, stderr)
-	case "registry":
-		return cmdSkillRegistry(args[1:], stdout, stderr)
-	case "hygiene":
-		return cmdSkillHygiene(args[1:], stdout, stderr)
-	case "workshop":
-		return cmdSkillWorkshop(args[1:], stdout, stderr)
-	case "-h", "--help", "help":
-		fmt.Fprintf(stdout, "usage: %s skill <subcommand>\n", brand.CLI)
-		fmt.Fprintf(stdout, "  list [--json]                 list all skills + lifecycle state\n")
-		fmt.Fprintf(stdout, "  show <id> [--json]            read one skill (exit 3 = absent)\n")
-		fmt.Fprintf(stdout, "  history <id> [--json]         the skill's lifecycle event chain\n")
-		fmt.Fprintf(stdout, "  promote <id> [--json]         advance draft->shadow->active\n")
-		fmt.Fprintf(stdout, "  quarantine <id> [--reason R] [--json]   pull from production\n")
-		fmt.Fprintf(stdout, "  archive <id> [--reason R] [--json]      retire without restoring a parent\n")
-		fmt.Fprintf(stdout, "  revert <id> [--json]          archive + restore lineage parent\n")
-		fmt.Fprintf(stdout, "  share <id> [--json]           promote a private (per-agent) skill to the shared pool\n")
-		fmt.Fprintf(stdout, "  reassign <id> [--agent S]     change a skill's owning agent (omit --agent to share)\n")
-		fmt.Fprintf(stdout, "  diff <id> [<id2>]             diff a skill's body vs its parent (or vs id2)\n")
-		fmt.Fprintf(stdout, "  export <id> [--out <file>]    write a portable, verifiable skill bundle\n")
-		fmt.Fprintf(stdout, "  export --all [--dir <dir>] [--agent <slug>]   export every skill (or one agent's) into a registry dir\n")
-		fmt.Fprintf(stdout, "  import <bundle|dir> [--json]  install a bundle/SKILL.md/skill directory as a draft\n")
-		fmt.Fprintf(stdout, "  files <id> [--json]           list a skill's bundle resources + their directory\n")
-		fmt.Fprintf(stdout, "  cat <id> <path>               print one bundle resource (reference file or script)\n")
-		fmt.Fprintf(stdout, "  registry <dir> [--install <name>]   list/install verifiable bundles in a directory\n")
-		fmt.Fprintf(stdout, "  hygiene [--idle-days N] [--json]   report idle/unused skills (epistemic hygiene)\n")
-		fmt.Fprintf(stdout, "  workshop <subcommand>         proposal review surface over Forge lifecycle\n")
-		return 0
-	default:
-		fmt.Fprintf(stderr, "%s skill: unknown subcommand %q (list|show|history|promote|quarantine|archive|revert|share|reassign|diff|export|import|registry|workshop)\n", brand.CLI, args[0])
-		return 2
+	if sub, ok := cliSkill.lookup(args[0]); ok {
+		return sub.run(nil, args, stdout, stderr)
 	}
+	fmt.Fprintf(stderr, "%s skill: unknown subcommand %q (list|show|history|promote|quarantine|archive|revert|share|reassign|diff|export|import|registry|workshop)\n", brand.CLI, args[0])
+	return 2
 }
 
 func cmdSkillList(args []string, stdout, stderr io.Writer) int {
@@ -109,7 +54,7 @@ func cmdSkillList(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdSkillList, nil)
+	res, err := c.Call(ctx, opapi.SkillList, nil)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s skill list: %v\n", brand.CLI, err)
 		return 1
@@ -159,7 +104,7 @@ func cmdSkillShow(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdSkillGet, map[string]any{"id": id})
+	res, err := c.Call(ctx, opapi.SkillGet, map[string]any{"id": id})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s skill show: %v\n", brand.CLI, err)
 		return 1
@@ -207,7 +152,7 @@ func cmdSkillHistory(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdSkillHistory, map[string]any{"id": id})
+	res, err := c.Call(ctx, opapi.SkillHistory, map[string]any{"id": id})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s skill history: %v\n", brand.CLI, err)
 		return 1

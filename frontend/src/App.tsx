@@ -18,12 +18,12 @@ import type { CommandItem } from "@/lib/commands";
 import { toggleTheme } from "@/lib/theme";
 import { toggleAdvanced } from "@/lib/advanced";
 import { useChat } from "@/lib/chatStore";
-import { focusRun } from "@/features/runs/lib/runfocus";
-import { agentSlugFromHash, openAgent } from "@/features/agents/lib/agentnav";
-import { incidentIdFromHash } from "@/features/incidents/lib/incidentnav";
+import { focusRun } from "@/lib/runfocus";
+import { agentSlugFromHash, openAgent } from "@/lib/agentnav";
+import { incidentIdFromHash } from "@/lib/incidentnav";
 import { goToView } from "@/lib/nav";
 import { exportAppearance, parseAppearanceJSON, applyAppearanceBundle } from "@/lib/appearance";
-import { parseConfigBundle, fetchConfigBundle, applyConfigBundle } from "@/features/configcenter/lib/configbackup";
+import { parseConfigBundle, fetchConfigBundle, applyConfigBundle } from "@/lib/configbackup";
 import { downloadText } from "@/app/export";
 import { ConsoleName } from "@/components/ConsoleName";
 import { anyCredentialed, type SetupCatalog } from "@/features/setup/lib/setup";
@@ -155,7 +155,7 @@ export default function App() {
 
   // Fetch the daemon's build provenance once for the sidebar footer (M971).
   useEffect(() => {
-    getJSON<{ version?: string; revision?: string; built?: string; build_modified?: boolean }>("/api/version")
+    getJSON("/api/version")
       .then(setBuild)
       .catch(() => {});
   }, []);
@@ -192,7 +192,7 @@ export default function App() {
   const [needsSetup, setNeedsSetup] = useState(false);
   useEffect(() => {
     if (localStorage.getItem("agezt.setup.skipped") === "1") return;
-    getJSON<SetupCatalog>("/api/catalog")
+    getJSON("/api/catalog")
       .then((c) => setNeedsSetup(!anyCredentialed(c)))
       .catch(() => {});
   }, []);
@@ -290,12 +290,12 @@ export default function App() {
   useEffect(() => {
     if (!paletteOpen) return;
     let live = true;
-    getJSON<{ runs?: { correlation_id?: string; intent?: string; status?: string }[] }>("/api/runs")
+    getJSON("/api/runs")
       .then((d) => {
         if (live) setRecentRuns((d.runs || []).filter((r) => r.correlation_id).slice(0, 8));
       })
       .catch(() => {});
-    getJSON<{ profiles?: { slug: string; name?: string; system?: boolean; retired?: boolean }[] }>("/api/agents")
+    getJSON("/api/agents")
       .then((d) => {
         if (live) setPaletteAgents((d.profiles || []).filter((p) => p.slug));
       })

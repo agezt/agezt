@@ -4,7 +4,7 @@ package controlplane_test
 import (
 	"context"
 	"encoding/json"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/modules/knowledge/taste"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -27,12 +27,12 @@ func TestTasteOperationsSocketRetainPrimaryOnlyStore(t *testing.T) {
 		}
 	}
 	client := tenantClient(t, dir, token)
-	for _, cmd := range []string{controlplane.CmdTasteList, controlplane.CmdTasteCreate, controlplane.CmdTasteDelete} {
+	for _, cmd := range []string{opapi.TasteList, opapi.TasteCreate, opapi.TasteDelete} {
 		if _, err := client.Call(context.Background(), cmd, map[string]any{"tenant": "acme", "title": "blocked", "body": "body", "id": "fixture"}); err == nil {
 			t.Fatalf("tenant admitted %s", cmd)
 		}
 	}
-	result, err := owner.Call(context.Background(), controlplane.CmdTasteList, map[string]any{"tenant": "acme"})
+	result, err := owner.Call(context.Background(), opapi.TasteList, map[string]any{"tenant": "acme"})
 	if err != nil {
 		t.Fatal(err)
 	}

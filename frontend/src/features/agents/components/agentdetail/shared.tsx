@@ -8,10 +8,10 @@ import { Badge } from "@/components/ui/badge";
 import { useUI } from "@/components/ui/feedback";
 import { type AgentProfile } from "@/features/agents/components/Roster";
 import { type FleetState, type ApiOrder, type ApiSchedule } from "@/lib/fleet";
-import { type AgentConfigOverrideSummary, type MemoryRecord, type SkillLite } from "@/features/agents/lib/agentdetail";
+import { type AgentConfigOverrideSummary, type MemoryRecord, type SkillLite } from "@/lib/agentdetail";
 
 // Diagnostics row shapes (mirrors of /api/policy_log + /api/tool_log rows).
-export interface PolicyDecision {
+export type PolicyDecision = {
   ts_unix_ms?: number;
   actor?: string;
   correlation_id?: string;
@@ -20,8 +20,8 @@ export interface PolicyDecision {
   allow?: boolean;
   reason?: string;
   hard_denied?: boolean;
-}
-export interface ToolInvocation {
+};
+export type ToolInvocation = {
   ts_unix_ms?: number;
   actor?: string;
   correlation_id?: string;
@@ -29,8 +29,8 @@ export interface ToolInvocation {
   error?: boolean;
   output?: string;
   duration_ms?: number;
-}
-export interface ApprovalDecision {
+};
+export type ApprovalDecision = {
   ts_unix_ms?: number;
   approval_id?: string;
   actor?: string;
@@ -38,9 +38,9 @@ export interface ApprovalDecision {
   capability?: string;
   tool?: string;
   reason?: string;
-  status?: "pending" | "granted" | "denied" | "timeout" | string;
+  status?: string;
   resolved_by?: string;
-}
+};
 export interface PolicyStats {
   denial_rate?: number;
   denied?: number;
@@ -49,12 +49,12 @@ export interface PolicyStats {
   allowed?: number;
   total?: number;
 }
-export interface ToolCatalogRow {
+export type ToolCatalogRow = {
   name: string;
   description?: string;
   capability?: string;
-}
-export interface AgentPermissionRow {
+};
+export type AgentPermissionRow = {
   name: string;
   description?: string;
   capability?: string;
@@ -64,18 +64,18 @@ export interface AgentPermissionRow {
   source?: string;
   reason?: string;
   level?: string;
-}
-export interface AgentPermissionsSnapshot {
+};
+export type AgentPermissionsSnapshot = {
   permissions?: AgentPermissionRow[];
   config_entries?: AgentConfigPermissionRow[];
   wake_access?: AgentWakeAccess;
   governance?: AgentGovernanceSnapshot;
   allowed_count?: number;
   count?: number;
-}
-interface AgentGovernanceSnapshot {
+};
+type AgentGovernanceSnapshot = {
   summary?: string;
-  risk?: "open" | "restricted" | "governed" | "system_guardian" | string;
+  risk?: string;
   system_enforced?: boolean;
   authority_boundary?: string;
   execution_boundary?: string;
@@ -106,7 +106,7 @@ interface AgentGovernanceSnapshot {
   noise_disable_memory_writes?: boolean;
   noise_min_notify_severity?: string;
   noise_min_notify_interval_sec?: number;
-}
+};
 export interface AgentWakeAccess {
   status?: string;
   reason?: string;
@@ -122,7 +122,7 @@ export interface AgentWakeAccess {
   owner_agent?: string;
   parent_agent?: string;
 }
-export interface AgentConfigPermissionRow {
+export type AgentConfigPermissionRow = {
   key: string;
   rating?: string;
   visible?: boolean;
@@ -132,16 +132,16 @@ export interface AgentConfigPermissionRow {
   allowed_agents?: string[];
   excluded_agents?: string[];
   description?: string;
-}
-export interface AgentWakeResult {
+};
+export type AgentWakeResult = {
   accepted?: boolean;
   agent?: string;
   correlation_id?: string;
-}
+};
 
 // Board message (mirror of /api/board rows) for the Comms tab. The read view
 // emits ts_unix_ms (not ts_ms) and omits from/to when empty.
-export interface BoardMessage {
+export type BoardMessage = {
   id?: string;
   topic?: string;
   from?: string;
@@ -151,12 +151,12 @@ export interface BoardMessage {
   ts_unix_ms?: number;
   help?: boolean;
   acked_by?: string[];
-}
+};
 export const EMPTY_BOARD_MESSAGES: BoardMessage[] = [];
 // Routing snapshot (mirror of /api/routing) for the Model tab.
-export interface RoutingInfo {
+export type RoutingInfo = {
   chains?: Record<string, string[]>;
-}
+};
 // Six grouped tabs (declutter law): Wiring absorbs triggers+comms, Mind absorbs
 // soul+memory+skills+files, Diagnostics absorbs diag+repair.
 export type DetailTab =

@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
-	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/runtime"
 )
 
@@ -45,7 +45,7 @@ func TestConductor_RolesAndAskViaControlPlane(t *testing.T) {
 	defer cancel()
 
 	// conductor_roles previews the auto-filled role→model mapping.
-	roles, err := client.Call(ctx, controlplane.CmdConductorRoles, nil)
+	roles, err := client.Call(ctx, opapi.ConductorRoles, nil)
 	if err != nil {
 		t.Fatalf("CmdConductorRoles: %v", err)
 	}
@@ -54,7 +54,7 @@ func TestConductor_RolesAndAskViaControlPlane(t *testing.T) {
 	}
 
 	// conductor_ask runs the loop and returns the answer + transcript.
-	res, err := client.Call(ctx, controlplane.CmdConductorAsk, map[string]any{
+	res, err := client.Call(ctx, opapi.ConductorAsk, map[string]any{
 		"task": "what is 2+2?", "max_rounds": 1,
 	})
 	if err != nil {
@@ -75,7 +75,7 @@ func TestConductor_RolesAndAskViaControlPlane(t *testing.T) {
 	}
 
 	// Missing task → a clean error, not a panic.
-	if _, err := client.Call(ctx, controlplane.CmdConductorAsk, map[string]any{}); err == nil {
+	if _, err := client.Call(ctx, opapi.ConductorAsk, map[string]any{}); err == nil {
 		t.Error("empty task should error")
 	}
 }

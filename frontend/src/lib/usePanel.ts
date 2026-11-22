@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { getJSON } from "@/app/api";
+import { getJSON, type ReadPath, type ReadArgsPath, type NativePath, type RuntimePath } from "@/app/api";
 
 interface PanelState<T> {
   data: T | null;
@@ -11,7 +11,14 @@ interface PanelState<T> {
 // usePanel fetches a read-only control-plane view and exposes a manual reload.
 // Panels are cheap reads proxied through the daemon; the live feed drives most
 // freshness, so a light reload button + mount fetch is enough.
-export function usePanel<T = any>(path: string, params?: Record<string, string>): PanelState<T> {
+//
+// The path is typed to the console's surface: a panel cannot ask for a path
+// the daemon does not answer, and the caller's literal is checked against the
+// catalogue at the call site.
+export function usePanel<T = any>(
+  path: ReadPath | ReadArgsPath | NativePath,
+  params?: Record<string, string>,
+): PanelState<T> {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -19,7 +26,9 @@ export function usePanel<T = any>(path: string, params?: Record<string, string>)
 
   const reload = useCallback(() => {
     setLoading(true);
-    getJSON<T>(path, params)
+    // The path arrives as a prop, so it cannot be checked against the
+    // catalogue again here — the prop's own type is the catalogue's.
+    getJSON(path as RuntimePath, params)
       .then((d) => {
         setData(d);
         setError(null);

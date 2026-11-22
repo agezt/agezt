@@ -411,43 +411,43 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 		return nil, errors.New("data lake provider required")
 	}
 	defs := []struct {
-		name, method, path string
-		read               bool
-		output             reflect.Type
-		input              []string
-		build              func(opapi.Spec) (app.Operation, error)
+		name   string
+		read   bool
+		output reflect.Type
+		input  []string
+		build  func(opapi.Spec) (app.Operation, error)
 	}{
-		{"data_collections", "GET", "/api/data/collections", true, reflect.TypeFor[CollectionsOutput](), nil, func(s opapi.Spec) (app.Operation, error) {
+		{opapi.DataCollections, true, reflect.TypeFor[CollectionsOutput](), nil, func(s opapi.Spec) (app.Operation, error) {
 			return app.NewOperation(s, func(ctx context.Context, in CollectionsRequest) (CollectionsOutput, error) {
 				return provider(ctx).Collections(ctx, in)
 			})
 		}},
-		{"data_records", "GET", "/api/data/records", true, reflect.TypeFor[RecordsOutput](), []string{"collection", "search", "sort", "desc", "limit", "offset"}, func(s opapi.Spec) (app.Operation, error) {
+		{opapi.DataRecords, true, reflect.TypeFor[RecordsOutput](), []string{"collection", "search", "sort", "desc", "limit", "offset"}, func(s opapi.Spec) (app.Operation, error) {
 			return app.NewOperation(s, func(ctx context.Context, in RecordsRequest) (RecordsOutput, error) {
 				return provider(ctx).Records(ctx, in)
 			})
 		}},
-		{"data_insert", "POST", "/api/data/insert", false, reflect.TypeFor[RecordOutput](), []string{"collection", "record"}, func(s opapi.Spec) (app.Operation, error) {
+		{opapi.DataInsert, false, reflect.TypeFor[RecordOutput](), []string{"collection", "record"}, func(s opapi.Spec) (app.Operation, error) {
 			return app.NewOperation(s, func(ctx context.Context, in InsertRequest) (RecordOutput, error) {
 				return provider(ctx).Insert(ctx, in)
 			})
 		}},
-		{"data_update", "POST", "/api/data/update", false, reflect.TypeFor[RecordOutput](), []string{"collection", "id", "record"}, func(s opapi.Spec) (app.Operation, error) {
+		{opapi.DataUpdate, false, reflect.TypeFor[RecordOutput](), []string{"collection", "id", "record"}, func(s opapi.Spec) (app.Operation, error) {
 			return app.NewOperation(s, func(ctx context.Context, in UpdateRequest) (RecordOutput, error) {
 				return provider(ctx).Update(ctx, in)
 			})
 		}},
-		{"data_delete", "POST", "/api/data/delete", false, reflect.TypeFor[DeleteOutput](), []string{"collection", "id"}, func(s opapi.Spec) (app.Operation, error) {
+		{opapi.DataDelete, false, reflect.TypeFor[DeleteOutput](), []string{"collection", "id"}, func(s opapi.Spec) (app.Operation, error) {
 			return app.NewOperation(s, func(ctx context.Context, in DeleteRequest) (DeleteOutput, error) {
 				return provider(ctx).Delete(ctx, in)
 			})
 		}},
-		{"data_create_collection", "", "", false, reflect.TypeFor[CreateOutput](), []string{"collection"}, func(s opapi.Spec) (app.Operation, error) {
+		{opapi.DataCreateCollection, false, reflect.TypeFor[CreateOutput](), []string{"collection"}, func(s opapi.Spec) (app.Operation, error) {
 			return app.NewOperation(s, func(ctx context.Context, in CreateRequest) (CreateOutput, error) {
 				return provider(ctx).Create(ctx, in)
 			})
 		}},
-		{"data_drop_collection", "", "", false, reflect.TypeFor[DropOutput](), []string{"name"}, func(s opapi.Spec) (app.Operation, error) {
+		{opapi.DataDropCollection, false, reflect.TypeFor[DropOutput](), []string{"name"}, func(s opapi.Spec) (app.Operation, error) {
 			return app.NewOperation(s, func(ctx context.Context, in DropRequest) (DropOutput, error) { return provider(ctx).Drop(ctx, in) })
 		}},
 	}
@@ -457,7 +457,7 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 		if err != nil {
 			return nil, err
 		}
-		spec := opapi.Spec{Name: d.name, ReadOnly: d.read, OutputSchema: out, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, HTTP: opapi.HTTP{Method: d.method, Path: d.path}}
+		spec := opapi.Spec{Name: d.name, ReadOnly: d.read, OutputSchema: out, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true}
 		if len(d.input) > 0 {
 			spec.InputSchema = properties(d.input...)
 		}

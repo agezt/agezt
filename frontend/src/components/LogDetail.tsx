@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { getJSON } from "@/app/api";
+import { getJSON, type ReadArgsPath } from "@/app/api";
 import { Button } from "@/components/ui/button";
 import { Muted, ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
@@ -15,7 +15,7 @@ export function LogDetail<T = any>({
   render,
 }: {
   label: string;
-  path: string;
+  path: ReadArgsPath;
   params?: Record<string, string>;
   extract: (d: any) => T[];
   render: (row: T, i: number) => ReactNode;

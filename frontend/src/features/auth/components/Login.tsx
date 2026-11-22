@@ -19,7 +19,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<"unknown" | "ok" | "need">("unknown");
 
   const probe = useCallback(() => {
-    getJSON<AuthMeta>("/api/authmeta")
+    getJSON("/api/authmeta")
       .then((m) => setState(m.password_required && !m.authed ? "need" : "ok"))
       // A failing probe (no/!valid token, older daemon without the route) must
       // not lock the user out of an otherwise-usable console — fall through to
@@ -57,7 +57,7 @@ export function Login({ onAuthed }: { onAuthed: () => void }) {
       // an app that fails on every request. A failed probe is treated as
       // success (optimistic) so a transient blip never locks a usable console.
       try {
-        const m = await getJSON<AuthMeta>("/api/authmeta");
+        const m = await getJSON("/api/authmeta");
         if (m.password_required && !m.authed) {
           setErr(
             "Signed in, but this browser still can't reach the data routes — the daemon also requires the URL token (strict mode). Open the tokened link from the daemon banner.",

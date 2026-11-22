@@ -75,7 +75,7 @@ func MCPLifecycleOperations(provider func(context.Context) *MCPLifecycle) ([]app
 	spec := func(name string) opapi.Spec {
 		return opapi.Spec{Name: name, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: mcpLifecycleInputSchema}
 	}
-	add, err := app.NewOperation(spec("mcp_add"), func(ctx context.Context, in MCPAddRequest) (MCPServerOutput, error) {
+	add, err := app.NewOperation(spec(opapi.MCPAdd), func(ctx context.Context, in MCPAddRequest) (MCPServerOutput, error) {
 		srv, err := mcpDecodeServer(in.Server)
 		if err != nil {
 			return MCPServerOutput{}, err
@@ -85,7 +85,7 @@ func MCPLifecycleOperations(provider func(context.Context) *MCPLifecycle) ([]app
 	if err != nil {
 		return nil, err
 	}
-	attach, err := app.NewOperation(spec("mcp_attach"), func(ctx context.Context, in MCPRefRequest) (MCPAttachOutput, error) {
+	attach, err := app.NewOperation(spec(opapi.MCPAttach), func(ctx context.Context, in MCPRefRequest) (MCPAttachOutput, error) {
 		ref, err := mcpRequiredRef(in.Ref)
 		if err != nil {
 			return MCPAttachOutput{}, err
@@ -95,7 +95,7 @@ func MCPLifecycleOperations(provider func(context.Context) *MCPLifecycle) ([]app
 	if err != nil {
 		return nil, err
 	}
-	detach, err := app.NewOperation(spec("mcp_detach"), func(ctx context.Context, in MCPRefRequest) (MCPDetachOutput, error) {
+	detach, err := app.NewOperation(spec(opapi.MCPDetach), func(ctx context.Context, in MCPRefRequest) (MCPDetachOutput, error) {
 		ref, err := mcpRequiredRef(in.Ref)
 		if err != nil {
 			return MCPDetachOutput{}, err
@@ -105,7 +105,7 @@ func MCPLifecycleOperations(provider func(context.Context) *MCPLifecycle) ([]app
 	if err != nil {
 		return nil, err
 	}
-	enabled, err := app.NewOperation(spec("mcp_set_enabled"), func(ctx context.Context, in MCPSetEnabledRequest) (MCPServerOutput, error) {
+	enabled, err := app.NewOperation(spec(opapi.MCPSetEnabled), func(ctx context.Context, in MCPSetEnabledRequest) (MCPServerOutput, error) {
 		ref, err := mcpRequiredRef(in.Ref)
 		if err != nil {
 			return MCPServerOutput{}, err
@@ -115,7 +115,7 @@ func MCPLifecycleOperations(provider func(context.Context) *MCPLifecycle) ([]app
 	if err != nil {
 		return nil, err
 	}
-	remove, err := app.NewOperation(spec("mcp_remove"), func(ctx context.Context, in MCPRefRequest) (MCPRemoveOutput, error) {
+	remove, err := app.NewOperation(spec(opapi.MCPRemove), func(ctx context.Context, in MCPRefRequest) (MCPRemoveOutput, error) {
 		ref, err := mcpRequiredRef(in.Ref)
 		if err != nil {
 			return MCPRemoveOutput{}, err

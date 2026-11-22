@@ -227,7 +227,7 @@ func PlanRunOperations(provider func(context.Context) *PlanRunner) ([]app.Operat
 		return nil, err
 	}
 	frames := json.RawMessage(event.WireSchema)
-	run, err := app.NewStreamingOperation(opapi.Spec{Name: "plan", Stream: opapi.StreamEvents, OutputSchema: out, EmissionSchema: frames, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"plan_json":{}}}`), HTTP: opapi.HTTP{Method: "POST", Path: "/api/plan/run"}}, func(ctx context.Context, in PlanRunRequest, emit func(*event.Event) error) (PlanRunOutput, error) {
+	run, err := app.NewStreamingOperation(opapi.Spec{Name: opapi.Plan, Stream: opapi.StreamEvents, OutputSchema: out, EmissionSchema: frames, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"plan_json":{}}}`)}, func(ctx context.Context, in PlanRunRequest, emit func(*event.Event) error) (PlanRunOutput, error) {
 		return provider(ctx).Run(ctx, in, emit)
 	})
 	if err != nil {

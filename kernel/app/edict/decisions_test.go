@@ -162,11 +162,11 @@ func TestDecisionOperations(t *testing.T) {
 		name, path string
 		out        any
 	}{
-		{"edict_log", "/api/policy_log", log},
-		{"edict_stats", "/api/policy", stats},
+		{opapi.EdictLog, "/api/policy_log", log},
+		{opapi.EdictStats, "/api/policy", stats},
 	} {
 		spec := ops[i].Spec()
-		if spec.Name != w.name || !spec.ReadOnly || spec.Authz != opapi.OwnTenant || spec.Tenancy != opapi.CallerTenant || !spec.AllowUnknownInput || spec.HTTP != (opapi.HTTP{Method: "GET", Path: w.path}) || spec.Output != reflect.TypeOf(w.out) {
+		if spec.Name != w.name || !spec.ReadOnly || spec.Authz != opapi.OwnTenant || spec.Tenancy != opapi.CallerTenant || !spec.AllowUnknownInput || spec.Output != reflect.TypeOf(w.out) {
 			t.Fatal(spec)
 		}
 		raw, _ := json.Marshal(w.out)

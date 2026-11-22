@@ -30,13 +30,13 @@ const iconMap: Record<string, LucideIcon> = {
 };
 
 // Suggestion is one clickable next-prompt chip.
-export interface Suggestion {
+export type Suggestion = {
   id: string;
   label: string;
   prompt: string;
   category: string;
   icon?: string;
-}
+};
 
 // CategoryMeta styles each suggestion category consistently.
 const categoryMeta: Record<string, { label: string; chipClass: string }> = {
@@ -72,16 +72,13 @@ export function SuggestionsBar({
     try {
       // The read-args proxy forwards each query param as a single value, so
       // send recent tool names comma-joined (the backend splits on comma).
-      const params = new URLSearchParams();
-      if (sessionId) params.set("session_id", sessionId);
+      const params: Record<string, string> = {};
+      if (sessionId) params.session_id = sessionId;
       if (recentTools && recentTools.length > 0) {
-        params.set("tools", recentTools.join(","));
+        params.tools = recentTools.join(",");
       }
 
-      const qs = params.toString();
-      const d = await getJSON<{ suggestions?: Suggestion[] }>(
-        "/api/suggestions" + (qs ? `?${qs}` : ""),
-      );
+      const d = await getJSON("/api/suggestions", params);
       const items = d.suggestions || [];
       setSuggestions(items);
       if (items.length > 0) setDismissed(false);

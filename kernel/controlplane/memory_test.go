@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -17,7 +17,7 @@ func TestMemoryAddListGetCycle(t *testing.T) {
 	ctx := context.Background()
 
 	// Add
-	res, err := c.Call(ctx, controlplane.CmdMemoryAdd, map[string]any{
+	res, err := c.Call(ctx, opapi.MemoryAdd, map[string]any{
 		"subject": "lictor",
 		"content": "Agezt is a Go agentic OS",
 		"type":    "FACT",
@@ -34,7 +34,7 @@ func TestMemoryAddListGetCycle(t *testing.T) {
 	}
 
 	// List
-	res, err = c.Call(ctx, controlplane.CmdMemoryList, nil)
+	res, err = c.Call(ctx, opapi.MemoryList, nil)
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -44,7 +44,7 @@ func TestMemoryAddListGetCycle(t *testing.T) {
 	}
 
 	// Get
-	res, err = c.Call(ctx, controlplane.CmdMemoryGet, map[string]any{"id": id})
+	res, err = c.Call(ctx, opapi.MemoryGet, map[string]any{"id": id})
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
@@ -61,7 +61,7 @@ func TestMemorySupersede(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
 
-	add, err := c.Call(ctx, controlplane.CmdMemoryAdd, map[string]any{
+	add, err := c.Call(ctx, opapi.MemoryAdd, map[string]any{
 		"subject": "owner-tz", "content": "Owner is in UTC", "type": "FACT",
 	})
 	if err != nil {
@@ -70,7 +70,7 @@ func TestMemorySupersede(t *testing.T) {
 	oldID, _ := add["id"].(string)
 
 	// Revise the content.
-	sup, err := c.Call(ctx, controlplane.CmdMemorySupersede, map[string]any{
+	sup, err := c.Call(ctx, opapi.MemorySupersede, map[string]any{
 		"old_id": oldID, "subject": "owner-tz", "content": "Owner is in Istanbul, UTC+3", "type": "FACT",
 	})
 	if err != nil {
@@ -85,7 +85,7 @@ func TestMemorySupersede(t *testing.T) {
 	}
 
 	// The active list now shows only the new record.
-	list, _ := c.Call(ctx, controlplane.CmdMemoryList, nil)
+	list, _ := c.Call(ctx, opapi.MemoryList, nil)
 	recs, _ := list["records"].([]any)
 	if len(recs) != 1 {
 		t.Fatalf("active count = %d, want 1 (old superseded)", len(recs))
@@ -96,13 +96,13 @@ func TestMemorySupersede(t *testing.T) {
 	}
 
 	// The old record still exists (soft update) and points forward.
-	got, _ := c.Call(ctx, controlplane.CmdMemoryGet, map[string]any{"id": oldID})
+	got, _ := c.Call(ctx, opapi.MemoryGet, map[string]any{"id": oldID})
 	if found, _ := got["found"].(bool); !found {
 		t.Error("old record should be retained, not deleted")
 	}
 
 	// A revise to identical content is a no-op.
-	noop, err := c.Call(ctx, controlplane.CmdMemorySupersede, map[string]any{
+	noop, err := c.Call(ctx, opapi.MemorySupersede, map[string]any{
 		"old_id": newID, "subject": "owner-tz", "content": "Owner is in Istanbul, UTC+3", "type": "FACT",
 	})
 	if err != nil {
@@ -113,17 +113,17 @@ func TestMemorySupersede(t *testing.T) {
 	}
 
 	// Validation.
-	if _, err := c.Call(ctx, controlplane.CmdMemorySupersede, map[string]any{"content": "x"}); err == nil {
+	if _, err := c.Call(ctx, opapi.MemorySupersede, map[string]any{"content": "x"}); err == nil {
 		t.Error("supersede without old_id must error")
 	}
-	if _, err := c.Call(ctx, controlplane.CmdMemorySupersede, map[string]any{"old_id": oldID}); err == nil {
+	if _, err := c.Call(ctx, opapi.MemorySupersede, map[string]any{"old_id": oldID}); err == nil {
 		t.Error("supersede without content must error")
 	}
 }
 
 func TestMemoryAddRejectsEmptyContent(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
-	if _, err := c.Call(context.Background(), controlplane.CmdMemoryAdd, map[string]any{"subject": "x"}); err == nil {
+	if _, err := c.Call(context.Background(), opapi.MemoryAdd, map[string]any{"subject": "x"}); err == nil {
 		t.Error("add without content must error")
 	}
 }
@@ -131,10 +131,10 @@ func TestMemoryAddRejectsEmptyContent(t *testing.T) {
 func TestMemorySearchRanks(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
-	_, _ = c.Call(ctx, controlplane.CmdMemoryAdd, map[string]any{"subject": "agezt", "content": "agezt kernel journals events"})
-	_, _ = c.Call(ctx, controlplane.CmdMemoryAdd, map[string]any{"subject": "weather", "content": "it is sunny today"})
+	_, _ = c.Call(ctx, opapi.MemoryAdd, map[string]any{"subject": "agezt", "content": "agezt kernel journals events"})
+	_, _ = c.Call(ctx, opapi.MemoryAdd, map[string]any{"subject": "weather", "content": "it is sunny today"})
 
-	res, err := c.Call(ctx, controlplane.CmdMemorySearch, map[string]any{"query": "agezt kernel"})
+	res, err := c.Call(ctx, opapi.MemorySearch, map[string]any{"query": "agezt kernel"})
 	if err != nil {
 		t.Fatalf("search: %v", err)
 	}
@@ -146,7 +146,7 @@ func TestMemorySearchRanks(t *testing.T) {
 
 func TestMemorySearchRequiresQuery(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
-	if _, err := c.Call(context.Background(), controlplane.CmdMemorySearch, nil); err == nil {
+	if _, err := c.Call(context.Background(), opapi.MemorySearch, nil); err == nil {
 		t.Error("search without query must error")
 	}
 }
@@ -154,10 +154,10 @@ func TestMemorySearchRequiresQuery(t *testing.T) {
 func TestMemoryForgetExcludesFromList(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
-	res, _ := c.Call(ctx, controlplane.CmdMemoryAdd, map[string]any{"subject": "s", "content": "forget me"})
+	res, _ := c.Call(ctx, opapi.MemoryAdd, map[string]any{"subject": "s", "content": "forget me"})
 	id, _ := res["id"].(string)
 
-	res, err := c.Call(ctx, controlplane.CmdMemoryForget, map[string]any{"id": id})
+	res, err := c.Call(ctx, opapi.MemoryForget, map[string]any{"id": id})
 	if err != nil {
 		t.Fatalf("forget: %v", err)
 	}
@@ -166,12 +166,12 @@ func TestMemoryForgetExcludesFromList(t *testing.T) {
 	}
 
 	// Gone from list...
-	res, _ = c.Call(ctx, controlplane.CmdMemoryList, nil)
+	res, _ = c.Call(ctx, opapi.MemoryList, nil)
 	if recs, _ := res["records"].([]any); len(recs) != 0 {
 		t.Fatalf("forgotten record must not appear in list, got %d", len(recs))
 	}
 	// ...but still gettable (reversibility) and marked tombstoned.
-	res, _ = c.Call(ctx, controlplane.CmdMemoryGet, map[string]any{"id": id})
+	res, _ = c.Call(ctx, opapi.MemoryGet, map[string]any{"id": id})
 	if found, _ := res["found"].(bool); !found {
 		t.Fatal("forgotten record must remain retrievable by id")
 	}
@@ -187,27 +187,27 @@ func TestMemoryForgetExcludesFromList(t *testing.T) {
 func TestMemoryPromote(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
-	res, _ := c.Call(ctx, controlplane.CmdMemoryAdd, map[string]any{
+	res, _ := c.Call(ctx, opapi.MemoryAdd, map[string]any{
 		"subject": "ops-note", "content": "staging deploy needs the vault key",
 		"tags": map[string]any{"scope": "ops"},
 	})
 	id, _ := res["id"].(string)
 
-	res, err := c.Call(ctx, controlplane.CmdMemoryPromote, map[string]any{"id": id})
+	res, err := c.Call(ctx, opapi.MemoryPromote, map[string]any{"id": id})
 	if err != nil {
 		t.Fatalf("promote: %v", err)
 	}
 	if ok, _ := res["promoted"].(bool); !ok {
 		t.Errorf("promote should report promoted=true: %v", res)
 	}
-	res, _ = c.Call(ctx, controlplane.CmdMemoryGet, map[string]any{"id": id})
+	res, _ = c.Call(ctx, opapi.MemoryGet, map[string]any{"id": id})
 	rec, _ := res["record"].(map[string]any)
 	if tags, _ := rec["tags"].(map[string]any); tags != nil && tags["scope"] != nil {
 		t.Errorf("promoted record must have no scope tag: %v", tags)
 	}
 
 	// Unknown id → promoted=false, not an error.
-	res, err = c.Call(ctx, controlplane.CmdMemoryPromote, map[string]any{"id": "no-such-id"})
+	res, err = c.Call(ctx, opapi.MemoryPromote, map[string]any{"id": "no-such-id"})
 	if err != nil {
 		t.Fatalf("promote unknown: %v", err)
 	}
@@ -215,14 +215,14 @@ func TestMemoryPromote(t *testing.T) {
 		t.Error("unknown id should report promoted=false")
 	}
 	// Missing id → error.
-	if _, err := c.Call(ctx, controlplane.CmdMemoryPromote, nil); err == nil {
+	if _, err := c.Call(ctx, opapi.MemoryPromote, nil); err == nil {
 		t.Error("promote without id must error")
 	}
 }
 
 func TestMemoryGetRequiresID(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
-	if _, err := c.Call(context.Background(), controlplane.CmdMemoryGet, nil); err == nil {
+	if _, err := c.Call(context.Background(), opapi.MemoryGet, nil); err == nil {
 		t.Error("get without id must error")
 	}
 }
@@ -235,15 +235,15 @@ func TestMemoryBulkForget(t *testing.T) {
 	ctx := context.Background()
 
 	// Add three records.
-	r1, _ := c.Call(ctx, controlplane.CmdMemoryAdd, map[string]any{"subject": "a", "content": "content a"})
-	r2, _ := c.Call(ctx, controlplane.CmdMemoryAdd, map[string]any{"subject": "b", "content": "content b"})
-	r3, _ := c.Call(ctx, controlplane.CmdMemoryAdd, map[string]any{"subject": "c", "content": "content c"})
+	r1, _ := c.Call(ctx, opapi.MemoryAdd, map[string]any{"subject": "a", "content": "content a"})
+	r2, _ := c.Call(ctx, opapi.MemoryAdd, map[string]any{"subject": "b", "content": "content b"})
+	r3, _ := c.Call(ctx, opapi.MemoryAdd, map[string]any{"subject": "c", "content": "content c"})
 	id1, _ := r1["id"].(string)
 	id2, _ := r2["id"].(string)
 	id3, _ := r3["id"].(string)
 
 	// Bulk-forget two of them plus a non-existent id.
-	res, err := c.Call(ctx, controlplane.CmdMemoryBulkForget, map[string]any{
+	res, err := c.Call(ctx, opapi.MemoryBulkForget, map[string]any{
 		"ids": []any{id1, id2, "does-not-exist"},
 	})
 	if err != nil {
@@ -257,7 +257,7 @@ func TestMemoryBulkForget(t *testing.T) {
 	}
 
 	// Re-forgetting id1 should still count as forgotten (idempotent).
-	res, _ = c.Call(ctx, controlplane.CmdMemoryBulkForget, map[string]any{
+	res, _ = c.Call(ctx, opapi.MemoryBulkForget, map[string]any{
 		"ids": []any{id1},
 	})
 	if f, _ := res["forgotten"].(float64); f != 1 {
@@ -270,7 +270,7 @@ func TestMemoryBulkForget(t *testing.T) {
 		nonExistent[i] = "nonexistent-" + string(rune('0'+i))
 	}
 	ids := append(nonExistent, id3)
-	res, _ = c.Call(ctx, controlplane.CmdMemoryBulkForget, map[string]any{"ids": ids})
+	res, _ = c.Call(ctx, opapi.MemoryBulkForget, map[string]any{"ids": ids})
 	if f, _ := res["forgotten"].(float64); f != 1 {
 		t.Errorf("remaining record: forgotten = %.0f, want 1", f)
 	}
@@ -284,12 +284,12 @@ func TestMemoryBulkForgetValidation(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 
 	// Missing ids arg.
-	if _, err := c.Call(context.Background(), controlplane.CmdMemoryBulkForget, nil); err == nil {
+	if _, err := c.Call(context.Background(), opapi.MemoryBulkForget, nil); err == nil {
 		t.Error("bulk_forget without ids must error")
 	}
 
 	// Wrong type for ids.
-	if _, err := c.Call(context.Background(), controlplane.CmdMemoryBulkForget, map[string]any{"ids": "not-an-array"}); err == nil {
+	if _, err := c.Call(context.Background(), opapi.MemoryBulkForget, map[string]any{"ids": "not-an-array"}); err == nil {
 		t.Error("bulk_forget with string ids must error")
 	}
 
@@ -298,7 +298,7 @@ func TestMemoryBulkForgetValidation(t *testing.T) {
 	for i := range tooMany {
 		tooMany[i] = "id-" + string(rune(i))
 	}
-	if _, err := c.Call(context.Background(), controlplane.CmdMemoryBulkForget, map[string]any{"ids": tooMany}); err == nil {
+	if _, err := c.Call(context.Background(), opapi.MemoryBulkForget, map[string]any{"ids": tooMany}); err == nil {
 		t.Error("bulk_forget with >500 ids must error")
 	}
 }
@@ -310,23 +310,23 @@ func TestMemoryFindRelated(t *testing.T) {
 	ctx := context.Background()
 
 	// Add a seed record about Go concurrency.
-	seed, _ := c.Call(ctx, controlplane.CmdMemoryAdd, map[string]any{
+	seed, _ := c.Call(ctx, opapi.MemoryAdd, map[string]any{
 		"subject": "concurrency", "content": "Goroutines and channels are Go's concurrency primitives",
 	})
 	seedID, _ := seed["id"].(string)
 
 	// Add some related and unrelated records.
-	c.Call(ctx, controlplane.CmdMemoryAdd, map[string]any{
+	c.Call(ctx, opapi.MemoryAdd, map[string]any{
 		"subject": "goroutines", "content": "A goroutine is a lightweight thread managed by the Go runtime",
 	})
-	c.Call(ctx, controlplane.CmdMemoryAdd, map[string]any{
+	c.Call(ctx, opapi.MemoryAdd, map[string]any{
 		"subject": "weather", "content": "It is raining outside today",
 	})
-	c.Call(ctx, controlplane.CmdMemoryAdd, map[string]any{
+	c.Call(ctx, opapi.MemoryAdd, map[string]any{
 		"subject": "channels", "content": "Channels are the pipes that connect concurrent goroutines",
 	})
 
-	res, err := c.Call(ctx, controlplane.CmdMemoryFindRelated, map[string]any{
+	res, err := c.Call(ctx, opapi.MemoryFindRelated, map[string]any{
 		"id":    seedID,
 		"limit": 10,
 	})
@@ -366,7 +366,7 @@ func TestMemoryFindRelated(t *testing.T) {
 // TestMemoryFindRelatedRequiresID checks that missing id is rejected.
 func TestMemoryFindRelatedRequiresID(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
-	if _, err := c.Call(context.Background(), controlplane.CmdMemoryFindRelated, nil); err == nil {
+	if _, err := c.Call(context.Background(), opapi.MemoryFindRelated, nil); err == nil {
 		t.Error("find_related without id must error")
 	}
 }
@@ -374,7 +374,7 @@ func TestMemoryFindRelatedRequiresID(t *testing.T) {
 // TestMemoryFindRelatedSeedNotFound returns an error when the seed id does not exist.
 func TestMemoryFindRelatedSeedNotFound(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
-	_, err := c.Call(context.Background(), controlplane.CmdMemoryFindRelated, map[string]any{"id": "does-not-exist"})
+	_, err := c.Call(context.Background(), opapi.MemoryFindRelated, map[string]any{"id": "does-not-exist"})
 	if err == nil {
 		t.Error("find_related with non-existent seed id must error")
 	}
@@ -383,14 +383,14 @@ func TestMemoryFindRelatedSeedNotFound(t *testing.T) {
 func TestMemoryAuditReportsContradictions(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
-	_, _ = c.Call(ctx, controlplane.CmdMemoryAdd, map[string]any{
+	_, _ = c.Call(ctx, opapi.MemoryAdd, map[string]any{
 		"subject": "region", "content": "prod is eu-west-1", "type": "FACT", "evidence": "curated",
 	})
-	_, _ = c.Call(ctx, controlplane.CmdMemoryAdd, map[string]any{
+	_, _ = c.Call(ctx, opapi.MemoryAdd, map[string]any{
 		"subject": "region", "content": "prod is us-east-1", "type": "FACT", "evidence": "curated",
 	})
 
-	res, err := c.Call(ctx, controlplane.CmdMemoryAudit, nil)
+	res, err := c.Call(ctx, opapi.MemoryAudit, nil)
 	if err != nil {
 		t.Fatalf("audit: %v", err)
 	}
@@ -417,27 +417,27 @@ func TestMemoryCleanDryRunAndExecute(t *testing.T) {
 	}
 	id := seed.ID
 
-	res, err := c.Call(ctx, controlplane.CmdMemoryClean, map[string]any{"dry_run": true})
+	res, err := c.Call(ctx, opapi.MemoryClean, map[string]any{"dry_run": true})
 	if err != nil {
 		t.Fatalf("clean dry-run: %v", err)
 	}
 	if rejected, _ := res["rejected"].(float64); rejected != 1 {
 		t.Fatalf("dry-run rejected = %.0f, want 1: %v", rejected, res)
 	}
-	got, _ := c.Call(ctx, controlplane.CmdMemoryGet, map[string]any{"id": id})
+	got, _ := c.Call(ctx, opapi.MemoryGet, map[string]any{"id": id})
 	rec, _ := got["record"].(map[string]any)
 	if tomb, _ := rec["tombstoned"].(bool); tomb {
 		t.Fatal("dry-run must not tombstone")
 	}
 
-	res, err = c.Call(ctx, controlplane.CmdMemoryClean, map[string]any{"dry_run": false})
+	res, err = c.Call(ctx, opapi.MemoryClean, map[string]any{"dry_run": false})
 	if err != nil {
 		t.Fatalf("clean execute: %v", err)
 	}
 	if removed, _ := res["removed"].(float64); removed != 1 {
 		t.Fatalf("execute removed = %.0f, want 1: %v", removed, res)
 	}
-	got, _ = c.Call(ctx, controlplane.CmdMemoryGet, map[string]any{"id": id})
+	got, _ = c.Call(ctx, opapi.MemoryGet, map[string]any{"id": id})
 	if found, _ := got["found"].(bool); found {
 		t.Fatal("execute should hard-delete low-value memory")
 	}
@@ -447,7 +447,7 @@ func TestMemoryList_CursorPaginatesByCreatedMSDesc(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
 	for i := 0; i < 5; i++ {
-		if _, err := c.Call(ctx, controlplane.CmdMemoryAdd, map[string]any{
+		if _, err := c.Call(ctx, opapi.MemoryAdd, map[string]any{
 			"subject": "subj-" + strconv.Itoa(i),
 			"content": "fact " + strconv.Itoa(i),
 			"type":    "FACT",
@@ -456,7 +456,7 @@ func TestMemoryList_CursorPaginatesByCreatedMSDesc(t *testing.T) {
 		}
 	}
 
-	p1, err := c.Call(ctx, controlplane.CmdMemoryList, map[string]any{"limit": 2})
+	p1, err := c.Call(ctx, opapi.MemoryList, map[string]any{"limit": 2})
 	if err != nil {
 		t.Fatalf("memory list p1: %v", err)
 	}
@@ -471,7 +471,7 @@ func TestMemoryList_CursorPaginatesByCreatedMSDesc(t *testing.T) {
 		t.Fatalf("page 1 total wrong: %v", p1["total"])
 	}
 
-	p2, err := c.Call(ctx, controlplane.CmdMemoryList, map[string]any{
+	p2, err := c.Call(ctx, opapi.MemoryList, map[string]any{
 		"limit": 2, "cursor": p1["next_cursor"],
 	})
 	if err != nil {
@@ -497,7 +497,7 @@ func TestMemoryList_CursorPaginatesByCreatedMSDesc(t *testing.T) {
 		}
 	}
 
-	p3, err := c.Call(ctx, controlplane.CmdMemoryList, map[string]any{
+	p3, err := c.Call(ctx, opapi.MemoryList, map[string]any{
 		"limit": 2, "cursor": p2["next_cursor"],
 	})
 	if err != nil {
@@ -516,7 +516,7 @@ func TestMemoryList_UnparseableCursorFallsBackToFirstPage(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
 	for i := 0; i < 2; i++ {
-		if _, err := c.Call(ctx, controlplane.CmdMemoryAdd, map[string]any{
+		if _, err := c.Call(ctx, opapi.MemoryAdd, map[string]any{
 			"subject": "subj-" + strconv.Itoa(i),
 			"content": "fact " + strconv.Itoa(i),
 			"type":    "FACT",
@@ -524,7 +524,7 @@ func TestMemoryList_UnparseableCursorFallsBackToFirstPage(t *testing.T) {
 			t.Fatalf("add: %v", err)
 		}
 	}
-	res, err := c.Call(ctx, controlplane.CmdMemoryList, map[string]any{
+	res, err := c.Call(ctx, opapi.MemoryList, map[string]any{
 		"limit": 10, "cursor": "garbage",
 	})
 	if err != nil {

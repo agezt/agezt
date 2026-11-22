@@ -106,7 +106,7 @@ func TestSummaryOperations(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s.Name != "chat_summarize" || s.ReadOnly || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Stream != opapi.StreamLive || !s.AllowUnknownInput || s.HTTP.Method != "POST" || s.HTTP.Path != "/api/chat/summarize" || s.Input != reflect.TypeFor[SummarizeRequest]() || s.Output != reflect.TypeFor[SummarizeOutput]() || s.Emission != reflect.TypeFor[event.Event]() || string(s.OutputSchema) != string(out) {
+	if s.Name != "chat_summarize" || s.ReadOnly || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Stream != opapi.StreamLive || !s.AllowUnknownInput || s.Input != reflect.TypeFor[SummarizeRequest]() || s.Output != reflect.TypeFor[SummarizeOutput]() || s.Emission != reflect.TypeFor[event.Event]() || string(s.OutputSchema) != string(out) {
 		t.Fatalf("spec: %+v", s)
 	}
 	if !strings.Contains(string(s.InputSchema), `"properties":{"turns":{},"model":{}}`) {

@@ -14,7 +14,7 @@ import (
 
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdRunsIntervene(args []string, stdout, stderr io.Writer) int {
@@ -78,7 +78,7 @@ func cmdRunsIntervene(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdRunIntervene, callArgs)
+	res, err := c.Call(ctx, opapi.RunIntervene, callArgs)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s runs intervene: %v\n", brand.CLI, err)
 		return 1
@@ -127,7 +127,7 @@ func cmdRunsCancel(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdCancelRun, map[string]any{"correlation": corr})
+	res, err := c.Call(ctx, opapi.CancelRun, map[string]any{"correlation": corr})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s runs cancel: %v\n", brand.CLI, err)
 		return 1

@@ -38,9 +38,18 @@ describe("Approvals", () => {
     postAction.mockReset();
     listenerRef.current = null;
     postAction.mockResolvedValue({});
-    getJSON.mockResolvedValue({ pending: [], history: [] });
+    // The page reads TWO endpoints: the live queue (/api/approvals) and the
+    // resolved decisions (/api/approvals_log). The daemon's queue answer
+    // carries `pending` only; the history is its own log.
+    mockApprovals([], []);
   });
   afterEach(cleanup);
+
+  // mockApprovals answers the two endpoints the page reads.
+  const mockApprovals = (pending: unknown[], approvals: unknown[] = []) =>
+    getJSON.mockImplementation(async (path: string) =>
+      path === "/api/approvals_log" ? { approvals } : { pending },
+    );
 
   const renderIt = () =>
     render(
@@ -50,13 +59,10 @@ describe("Approvals", () => {
     );
 
   it("shows the pending count and each queued capability", async () => {
-    getJSON.mockResolvedValue({
-      pending: [
-        { id: "a1", capability: "shell.exec", reason: "install deps" },
-        { id: "a2", capability: "net.fetch" },
-      ],
-      history: [],
-    });
+    mockApprovals([
+      { id: "a1", capability: "shell.exec", reason: "install deps" },
+      { id: "a2", capability: "net.fetch" },
+    ]);
     renderIt();
     await waitFor(() => expect(screen.getByText("shell.exec — install deps")).toBeTruthy());
     expect(screen.getByText("net.fetch")).toBeTruthy();
@@ -72,20 +78,17 @@ describe("Approvals", () => {
   // The `tool:` line only earns its space when it says something the capability
   // name does not already say.
   it("shows the tool name only when it differs from the capability", async () => {
-    getJSON.mockResolvedValue({
-      pending: [
-        { id: "a1", capability: "shell.exec", tool_name: "bash" },
-        { id: "a2", capability: "shell.exec", tool_name: "shell.exec" },
-      ],
-      history: [],
-    });
+    mockApprovals([
+      { id: "a1", capability: "shell.exec", tool_name: "bash" },
+      { id: "a2", capability: "shell.exec", tool_name: "shell.exec" },
+    ]);
     renderIt();
     await waitFor(() => expect(screen.getByText(/bash/)).toBeTruthy());
     expect(screen.getAllByText(/^tool:$/)).toHaveLength(1);
   });
 
   it("grants: posts the decision, toasts, and reloads", async () => {
-    getJSON.mockResolvedValue({ pending: [{ id: "a1", capability: "shell.exec" }], history: [] });
+    mockApprovals([{ id: "a1", capability: "shell.exec" }]);
     renderIt();
     await waitFor(() => expect(screen.getByText("shell.exec")).toBeTruthy());
     const callsBefore = getJSON.mock.calls.length;
@@ -98,7 +101,7 @@ describe("Approvals", () => {
   });
 
   it("denies: posts the decision and toasts", async () => {
-    getJSON.mockResolvedValue({ pending: [{ id: "a1", capability: "shell.exec" }], history: [] });
+    mockApprovals([{ id: "a1", capability: "shell.exec" }]);
     renderIt();
     await waitFor(() => expect(screen.getByText("shell.exec")).toBeTruthy());
 
@@ -109,7 +112,7 @@ describe("Approvals", () => {
 
   it("reports a failed decision instead of pretending it worked", async () => {
     postAction.mockRejectedValue(new Error("policy service unavailable"));
-    getJSON.mockResolvedValue({ pending: [{ id: "a1", capability: "shell.exec" }], history: [] });
+    mockApprovals([{ id: "a1", capability: "shell.exec" }]);
     renderIt();
     await waitFor(() => expect(screen.getByText("shell.exec")).toBeTruthy());
 
@@ -134,13 +137,13 @@ describe("Approvals", () => {
   });
 
   it("filters history by decision, and says why pending shows nothing", async () => {
-    getJSON.mockResolvedValue({
-      pending: [],
-      history: [
-        { id: "h1", decision: "granted", summary: "install deps", ts: 2 },
-        { id: "h2", decision: "denied", summary: "curl evil.test", ts: 1 },
+    mockApprovals(
+      [],
+      [
+        { approval_id: "h1", status: "granted", reason: "install deps", ts_unix_ms: 2 },
+        { approval_id: "h2", status: "denied", reason: "curl evil.test", ts_unix_ms: 1 },
       ],
-    });
+    );
     renderIt();
     await waitFor(() => expect(screen.getByText(/Switch to/i)).toBeTruthy());
 
@@ -154,7 +157,7 @@ describe("Approvals", () => {
   });
 
   it("says so when a filter has no records, instead of showing a blank panel", async () => {
-    getJSON.mockResolvedValue({ pending: [], history: [{ id: "h1", decision: "granted", ts: 1 }] });
+    mockApprovals([], [{ approval_id: "h1", status: "granted", ts_unix_ms: 1 }]);
     renderIt();
     await waitFor(() => expect(screen.getByText(/Switch to/i)).toBeTruthy());
     fireEvent.click(screen.getByRole("button", { name: "denied" }));
@@ -162,7 +165,7 @@ describe("Approvals", () => {
   });
 
   it("reloads when an approval event arrives, and ignores unrelated ones", async () => {
-    getJSON.mockResolvedValue({ pending: [], history: [] });
+    mockApprovals([], []);
     renderIt();
     await waitFor(() => expect(listenerRef.current).toBeTruthy());
     const callsBefore = getJSON.mock.calls.length;

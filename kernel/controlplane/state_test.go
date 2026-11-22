@@ -6,7 +6,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
@@ -17,7 +17,7 @@ import (
 func TestStateList_EmptyStoreReturnsEmptyArray(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 
-	res, err := c.Call(context.Background(), controlplane.CmdStateList, nil)
+	res, err := c.Call(context.Background(), opapi.StateList, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -43,7 +43,7 @@ func TestState_WriteReadCycle(t *testing.T) {
 	}
 
 	// list namespaces
-	res, err := c.Call(context.Background(), controlplane.CmdStateList, nil)
+	res, err := c.Call(context.Background(), opapi.StateList, nil)
 	if err != nil {
 		t.Fatalf("Call list: %v", err)
 	}
@@ -60,7 +60,7 @@ func TestState_WriteReadCycle(t *testing.T) {
 	}
 
 	// list keys in namespace
-	res, err = c.Call(context.Background(), controlplane.CmdStateList, map[string]any{"namespace": "agent_memory"})
+	res, err = c.Call(context.Background(), opapi.StateList, map[string]any{"namespace": "agent_memory"})
 	if err != nil {
 		t.Fatalf("Call list ns: %v", err)
 	}
@@ -70,7 +70,7 @@ func TestState_WriteReadCycle(t *testing.T) {
 	}
 
 	// get value
-	res, err = c.Call(context.Background(), controlplane.CmdStateGet, map[string]any{
+	res, err = c.Call(context.Background(), opapi.StateGet, map[string]any{
 		"namespace": "agent_memory",
 		"key":       "last_run",
 	})
@@ -90,7 +90,7 @@ func TestState_WriteReadCycle(t *testing.T) {
 // distinguish "absent" from "exists but null".
 func TestStateGet_MissingKeyHasFoundFalse(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
-	res, err := c.Call(context.Background(), controlplane.CmdStateGet, map[string]any{
+	res, err := c.Call(context.Background(), opapi.StateGet, map[string]any{
 		"namespace": "nonexistent",
 		"key":       "nope",
 	})
@@ -110,7 +110,7 @@ func TestStateGet_MissingKeyHasFoundFalse(t *testing.T) {
 // than silently returning the wrong thing.
 func TestStateGet_RejectsMissingArgs(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
-	_, err := c.Call(context.Background(), controlplane.CmdStateGet, map[string]any{
+	_, err := c.Call(context.Background(), opapi.StateGet, map[string]any{
 		"namespace": "ns",
 		// key missing
 	})

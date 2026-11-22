@@ -46,7 +46,7 @@ vi.mock("@/app/api", () => ({
   postJSON: (...args: unknown[]) => postJSON(...args),
 }));
 vi.mock("@/components/ui/feedback", () => ({ useUI: () => ({ toast }) }));
-vi.mock("@/features/configcenter/components/ConfigCenter", () => ({
+vi.mock("@/components/configcenter/ConfigCenter", () => ({
   FieldRow: ({ field, onSaved, toast: notify }: {
     field: { env: string };
     onSaved: () => Promise<void>;

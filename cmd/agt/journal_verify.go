@@ -15,7 +15,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 )
 
@@ -46,7 +46,7 @@ func cmdJournalVerify(args []string, stdout, stderr io.Writer) int {
 
 	if bundlePath == "" {
 		// Live chain verify against the daemon (original behaviour).
-		return cmdSimple(controlplane.CmdJournalVerify, nil, stdout, stderr)
+		return cmdSimple(opapi.JournalVerify, nil, stdout, stderr)
 	}
 
 	data, err := os.ReadFile(bundlePath)

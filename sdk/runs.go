@@ -6,7 +6,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 // RunInfo is one past agent run's summary, as returned by Runs.
@@ -43,14 +43,14 @@ func (c *Client) Runs(ctx context.Context, limit int) ([]RunInfo, error) {
 	if limit > 0 {
 		args["limit"] = limit
 	}
-	res, err := c.cp.Call(ctx, controlplane.CmdRunsList, args)
+	res, err := c.cp.Call(ctx, opapi.RunsList, args)
 	if err != nil {
 		return nil, err
 	}
 	return parseRuns(res), nil
 }
 
-// parseRuns maps the CmdRunsList result ({"runs":[…]}) to typed RunInfo values,
+// parseRuns maps the opapi.RunsList result ({"runs":[…]}) to typed RunInfo values,
 // converting the wire's unix-ms / ms fields to time.Time / time.Duration.
 func parseRuns(res map[string]any) []RunInfo {
 	rows, _ := res["runs"].([]any)

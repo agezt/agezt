@@ -441,7 +441,7 @@ describe("CopilotPanel", () => {
       ],
       edges: [{ from: "start", to: "greet" }],
     };
-    const revised: Wf = { ...graph, nodes: [...graph.nodes, { id: "gate", type: "approval" }] };
+    const revised: Wf = { ...graph, nodes: [...(graph.nodes ?? []), { id: "gate", type: "approval" }] };
     postJSON.mockResolvedValue({ workflow: revised });
     const onDraft = vi.fn();
     render(withUI(<CopilotPanel name="greeter" graph={graph} onDraft={onDraft} onError={vi.fn()} />));

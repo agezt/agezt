@@ -8,9 +8,9 @@ import { useUI } from "@/components/ui/feedback";
 import { ModelPicker } from "@/components/ModelPicker";
 import { ModelChip } from "@/components/ModelChip";
 import { type AgentProfile } from "@/features/agents/components/Roster";
-import { summarizeProviderRoutingRow, type ProviderRoutingRow } from "@/features/agents/lib/agentdetail";
-import { isChainRef, chainName, type ChainsState } from "@/features/workflows/lib/chains";
-import { type ModelCatalog } from "@/features/models/lib/models";
+import { summarizeProviderRoutingRow, type ProviderRoutingRow } from "@/lib/agentdetail";
+import { isChainRef, chainName, type ChainsState } from "@/lib/chains";
+import { type ModelCatalog } from "@/lib/models";
 import { RoutingInfo, Row, editableAgentProfile } from "@/features/agents/components/agentdetail/shared";
 
 // ModelTab answers "which provider/model does this run on, and what happens when
@@ -47,10 +47,10 @@ export function ModelTab({
   const [cat, setCat] = useState<ModelCatalog | null>(null);
   useEffect(() => {
     let live = true;
-    getJSON<ChainsState>("/api/chains")
+    getJSON("/api/chains")
       .then((c) => live && setChains(c.chains || {}))
       .catch(() => {});
-    getJSON<ModelCatalog>("/api/catalog")
+    getJSON("/api/catalog")
       .then((c) => live && setCat(c))
       .catch(() => {});
     return () => {

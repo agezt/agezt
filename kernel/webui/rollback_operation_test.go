@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
 )
@@ -93,7 +93,7 @@ func TestRollbackFileRestoreHasPrivateCorrelatedAudit(t *testing.T) {
 						if err := json.Unmarshal(e.Payload, &payload); err != nil {
 							return err
 						}
-						if payload.Op != controlplane.CmdFileRestore {
+						if payload.Op != opapi.FileRestore {
 							t.Errorf("op=%q", payload.Op)
 						}
 					case event.KindPolicyDecision, event.KindToolInvoked, event.KindToolResult:
@@ -107,7 +107,7 @@ func TestRollbackFileRestoreHasPrivateCorrelatedAudit(t *testing.T) {
 						if callID == "" {
 							callID = payload.CallID
 						}
-						if payload.Tool != controlplane.CmdFileRestore || payload.CallID == "" || payload.CallID != callID {
+						if payload.Tool != opapi.FileRestore || payload.CallID == "" || payload.CallID != callID {
 							t.Errorf("identity=%s", e.Payload)
 						}
 						if e.Kind == event.KindPolicyDecision && payload.Capability != string(capability) {

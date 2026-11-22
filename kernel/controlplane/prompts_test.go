@@ -6,7 +6,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
@@ -16,7 +16,7 @@ func TestPrompts_GetSet(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 
 	// Empty by default.
-	res, err := c.Call(context.Background(), controlplane.CmdPromptsGet, nil)
+	res, err := c.Call(context.Background(), opapi.PromptsGet, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -30,7 +30,7 @@ func TestPrompts_GetSet(t *testing.T) {
 		map[string]any{"title": "  ", "text": "no title — dropped"},
 		map[string]any{"title": "Review", "text": "Review the working diff for bugs."},
 	}
-	setRes, err := c.Call(context.Background(), controlplane.CmdPromptsSet, map[string]any{"prompts": in})
+	setRes, err := c.Call(context.Background(), opapi.PromptsSet, map[string]any{"prompts": in})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +39,7 @@ func TestPrompts_GetSet(t *testing.T) {
 	}
 
 	// Get returns the two valid prompts in order.
-	res, _ = c.Call(context.Background(), controlplane.CmdPromptsGet, nil)
+	res, _ = c.Call(context.Background(), opapi.PromptsGet, nil)
 	ps, _ := res["prompts"].([]any)
 	if len(ps) != 2 {
 		t.Fatalf("expected 2 prompts, got %d: %v", len(ps), ps)
@@ -52,10 +52,10 @@ func TestPrompts_GetSet(t *testing.T) {
 
 func TestPrompts_Set_RequiresArray(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
-	if _, err := c.Call(context.Background(), controlplane.CmdPromptsSet, nil); err == nil {
+	if _, err := c.Call(context.Background(), opapi.PromptsSet, nil); err == nil {
 		t.Error("prompts_set without args.prompts should error")
 	}
-	if _, err := c.Call(context.Background(), controlplane.CmdPromptsSet, map[string]any{"prompts": "nope"}); err == nil {
+	if _, err := c.Call(context.Background(), opapi.PromptsSet, map[string]any{"prompts": "nope"}); err == nil {
 		t.Error("prompts_set with a non-array should error")
 	}
 }

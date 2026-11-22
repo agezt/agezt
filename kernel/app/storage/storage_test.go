@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	appstorage "github.com/agezt/agezt/kernel/app/storage"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"io/fs"
 	"path/filepath"
 	"reflect"
@@ -175,7 +176,7 @@ func TestStorageOperationsDeclareTwoUnauditedReads(t *testing.T) {
 	if err != nil || len(ops) != 2 {
 		t.Fatal(ops, err)
 	}
-	for i, name := range []string{"storage_stats", "disk_stats"} {
+	for i, name := range []string{opapi.StorageStats, "disk_stats"} {
 		spec := ops[i].Spec()
 		if spec.Name != name || !spec.ReadOnly || !spec.AllowUnknownInput || len(spec.OutputSchema) == 0 {
 			t.Fatal(spec)

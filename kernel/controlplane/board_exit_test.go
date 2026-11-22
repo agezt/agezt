@@ -11,7 +11,7 @@ import (
 
 func TestBoardNativeExitCompleteTypedRegistry(t *testing.T) {
 	type expected struct{ readOnly bool }
-	want := map[string]expected{CmdBoardRead: {readOnly: true}, CmdBoardHelp: {readOnly: true}, CmdBoardInbox: {readOnly: true}, CmdBoardGet: {readOnly: true}, CmdBoardReplies: {readOnly: true}, CmdBoardSend: {}, CmdBoardAck: {}}
+	want := map[string]expected{opapi.BoardRead: {readOnly: true}, opapi.BoardHelp: {readOnly: true}, opapi.BoardInbox: {readOnly: true}, opapi.BoardGet: {readOnly: true}, opapi.BoardReplies: {readOnly: true}, opapi.BoardSend: {}, opapi.BoardAck: {}}
 	seen := map[string]bool{}
 	for _, operation := range registeredAppOperations() {
 		spec := operation.Spec()

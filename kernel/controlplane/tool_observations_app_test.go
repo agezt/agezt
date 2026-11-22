@@ -14,7 +14,7 @@ import (
 )
 
 func TestToolNativeThreeOperationPoliciesAndTypedObservationSpecs(t *testing.T) {
-	want := map[string]bool{CmdToolList: false, CmdToolLog: true, CmdToolStats: true}
+	want := map[string]bool{opapi.ToolList: false, opapi.ToolLog: true, opapi.ToolStats: true}
 	seen := map[string]bool{}
 	for _, operation := range registeredAppOperations() {
 		spec := operation.Spec()
@@ -33,10 +33,10 @@ func TestToolNativeThreeOperationPoliciesAndTypedObservationSpecs(t *testing.T) 
 		if tenant && spec.Input != reflect.TypeFor[apptools.ObservationRequest]() {
 			t.Fatal(spec)
 		}
-		if spec.Name == CmdToolLog && spec.Output != reflect.TypeFor[apptools.LogOutput]() {
+		if spec.Name == opapi.ToolLog && spec.Output != reflect.TypeFor[apptools.LogOutput]() {
 			t.Fatal(spec)
 		}
-		if spec.Name == CmdToolStats && spec.Output != reflect.TypeFor[apptools.StatsOutput]() {
+		if spec.Name == opapi.ToolStats && spec.Output != reflect.TypeFor[apptools.StatsOutput]() {
 			t.Fatal(spec)
 		}
 		seen[spec.Name] = true
@@ -46,7 +46,7 @@ func TestToolNativeThreeOperationPoliciesAndTypedObservationSpecs(t *testing.T) 
 	}
 }
 func TestToolObservationsNativeCanceledAdmissionReturnsNoRows(t *testing.T) {
-	for _, cmd := range []string{CmdToolLog, CmdToolStats} {
+	for _, cmd := range []string{opapi.ToolLog, opapi.ToolStats} {
 		_, s, _, provider := pulseAppFixture(t)
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()

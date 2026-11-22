@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
@@ -54,13 +54,13 @@ func TestAgentImpact_PayloadKeysArePinned(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
 
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "doomed", "soul": "about to be torn down"},
 	}); err != nil {
 		t.Fatalf("agent add: %v", err)
 	}
 
-	res, err := c.Call(ctx, controlplane.CmdAgentImpact, map[string]any{"ref": "doomed"})
+	res, err := c.Call(ctx, opapi.AgentImpact, map[string]any{"ref": "doomed"})
 	if err != nil {
 		t.Fatalf("agent impact: %v", err)
 	}
@@ -100,12 +100,12 @@ func TestAgentImpact_PayloadKeysArePinned(t *testing.T) {
 func TestAgentImpact_EverySubsystemReportsListAndCount(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "doomed"},
 	}); err != nil {
 		t.Fatalf("agent add: %v", err)
 	}
-	res, err := c.Call(ctx, controlplane.CmdAgentImpact, map[string]any{"ref": "doomed"})
+	res, err := c.Call(ctx, opapi.AgentImpact, map[string]any{"ref": "doomed"})
 	if err != nil {
 		t.Fatalf("agent impact: %v", err)
 	}

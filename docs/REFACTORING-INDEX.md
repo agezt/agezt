@@ -128,7 +128,7 @@ and put per-file provenance notes **below** the package clause.
 ## Conventions for all plans
 
 - Each phase ends green on the repo's existing gates: `go build ./...`, `go vet ./kernel/...`,
-  `go test`, `tsc --noEmit`, `vitest run`, `npm run build`, plus `tools/{depscheck,sdkparity,deadcodecheck}`.
+  `go test`, `tsc --noEmit`, `vitest run`, `npm run build`, plus `tools/{depscheck,sdkgen,deadcodecheck}`.
 - Security-sensitive phases (A3+B5 P4/P6) additionally gate on the gitleaks secrets check.
 - No plan requires a new gate; all use what CI already runs.
 - Handlers stay as thin transport (`decode → call → encode`); domain logic moves down to its package.

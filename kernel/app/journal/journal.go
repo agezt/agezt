@@ -185,37 +185,37 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 	var ops []app.Operation
 	for _, b := range []func() error{
 		func() error {
-			return bind(&ops, opapi.Spec{Name: "journal_head", Tenancy: opapi.Primary}, func(ctx context.Context, in ReadInput) (HeadOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.JournalHead, Tenancy: opapi.Primary}, func(ctx context.Context, in ReadInput) (HeadOutput, error) {
 				return provider(ctx).Head(ctx, in)
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: "journal_tail", Tenancy: opapi.Primary, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"n":{}}}`)}, func(ctx context.Context, in TailRequest) (EventsOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.JournalTail, Tenancy: opapi.Primary, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"n":{}}}`)}, func(ctx context.Context, in TailRequest) (EventsOutput, error) {
 				return provider(ctx).Tail(ctx, in)
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: "journal_grep", Tenancy: opapi.Primary, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"pattern":{},"kind":{},"subject":{},"actor":{},"correlation_id":{},"limit":{}}}`), HTTP: opapi.HTTP{Method: "GET", Path: "/api/journal"}}, func(ctx context.Context, in GrepRequest) (EventsOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.JournalGrep, Tenancy: opapi.Primary, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"pattern":{},"kind":{},"subject":{},"actor":{},"correlation_id":{},"limit":{}}}`)}, func(ctx context.Context, in GrepRequest) (EventsOutput, error) {
 				return provider(ctx).Grep(ctx, in)
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: "journal_export", Tenancy: opapi.Primary, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"since_ms":{},"correlation":{}}}`)}, func(ctx context.Context, in ExportRequest) (ExportOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.JournalExport, Tenancy: opapi.Primary, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"since_ms":{},"correlation":{}}}`)}, func(ctx context.Context, in ExportRequest) (ExportOutput, error) {
 				return provider(ctx).Export(ctx, in)
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: "changelog", Tenancy: opapi.CallerTenant, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"limit":{},"since_ms":{}}}`)}, func(ctx context.Context, in WindowRequest) (ChangelogOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.Changelog, Tenancy: opapi.CallerTenant, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"limit":{},"since_ms":{}}}`)}, func(ctx context.Context, in WindowRequest) (ChangelogOutput, error) {
 				return provider(ctx).Changelog(ctx, in)
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: "cache_stats", Authz: opapi.OwnTenant, Tenancy: opapi.CallerTenant, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"since_ms":{}}}`)}, func(ctx context.Context, in WindowRequest) (CacheStatsOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.CacheStats, Authz: opapi.OwnTenant, Tenancy: opapi.CallerTenant, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"since_ms":{}}}`)}, func(ctx context.Context, in WindowRequest) (CacheStatsOutput, error) {
 				return provider(ctx).CacheStats(ctx, in)
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: "journal_stats", Tenancy: opapi.CallerTenant}, func(ctx context.Context, in ReadInput) (StatsOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.JournalStats, Tenancy: opapi.CallerTenant}, func(ctx context.Context, in ReadInput) (StatsOutput, error) {
 				return provider(ctx).Stats(ctx, in)
 			})
 		},

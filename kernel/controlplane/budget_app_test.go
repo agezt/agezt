@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/agezt/agezt/kernel/app/binding"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"testing"
 
 	"github.com/agezt/agezt/kernel/contract/llm"
@@ -48,16 +49,16 @@ func TestBudgetBindsTheGovernor(t *testing.T) {
 		return string(raw)
 	}
 	date := gov.Snapshot().UTCDate
-	if got := result(CmdBudget, nil); got != `{"ceiling_mc":1000000000,"per_task":[{"ceiling_mc":500000000,"spent_mc":1050000,"task_type":"code"},{"ceiling_mc":100000000,"spent_mc":0,"task_type":"plan"}],"spent_mc":1050000,"strict_pricing":true,"utc_date":"`+date+`"}` {
+	if got := result(opapi.Budget, nil); got != `{"ceiling_mc":1000000000,"per_task":[{"ceiling_mc":500000000,"spent_mc":1050000,"task_type":"code"},{"ceiling_mc":100000000,"spent_mc":0,"task_type":"plan"}],"spent_mc":1050000,"strict_pricing":true,"utc_date":"`+date+`"}` {
 		t.Fatal(got)
 	}
-	if got := result(CmdBudgetSet, map[string]any{"ceiling_mc": "-7"}); got != `{"ceiling_mc":0,"per_task":[{"ceiling_mc":500000000,"spent_mc":1050000,"task_type":"code"},{"ceiling_mc":100000000,"spent_mc":0,"task_type":"plan"}],"spent_mc":1050000,"strict_pricing":true,"utc_date":"`+date+`"}` {
+	if got := result(opapi.BudgetSet, map[string]any{"ceiling_mc": "-7"}); got != `{"ceiling_mc":0,"per_task":[{"ceiling_mc":500000000,"spent_mc":1050000,"task_type":"code"},{"ceiling_mc":100000000,"spent_mc":0,"task_type":"plan"}],"spent_mc":1050000,"strict_pricing":true,"utc_date":"`+date+`"}` {
 		t.Fatal("a negative ceiling is clamped to unlimited", got)
 	}
 	if gov.DailyCeilingMicrocents() != 0 {
 		t.Fatal(gov.DailyCeilingMicrocents())
 	}
-	for cmd, read := range map[string]bool{CmdBudget: true, CmdBudgetSet: false} {
+	for cmd, read := range map[string]bool{opapi.Budget: true, opapi.BudgetSet: false} {
 		if wire, exists := commandRegistry[cmd]; !exists || !wire.AppOwned || wire.ReadOnly != read || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone {
 			t.Fatalf("%s native wire %+v", cmd, wire)
 		}

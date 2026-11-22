@@ -11,7 +11,7 @@ import (
 
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdEdictDeny(args []string, stdout, stderr io.Writer) int {
@@ -19,23 +19,11 @@ func cmdEdictDeny(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s edict deny: subcommand required (list|add|rm)\n", brand.CLI)
 		return 2
 	}
-	switch args[0] {
-	case "list":
-		return cmdEdictDenyList(args[1:], stdout, stderr)
-	case "add":
-		return cmdEdictDenyAdd(args[1:], stdout, stderr)
-	case "rm", "remove":
-		return cmdEdictDenyRemove(args[1:], stdout, stderr)
-	case "-h", "--help", "help":
-		fmt.Fprintf(stdout, "usage: %s edict deny <subcommand>\n", brand.CLI)
-		fmt.Fprintf(stdout, "  list [--json]            list hard-deny rules (with removable flag)\n")
-		fmt.Fprintf(stdout, "  add <rule> [--json]      add a rule: \"substring\" or \"<cap>:substring\"\n")
-		fmt.Fprintf(stdout, "  rm <name> [--json]       remove a runtime-added rule by name\n")
-		return 0
-	default:
-		fmt.Fprintf(stderr, "%s edict deny: unknown subcommand %q (list|add|rm)\n", brand.CLI, args[0])
-		return 2
+	if sub, ok := cliEdictDeny.lookup(args[0]); ok {
+		return sub.run(nil, args, stdout, stderr)
 	}
+	fmt.Fprintf(stderr, "%s edict deny: unknown subcommand %q (list|add|rm)\n", brand.CLI, args[0])
+	return 2
 }
 
 // cmdEdictDenyList implements `agt edict deny list [--json]`.
@@ -61,7 +49,7 @@ func cmdEdictDenyList(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdEdictDenyList, withTenant(tenant, nil))
+	res, err := c.Call(ctx, opapi.EdictDenyList, withTenant(tenant, nil))
 	if err != nil {
 		fmt.Fprintf(stderr, "%s edict deny list: %v\n", brand.CLI, err)
 		return 1
@@ -137,7 +125,7 @@ func cmdEdictDenyAdd(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdEdictDenyAdd, withTenant(tenant, map[string]any{"rule": rule}))
+	res, err := c.Call(ctx, opapi.EdictDenyAdd, withTenant(tenant, map[string]any{"rule": rule}))
 	if err != nil {
 		fmt.Fprintf(stderr, "%s edict deny add: %v\n", brand.CLI, err)
 		return 1
@@ -188,7 +176,7 @@ func cmdEdictDenyRemove(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdEdictDenyRemove, withTenant(tenant, map[string]any{"name": name}))
+	res, err := c.Call(ctx, opapi.EdictDenyRemove, withTenant(tenant, map[string]any{"name": name}))
 	if err != nil {
 		fmt.Fprintf(stderr, "%s edict deny rm: %v\n", brand.CLI, err)
 		return 1

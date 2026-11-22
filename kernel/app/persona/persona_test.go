@@ -195,17 +195,17 @@ func TestOperations(t *testing.T) {
 		input, output      reflect.Type
 		prop               string
 	}{
-		{"persona_get", "GET", "/api/persona", true, reflect.TypeFor[GetRequest](), reflect.TypeFor[GetOutput](), ""},
-		{"persona_set", "POST", "/api/persona/set", false, reflect.TypeFor[SetRequest](), reflect.TypeFor[SetOutput](), "system"},
-		{"prompts_get", "GET", "/api/prompts", true, reflect.TypeFor[PromptsRequest](), reflect.TypeFor[PromptsOutput](), ""},
-		{"prompts_set", "POST", "/api/prompts/set", false, reflect.TypeFor[PromptsSetRequest](), reflect.TypeFor[PromptsSetOutput](), "prompts"},
+		{opapi.PersonaGet, "GET", "/api/persona", true, reflect.TypeFor[GetRequest](), reflect.TypeFor[GetOutput](), ""},
+		{opapi.PersonaSet, "POST", "/api/persona/set", false, reflect.TypeFor[SetRequest](), reflect.TypeFor[SetOutput](), "system"},
+		{opapi.PromptsGet, "GET", "/api/prompts", true, reflect.TypeFor[PromptsRequest](), reflect.TypeFor[PromptsOutput](), ""},
+		{opapi.PromptsSet, "POST", "/api/prompts/set", false, reflect.TypeFor[PromptsSetRequest](), reflect.TypeFor[PromptsSetOutput](), "prompts"},
 	} {
 		s := ops[i].Spec()
 		out, err := schema.FromType(want.output, false)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if s.Name != want.name || s.ReadOnly != want.read || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Stream != opapi.StreamNone || !s.AllowUnknownInput || s.HTTP.Method != want.method || s.HTTP.Path != want.path || s.Input != want.input || s.Output != want.output || string(s.OutputSchema) != string(out) {
+		if s.Name != want.name || s.ReadOnly != want.read || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Stream != opapi.StreamNone || !s.AllowUnknownInput || s.Input != want.input || s.Output != want.output || string(s.OutputSchema) != string(out) {
 			t.Fatalf("%s spec: %+v", want.name, s)
 		}
 		if want.prop != "" && !strings.Contains(string(s.InputSchema), `"properties":{"`+want.prop+`":{}}`) {

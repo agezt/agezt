@@ -16,7 +16,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/netguard"
 )
 
@@ -27,15 +27,11 @@ func cmdNetguard(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s netguard: subcommand required (test|log)\n", brand.CLI)
 		return 2
 	}
-	switch args[0] {
-	case "test":
-		return cmdNetguardTest(args[1:], stdout, stderr)
-	case "log":
-		return cmdNetguardLog(args[1:], stdout, stderr)
-	default:
-		fmt.Fprintf(stderr, "%s netguard: unknown subcommand %q (test|log)\n", brand.CLI, args[0])
-		return 2
+	if sub, ok := cliNetguard.lookup(args[0]); ok {
+		return sub.run(nil, args, stdout, stderr)
 	}
+	fmt.Fprintf(stderr, "%s netguard: unknown subcommand %q (test|log)\n", brand.CLI, args[0])
+	return 2
 }
 
 // cmdNetguardLog implements `agt netguard log [N] [--tenant <id>] [--since <dur>]
@@ -97,7 +93,7 @@ func cmdNetguardLog(args []string, stdout, stderr io.Writer) int {
 	if sinceMS > 0 {
 		callArgs["since_ms"] = sinceMS
 	}
-	res, err := c.Call(ctx, controlplane.CmdNetguardLog, withTenant(tenant, callArgs))
+	res, err := c.Call(ctx, opapi.NetguardLog, withTenant(tenant, callArgs))
 	if err != nil {
 		fmt.Fprintf(stderr, "%s netguard log: %v\n", brand.CLI, err)
 		return 1

@@ -133,16 +133,16 @@ func TestOperations(t *testing.T) {
 		input, output reflect.Type
 		props         string
 	}{
-		{"seat_list", true, reflect.TypeFor[ListRequest](), reflect.TypeFor[ListOutput](), ""},
-		{"seat_create", false, reflect.TypeFor[CreateRequest](), reflect.TypeFor[SeatOutput](), `"id":{},"name":{},"description":{},"execution_profile":{},"model_chain":{},"tools":{},"restrict_tools":{}`},
-		{"seat_delete", false, reflect.TypeFor[DeleteRequest](), reflect.TypeFor[DeleteOutput](), `"id":{}`},
+		{opapi.SeatList, true, reflect.TypeFor[ListRequest](), reflect.TypeFor[ListOutput](), ""},
+		{opapi.SeatCreate, false, reflect.TypeFor[CreateRequest](), reflect.TypeFor[SeatOutput](), `"id":{},"name":{},"description":{},"execution_profile":{},"model_chain":{},"tools":{},"restrict_tools":{}`},
+		{opapi.SeatDelete, false, reflect.TypeFor[DeleteRequest](), reflect.TypeFor[DeleteOutput](), `"id":{}`},
 	} {
 		s := ops[i].Spec()
 		out, err := schema.FromType(want.output, false)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if s.Name != want.name || s.ReadOnly != want.read || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Stream != opapi.StreamNone || !s.AllowUnknownInput || s.HTTP.Method != "" || s.HTTP.Path != "" || s.Input != want.input || s.Output != want.output || string(s.OutputSchema) != string(out) {
+		if s.Name != want.name || s.ReadOnly != want.read || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Stream != opapi.StreamNone || !s.AllowUnknownInput || s.Input != want.input || s.Output != want.output || string(s.OutputSchema) != string(out) {
 			t.Fatalf("%s spec: %+v", want.name, s)
 		}
 		if want.props != "" && !strings.Contains(string(s.InputSchema), `"properties":{`+want.props+`}`) {

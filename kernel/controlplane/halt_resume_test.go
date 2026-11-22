@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
@@ -19,7 +19,7 @@ func TestHalt_RecordsReasonInJournal(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 
 	const reason = "deploy window starting in 5 minutes"
-	res, err := c.Call(context.Background(), controlplane.CmdHalt, map[string]any{
+	res, err := c.Call(context.Background(), opapi.Halt, map[string]any{
 		"reason": reason,
 	})
 	if err != nil {
@@ -37,7 +37,7 @@ func TestHalt_RecordsReasonInJournal(t *testing.T) {
 
 	// Walk the journal for the kernel.halt event; payload must
 	// carry the reason verbatim.
-	tail, err := c.Call(context.Background(), controlplane.CmdJournalTail, map[string]any{"n": float64(100)})
+	tail, err := c.Call(context.Background(), opapi.JournalTail, map[string]any{"n": float64(100)})
 	if err != nil {
 		t.Fatalf("Tail: %v", err)
 	}
@@ -65,14 +65,14 @@ func TestHalt_RecordsReasonInJournal(t *testing.T) {
 // journaled payload (omitempty semantic).
 func TestHalt_NoReasonOmitsPayloadField(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
-	if _, err := c.Call(context.Background(), controlplane.CmdHalt, nil); err != nil {
+	if _, err := c.Call(context.Background(), opapi.Halt, nil); err != nil {
 		t.Fatalf("Call: %v", err)
 	}
 	if !k.LifecycleService().IsHalted() {
 		t.Error("kernel should be halted")
 	}
 
-	tail, err := c.Call(context.Background(), controlplane.CmdJournalTail, map[string]any{"n": float64(100)})
+	tail, err := c.Call(context.Background(), opapi.JournalTail, map[string]any{"n": float64(100)})
 	if err != nil {
 		t.Fatalf("Tail: %v", err)
 	}
@@ -96,7 +96,7 @@ func TestResume_RecordsReason(t *testing.T) {
 	k.LifecycleService().Halt()
 
 	const reason = "deploy finished, traffic green"
-	res, err := c.Call(context.Background(), controlplane.CmdResume, map[string]any{
+	res, err := c.Call(context.Background(), opapi.Resume, map[string]any{
 		"reason": reason,
 	})
 	if err != nil {
@@ -109,7 +109,7 @@ func TestResume_RecordsReason(t *testing.T) {
 		t.Error("kernel should be resumed")
 	}
 
-	tail, err := c.Call(context.Background(), controlplane.CmdJournalTail, map[string]any{"n": float64(100)})
+	tail, err := c.Call(context.Background(), opapi.JournalTail, map[string]any{"n": float64(100)})
 	if err != nil {
 		t.Fatalf("Tail: %v", err)
 	}

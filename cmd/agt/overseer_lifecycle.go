@@ -15,7 +15,7 @@ import (
 
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func overseerAgentImpact(args []string, stdout, stderr io.Writer) int {
@@ -27,7 +27,7 @@ func overseerAgentImpact(args []string, stdout, stderr io.Writer) int {
 	if c == nil {
 		return 1
 	}
-	res, err := c.Call(context.TODO(), controlplane.CmdAgentImpact, map[string]any{"ref": strings.TrimSpace(args[0])})
+	res, err := c.Call(context.TODO(), opapi.AgentImpact, map[string]any{"ref": strings.TrimSpace(args[0])})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s: %v\n", brand.CLI, err)
 		return 1
@@ -48,7 +48,7 @@ func overseerRetire(args []string, stdout, stderr io.Writer) int {
 	if c == nil {
 		return 1
 	}
-	res, err := c.Call(context.TODO(), controlplane.CmdAgentRetire, map[string]any{"ref": ref, "reason": reason})
+	res, err := c.Call(context.TODO(), opapi.AgentRetire, map[string]any{"ref": ref, "reason": reason})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s: %v\n", brand.CLI, err)
 		return 1
@@ -68,7 +68,7 @@ func overseerRevive(args []string, stdout, stderr io.Writer) int {
 	if c == nil {
 		return 1
 	}
-	res, err := c.Call(context.TODO(), controlplane.CmdAgentRevive, map[string]any{"ref": strings.TrimSpace(args[0])})
+	res, err := c.Call(context.TODO(), opapi.AgentRevive, map[string]any{"ref": strings.TrimSpace(args[0])})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s: %v\n", brand.CLI, err)
 		return 1
@@ -88,7 +88,7 @@ func overseerGet(args []string, stdout, stderr io.Writer) int {
 	if c == nil {
 		return 1
 	}
-	res, err := c.Call(context.TODO(), controlplane.CmdAgentList, map[string]any{"ref": strings.TrimSpace(args[0])})
+	res, err := c.Call(context.TODO(), opapi.AgentList, map[string]any{"ref": strings.TrimSpace(args[0])})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s: %v\n", brand.CLI, err)
 		return 1
@@ -107,7 +107,7 @@ func overseerDelete(args []string, stdout, stderr io.Writer) int {
 	if c == nil {
 		return 1
 	}
-	res, err := c.Call(context.TODO(), controlplane.CmdAgentRemove, map[string]any{"ref": strings.TrimSpace(args[0])})
+	res, err := c.Call(context.TODO(), opapi.AgentRemove, map[string]any{"ref": strings.TrimSpace(args[0])})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s: %v\n", brand.CLI, err)
 		return 1

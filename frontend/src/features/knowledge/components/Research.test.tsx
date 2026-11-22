@@ -5,18 +5,23 @@ import { Research } from "./Research";
 import { UIProvider } from "@/components/ui/feedback";
 
 vi.mock("@/app/api", () => ({
+  // The daemon's answer: the text is `markdown`, the sub-questions are plain
+  // strings, the claims carry a verdict, and the sources carry a hash.
   postJSON: vi.fn().mockImplementation(async (_url: string, body: any) => {
     return {
-      answer: `Answer to: ${body.question}`,
-      sub_questions: [
-        { id: "sq-1", question: "Sub-question 1?", answer: "Yes." },
+      markdown: `Answer to: ${body.question}`,
+      sub_questions: ["Sub-question 1?"],
+      sources: [{ id: "s-1", hash: "abc123", rank: 1, title: "Source 1", url: "https://example.com" }],
+      claims: [
+        { text: "Claim A", verdict: "supported", source_ids: ["s-1"], note: "" },
+        { text: "Claim B", verdict: "refuted", source_ids: [], note: "" },
       ],
-      sources: [{ id: "s-1", title: "Source 1", url: "https://example.com", confidence: 0.9 }],
-      verified_claims: [
-        { claim: "Claim A", verified: true, sources: ["s-1"] },
-        { claim: "Claim B", verified: false, sources: [] },
-      ],
-      duration_ms: 1234,
+      notes: ["a note"],
+      confidence: 0.8,
+      cited_sources: 1,
+      question: body.question,
+      verified: true,
+      correlation_id: "corr-1",
     };
   }),
 }));

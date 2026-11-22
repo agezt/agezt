@@ -4,6 +4,7 @@ package controlplane
 
 import (
 	"github.com/agezt/agezt/kernel/app/binding"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -54,7 +55,7 @@ func TestSkillNativeHistoryRejectsCorruptJournalWithoutSuccess(t *testing.T) {
 			if err := k.Journal().Range(func(*event.Event) error { return nil }); err == nil {
 				t.Fatal("fixture did not induce a real journal decode failure")
 			}
-			response := callAppHost(t, server, Request{ID: "history", Cmd: CmdSkillHistory, Token: "primary", Args: map[string]any{"id": id}})[0]
+			response := callAppHost(t, server, Request{ID: "history", Cmd: opapi.SkillHistory, Token: "primary", Args: map[string]any{"id": id}})[0]
 			if response.Type != RespError || !strings.Contains(response.Error, "journal: decode") || response.Result != nil {
 				t.Fatalf("EXPECTED: native error without completed partial history; ACTUAL: partial=%v response=%+v", partial, response)
 			}

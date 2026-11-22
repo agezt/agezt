@@ -6,7 +6,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -15,7 +15,7 @@ func TestNetguardLog(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 
 	// Empty before any block.
-	res, err := c.Call(context.Background(), controlplane.CmdNetguardLog, nil)
+	res, err := c.Call(context.Background(), opapi.NetguardLog, nil)
 	if err != nil {
 		t.Fatalf("netguard log: %v", err)
 	}
@@ -35,7 +35,7 @@ func TestNetguardLog(t *testing.T) {
 		}
 	}
 
-	res, err = c.Call(context.Background(), controlplane.CmdNetguardLog, nil)
+	res, err = c.Call(context.Background(), opapi.NetguardLog, nil)
 	if err != nil {
 		t.Fatalf("netguard log: %v", err)
 	}

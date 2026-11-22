@@ -18,14 +18,14 @@ import (
 )
 
 func TestWorkflowAllNineAppMutationsJoinOwnedAuditAndDomainIdentity(t *testing.T) {
-	for _, cmd := range []string{CmdWorkflowSave, CmdWorkflowRestore, CmdWorkflowRemove, CmdWorkflowSetEnabled, CmdWorkflowRun, CmdWorkflowDraft, CmdWorkflowRefine, CmdWorkflowWebhook, CmdWorkflowTestNode} {
+	for _, cmd := range []string{opapi.WorkflowSave, opapi.WorkflowRestore, opapi.WorkflowRemove, opapi.WorkflowSetEnabled, opapi.WorkflowRun, opapi.WorkflowDraft, opapi.WorkflowRefine, opapi.WorkflowWebhook, opapi.WorkflowTestNode} {
 		t.Run(cmd, func(t *testing.T) {
 			dir := t.TempDir()
 			provider := mock.New(mock.FinalText(`{"name":"designed","nodes":[{"id":"start","type":"trigger"}]}`))
 			k := openWorkflowKernel(t, runtime.Config{BaseDir: dir, Provider: provider})
 			defer k.Close()
 			config := json.RawMessage(`{}`)
-			if cmd == CmdWorkflowWebhook {
+			if cmd == opapi.WorkflowWebhook {
 				config = json.RawMessage(`{"kind":"webhook","secret":"owned fixture credential"}`)
 			}
 			graph, _, err := k.WorkflowEngine().Save("", workflow.Workflow{Name: "owned", Nodes: []workflow.Node{{ID: "start", Type: workflow.NodeTrigger, Config: config}, {ID: "work", Type: workflow.NodeTransform, Config: json.RawMessage(`{"template":"{{trigger.payload}}"}`)}}, Edges: []workflow.Edge{{From: "start", To: "work"}}})
@@ -39,7 +39,7 @@ func TestWorkflowAllNineAppMutationsJoinOwnedAuditAndDomainIdentity(t *testing.T
 			if len(responses) != 1 || responses[0].Type != RespResult {
 				t.Fatal(cmd, responses)
 			}
-			kind := map[string]event.Kind{CmdWorkflowSave: event.KindWorkflowSaved, CmdWorkflowRestore: event.KindWorkflowRestored, CmdWorkflowRemove: event.KindWorkflowRemoved, CmdWorkflowSetEnabled: event.KindWorkflowUpdated, CmdWorkflowRun: event.KindWorkflowStarted, CmdWorkflowDraft: event.KindWorkflowDrafted, CmdWorkflowRefine: event.KindWorkflowDrafted, CmdWorkflowWebhook: event.KindWorkflowStarted, CmdWorkflowTestNode: event.KindWorkflowNode}[cmd]
+			kind := map[string]event.Kind{opapi.WorkflowSave: event.KindWorkflowSaved, opapi.WorkflowRestore: event.KindWorkflowRestored, opapi.WorkflowRemove: event.KindWorkflowRemoved, opapi.WorkflowSetEnabled: event.KindWorkflowUpdated, opapi.WorkflowRun: event.KindWorkflowStarted, opapi.WorkflowDraft: event.KindWorkflowDrafted, opapi.WorkflowRefine: event.KindWorkflowDrafted, opapi.WorkflowWebhook: event.KindWorkflowStarted, opapi.WorkflowTestNode: event.KindWorkflowNode}[cmd]
 			var begin, end, domain []*event.Event
 			deadline := time.Now().Add(5 * time.Second)
 			for {
@@ -99,7 +99,7 @@ func TestWorkflowDispatcherInflightCancellationSettlesJoinedAuditWithoutProvider
 	done := make(chan error, 1)
 	raw, _ := json.Marshal(map[string]any{"ref": graph.ID})
 	go func() {
-		_, err := dispatcher.Dispatch(ctx, opapi.Caller{Credential: "primary", Source: "controlplane"}, CmdWorkflowRun, raw, nil)
+		_, err := dispatcher.Dispatch(ctx, opapi.Caller{Credential: "primary", Source: "controlplane"}, opapi.WorkflowRun, raw, nil)
 		done <- err
 	}()
 	deadline := time.Now().Add(5 * time.Second)

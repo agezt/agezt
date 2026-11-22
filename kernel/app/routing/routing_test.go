@@ -314,17 +314,17 @@ func TestOperations(t *testing.T) {
 		input, output      reflect.Type
 		properties         string
 	}{
-		{"routing_get", "GET", "/api/routing", true, reflect.TypeFor[RoutingRequest](), reflect.TypeFor[RoutingOutput](), ""},
-		{"routing_set", "POST", "/api/routing/set", false, reflect.TypeFor[RoutingSetRequest](), reflect.TypeFor[RoutingSetOutput](), `"chains":{}`},
-		{"chains_get", "GET", "/api/chains", true, reflect.TypeFor[ChainsRequest](), reflect.TypeFor[ChainsOutput](), ""},
-		{"chains_set", "POST", "/api/chains/set", false, reflect.TypeFor[ChainsSetRequest](), reflect.TypeFor[ChainsSetOutput](), `"chains":{},"default":{}`},
+		{opapi.RoutingGet, "GET", "/api/routing", true, reflect.TypeFor[RoutingRequest](), reflect.TypeFor[RoutingOutput](), ""},
+		{opapi.RoutingSet, "POST", "/api/routing/set", false, reflect.TypeFor[RoutingSetRequest](), reflect.TypeFor[RoutingSetOutput](), `"chains":{}`},
+		{opapi.ChainsGet, "GET", "/api/chains", true, reflect.TypeFor[ChainsRequest](), reflect.TypeFor[ChainsOutput](), ""},
+		{opapi.ChainsSet, "POST", "/api/chains/set", false, reflect.TypeFor[ChainsSetRequest](), reflect.TypeFor[ChainsSetOutput](), `"chains":{},"default":{}`},
 	} {
 		s := ops[i].Spec()
 		out, err := schema.FromType(want.output, false)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if s.Name != want.name || s.ReadOnly != want.read || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Stream != opapi.StreamNone || !s.AllowUnknownInput || s.HTTP.Method != want.method || s.HTTP.Path != want.path || s.Input != want.input || s.Output != want.output || string(s.OutputSchema) != string(out) {
+		if s.Name != want.name || s.ReadOnly != want.read || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Stream != opapi.StreamNone || !s.AllowUnknownInput || s.Input != want.input || s.Output != want.output || string(s.OutputSchema) != string(out) {
 			t.Fatalf("%s spec: %+v", want.name, s)
 		}
 		if want.properties != "" && !strings.Contains(string(s.InputSchema), `"properties":{`+want.properties+`}`) {

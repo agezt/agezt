@@ -12,13 +12,13 @@ import (
 
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 // cmdPlanRefine implements `agt plan refine <file.json> --feedback "..."`.
 //
 // Reads an existing plan from disk, ships it + the feedback string
-// to the daemon's CmdPlanRefine endpoint, prints the revised plan
+// to the daemon's opapi.PlanRefine endpoint, prints the revised plan
 // JSON to stdout (operator can redirect to a file or pipe to `agt
 // plan run-` for execution).
 //
@@ -88,7 +88,7 @@ func cmdPlanRefine(args []string, stdout, stderr io.Writer) int {
 	if model != "" {
 		args2["model"] = model
 	}
-	res, err := c.Call(ctx, controlplane.CmdPlanRefine, args2)
+	res, err := c.Call(ctx, opapi.PlanRefine, args2)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s plan refine: %v\n", brand.CLI, err)
 		return 1

@@ -28,7 +28,7 @@ export function ACPAgents() {
   async function reload() {
     setLoading(true);
     try {
-      const d = await getJSON<ACPInventory>("/api/acp/agents");
+      const d = await getJSON("/api/acp/agents");
       setInv(d);
       setErr(null);
     } catch (e) {

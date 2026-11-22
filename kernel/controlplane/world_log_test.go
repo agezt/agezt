@@ -6,7 +6,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -28,7 +28,7 @@ func TestWorldLog_ListsAndFilters(t *testing.T) {
 		Payload: map[string]any{"id": "e1", "name": "Ada", "what": "entity"},
 	})
 
-	res, err := c.Call(context.Background(), controlplane.CmdWorldLog, nil)
+	res, err := c.Call(context.Background(), opapi.WorldLog, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,7 +37,7 @@ func TestWorldLog_ListsAndFilters(t *testing.T) {
 		t.Fatalf("ops = %d want 3", len(all))
 	}
 	// --kind relation → just the relation upsert.
-	rres, err := c.Call(context.Background(), controlplane.CmdWorldLog,
+	rres, err := c.Call(context.Background(), opapi.WorldLog,
 		map[string]any{"kind": "relation"})
 	if err != nil {
 		t.Fatal(err)

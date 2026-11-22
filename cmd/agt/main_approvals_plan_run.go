@@ -16,7 +16,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/format"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 )
 
@@ -29,30 +29,10 @@ func cmdPlan(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "  <file.json>          — execute a hand-authored plan\n")
 		return 2
 	}
-	switch args[0] {
-	case "generate", "gen":
-		return cmdPlanGenerate(args[1:], stdout, stderr)
-	case "history", "runs", "ls":
-		return cmdPlanHistory(args[1:], stdout, stderr)
-	case "stats":
-		return cmdPlanStats(args[1:], stdout, stderr)
-	case "run":
-		return cmdPlanRun(args[1:], stdout, stderr)
-	case "cost":
-		return cmdPlanCost(args[1:], stdout, stderr)
-	case "refine":
-		return cmdPlanRefine(args[1:], stdout, stderr)
-	case "validate":
-		return cmdPlanValidate(args[1:], stdout, stderr)
-	case "visualize", "viz":
-		return cmdPlanVisualize(args[1:], stdout, stderr)
-	default:
-		// Backwards-compatible: `agt plan <file.json>` still executes
-		// a hand-authored plan. Detected by checking if the arg is a
-		// file path (existence test); falls through to the historical
-		// CmdPlan handler.
-		return cmdPlanExecuteFile(args, stdout, stderr)
+	if sub, ok := cliPlan.lookup(args[0]); ok {
+		return sub.run(nil, args, stdout, stderr)
 	}
+	return cmdPlanExecuteFile(args, stdout, stderr)
 }
 func cmdPlanExecuteFile(args []string, stdout, stderr io.Writer) int {
 	body, err := os.ReadFile(args[0])
@@ -75,7 +55,7 @@ func cmdPlanGenerate(args []string, stdout, stderr io.Writer) int {
 	// Planner is one LLM call; even a slow model fits in 2 minutes.
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdPlanGenerate, map[string]any{"intent": intent})
+	res, err := c.Call(ctx, opapi.PlanGenerate, map[string]any{"intent": intent})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s plan generate: %v\n", brand.CLI, err)
 		return 1
@@ -126,7 +106,7 @@ func cmdPlanRun(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdPlanGenerate, map[string]any{"intent": intent})
+	res, err := c.Call(ctx, opapi.PlanGenerate, map[string]any{"intent": intent})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s plan run (generate): %v\n", brand.CLI, err)
 		return 1
@@ -152,7 +132,7 @@ func runPlanJSON(planJSON string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
-	result, err := c.Stream(ctx, controlplane.CmdPlan,
+	result, err := c.Stream(ctx, opapi.Plan,
 		map[string]any{"plan_json": planJSON},
 		func(ev *event.Event) {
 			// Skip the high-rate ephemeral token/reasoning chunks — with concurrent

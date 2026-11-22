@@ -10,11 +10,12 @@ import (
 	"fmt"
 
 	"github.com/agezt/agezt/cmd/agt/format"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 )
 
 func checkNetguard(ctx context.Context, client *controlplane.Client) doctorCheck {
-	res, err := client.Call(ctx, controlplane.CmdNetguardLog, map[string]any{
+	res, err := client.Call(ctx, opapi.NetguardLog, map[string]any{
 		"since_ms": float64(doctorRecentWindowMS),
 		"limit":    float64(200),
 	})
@@ -49,7 +50,7 @@ func netguardCheckFromLog(res map[string]any) doctorCheck {
 	return warn(name, detail, hint)
 }
 func checkRateLimit(ctx context.Context, client *controlplane.Client) doctorCheck {
-	res, err := client.Call(ctx, controlplane.CmdRateLimitStats, map[string]any{
+	res, err := client.Call(ctx, opapi.RateLimitStats, map[string]any{
 		"since_ms": float64(doctorRecentWindowMS),
 	})
 	if err != nil {
@@ -85,7 +86,7 @@ const (
 )
 
 func checkDisk(ctx context.Context, client *controlplane.Client) doctorCheck {
-	res, err := client.Call(ctx, controlplane.CmdDiskStats, nil)
+	res, err := client.Call(ctx, opapi.DiskStats, nil)
 	if err != nil {
 		return ok("disk", "disk usage unavailable (—)")
 	}

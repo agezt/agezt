@@ -18,7 +18,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/configcenter"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdConfigCenterSet(args []string, stdout, stderr io.Writer) int {
@@ -121,7 +121,7 @@ func cmdConfigCenterSet(args []string, stdout, stderr io.Writer) int {
 		params["excluded_agents"] = splitList(denyAgents)
 	}
 
-	res, err := c.Call(ctx, controlplane.CmdConfigCenterSet, params)
+	res, err := c.Call(ctx, opapi.ConfigCenterSet, params)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s configcenter set: %v\n", brand.CLI, err)
 		return 1

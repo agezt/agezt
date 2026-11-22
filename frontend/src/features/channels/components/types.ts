@@ -4,7 +4,7 @@
 // stay in page.tsx because they aren't consumed outside the
 // package's barrel. Public surface (page.tsx re-exports) unchanged.
 
-export interface ChannelField {
+export type ChannelField = {
   env: string;
   label: string;
   secret?: boolean;
@@ -13,13 +13,13 @@ export interface ChannelField {
   set?: boolean;
   value?: string;
   env_pinned?: boolean;
-}
-export interface MediaCaps {
+};
+export type MediaCaps = {
   image_in?: boolean;
   voice_in?: boolean;
   image_out?: boolean;
   voice_out?: boolean;
-}
+};
 export interface ChannelProbe {
   accounts?: number;
   configured_accounts?: number;
@@ -29,13 +29,13 @@ export interface ChannelProbe {
   mode?: string;
   note?: string;
 }
-export interface ChannelAccount {
+export type ChannelAccount = {
   label: string;
   configured?: boolean;
   live?: boolean;
   probe?: ChannelProbe;
   fields: ChannelField[];
-}
+};
 export interface ChannelRow {
   kind: string;
   display: string;

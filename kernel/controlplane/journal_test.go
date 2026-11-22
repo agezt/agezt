@@ -6,7 +6,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -18,7 +18,7 @@ import (
 func TestJournalTail_EmptyJournalReturnsZero(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 
-	res, err := c.Call(context.Background(), controlplane.CmdJournalTail, nil)
+	res, err := c.Call(context.Background(), opapi.JournalTail, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -55,7 +55,7 @@ func TestJournalTail_ReturnsLastNInOrder(t *testing.T) {
 		}
 	}
 
-	res, err := c.Call(context.Background(), controlplane.CmdJournalTail, map[string]any{"n": 4})
+	res, err := c.Call(context.Background(), opapi.JournalTail, map[string]any{"n": 4})
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -92,7 +92,7 @@ func TestJournalTail_NLargerThanHeadReturnsAll(t *testing.T) {
 			Actor:   "test",
 		})
 	}
-	res, err := c.Call(context.Background(), controlplane.CmdJournalTail, map[string]any{"n": 100})
+	res, err := c.Call(context.Background(), opapi.JournalTail, map[string]any{"n": 100})
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}

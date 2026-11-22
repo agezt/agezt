@@ -24,8 +24,9 @@ import { useMemoryLogPager, useMemoryPager } from "@/app/cursor-pager";
 import { LoadMoreFooter } from "@/components/ui/load-more-footer";
 import { LogHistoryPanel } from "@/components/LogHistoryPanel";
 import { Segmented } from "@/components/ui/segmented";
+import type { MemoryAuditResponseContradictionsItem, MemoryAddRequest, MemorySupersedeRequest } from "@/app/api/types.generated";
 
-interface MemRecord {
+type MemRecord = {
   id?: string;
   type?: string;
   subject?: string;
@@ -34,20 +35,19 @@ interface MemRecord {
   created_ms?: number;
   last_seen_ms?: number;
   source_event?: string;
-  // Provenance (M851): who added the record, and who most recently wrote it.
   added_by?: string;
   updated_by?: string;
   tags?: Record<string, string>;
-}
+};
 
-interface MemoryAudit {
+type MemoryAudit = {
   total?: number;
   usable?: number;
   expired?: number;
   suspended?: number;
   contradiction_load?: number;
-  contradictions?: Array<{ key?: string; ids?: string[]; subject?: string; type?: string; scope?: string }>;
-}
+  contradictions?: MemoryAuditResponseContradictionsItem[];
+};
 
 // parseMemoryJSON normalises an exported memory file into a list of re-addable
 // `memory_add` arg objects. Accepts a bare array, a {memory:[…]} or a {records:[…]}
@@ -56,7 +56,7 @@ interface MemoryAudit {
 // identity/lifecycle fields (id/timestamps/source_event/tags) so a re-add stores
 // fresh — though memory is content-addressed, so re-importing the same fact dedupes
 // rather than duplicating. Throws on bad JSON / nothing valid.
-export function parseMemoryJSON(text: string): Record<string, unknown>[] {
+export function parseMemoryJSON(text: string): MemoryAddRequest[] {
   const data = JSON.parse(text);
   const arr = Array.isArray(data)
     ? data
@@ -66,13 +66,13 @@ export function parseMemoryJSON(text: string): Record<string, unknown>[] {
         ? (data as { records: unknown[] }).records
         : null;
   if (!arr) throw new Error("expected an array of memories (or a {memory:[…]} / {records:[…]} wrapper)");
-  const out: Record<string, unknown>[] = [];
+  const out: MemoryAddRequest[] = [];
   for (const raw of arr) {
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue;
     const r = raw as Record<string, unknown>;
     const content = typeof r.content === "string" ? r.content.trim() : "";
     if (!content) continue;
-    const args: Record<string, unknown> = { content };
+    const args: MemoryAddRequest = { content };
     if (typeof r.subject === "string" && r.subject.trim()) args.subject = r.subject.trim();
     if (typeof r.type === "string" && r.type.trim()) args.type = r.type.trim().toUpperCase();
     if (typeof r.confidence === "number" && r.confidence > 0) args.confidence = r.confidence;
@@ -161,7 +161,7 @@ export function Memory() {
   // so a backup isn't silently truncated to the pages loaded on screen.
   async function exportMemory() {
     try {
-      const d = await getJSON<{ records?: MemRecord[] }>("/api/memory", { limit: "1000" });
+      const d = await getJSON("/api/memory", { limit: "1000" });
       downloadText("agezt-memory.json", JSON.stringify({ version: 1, memory: d.records ?? [] }, null, 2), "application/json");
     } catch (e) {
       ui.toast(`export failed: ${(e as Error).message}`, "error");
@@ -196,8 +196,8 @@ export function Memory() {
   // (the pager hook doesn't surface it).
   async function reloadMeta() {
     const [a, t] = await Promise.all([
-      getJSON<MemoryAudit>("/api/memory/audit").catch(() => null),
-      getJSON<{ total?: number }>("/api/memory", { limit: "1" }).catch(() => null),
+      getJSON("/api/memory/audit").catch(() => null),
+      getJSON("/api/memory", { limit: "1" }).catch(() => null),
     ]);
     setAudit(a && typeof a.usable === "number" ? a : null);
     setTotal(t && typeof t.total === "number" ? t.total : null);
@@ -212,7 +212,7 @@ export function Memory() {
   // memory on demand — the daemon also does this on a daily timer.
   async function rebuildProfile() {
     try {
-      const res = await postAction<{ facets_written?: number; input_records?: number }>("/api/profile/rebuild", {});
+      const res = await postAction("/api/profile/rebuild", {});
       const n = res.facets_written ?? 0;
       const inp = res.input_records ?? 0;
       ui.toast(inp === 0 ? "Nothing to learn from yet — no accumulated memory" : `Operator profile rebuilt: ${n} facet${n === 1 ? "" : "s"} from ${inp} memories`, inp === 0 ? "info" : "success");
@@ -253,7 +253,7 @@ export function Memory() {
   const PRUNE_DAYS = 30;
   async function prune() {
     try {
-      const dry = await postAction<{ prunable?: number }>("/api/memory/prune", { older_than_days: String(PRUNE_DAYS), dry_run: "true" });
+      const dry = await postAction("/api/memory/prune", { older_than_days: String(PRUNE_DAYS), dry_run: "true" });
       const n = dry.prunable ?? 0;
       if (n === 0) {
         ui.toast("Nothing to prune — no soft-deleted records older than 30 days", "success");
@@ -266,7 +266,7 @@ export function Memory() {
         danger: true,
       });
       if (!ok) return;
-      const res = await postAction<{ pruned?: number }>("/api/memory/prune", { older_than_days: String(PRUNE_DAYS), dry_run: "false" });
+      const res = await postAction("/api/memory/prune", { older_than_days: String(PRUNE_DAYS), dry_run: "false" });
       ui.toast(`Pruned ${res.pruned ?? 0} record(s)`, "success");
       await reload();
     } catch (e) {
@@ -279,7 +279,7 @@ export function Memory() {
   // the strongest note per subject, forgets the rest (reversible). Dry-run first.
   async function tidy() {
     try {
-      const dry = await postAction<{ collapsed?: number }>("/api/memory/tidy", { dry_run: "true" });
+      const dry = await postAction("/api/memory/tidy", { dry_run: "true" });
       const n = dry.collapsed ?? 0;
       if (n === 0) {
         ui.toast("Nothing to tidy — no duplicate distilled notes", "success");
@@ -291,7 +291,7 @@ export function Memory() {
         confirmLabel: "Tidy",
       });
       if (!ok) return;
-      const res = await postAction<{ collapsed?: number }>("/api/memory/tidy", { dry_run: "false" });
+      const res = await postAction("/api/memory/tidy", { dry_run: "false" });
       ui.toast(`Collapsed ${res.collapsed ?? 0} duplicate note(s)`, "success");
       await reload();
     } catch (e) {
@@ -301,7 +301,7 @@ export function Memory() {
 
   async function cleanLowValue() {
     try {
-      const dry = await postAction<{ rejected?: number; scanned?: number }>("/api/memory/clean", { dry_run: "true" });
+      const dry = await postAction("/api/memory/clean", { dry_run: "true" });
       const n = dry.rejected ?? 0;
       if (n === 0) {
         ui.toast("Nothing to clean — no low-value active memories found", "success");
@@ -313,7 +313,7 @@ export function Memory() {
         confirmLabel: "Delete",
       });
       if (!ok) return;
-      const res = await postAction<{ removed?: number }>("/api/memory/clean", { dry_run: "false" });
+      const res = await postAction("/api/memory/clean", { dry_run: "false" });
       ui.toast(`Deleted ${res.removed ?? 0} low-value record(s)`, "success");
       await reload();
     } catch (e) {
@@ -432,7 +432,7 @@ export function Memory() {
     if (!ok) return;
     setBulkBusy(true);
     try {
-      const res = await postJSON<{ forgotten?: number; not_found?: number }>("/api/memory/bulk_forget", { ids });
+      const res = await postJSON("/api/memory/bulk_forget", { ids });
       const n = res.forgotten ?? ids.length;
       ui.toast(`Forgot ${n} record${n === 1 ? "" : "s"}`, "success");
       setSelected(new Set());
@@ -998,7 +998,7 @@ export function ReviseFactForm({
     if (!valid || !record.id) return;
     setSubmitting(true);
     try {
-      const args: Record<string, unknown> = {
+      const args: MemorySupersedeRequest = {
         old_id: record.id,
         content: content.trim(),
         subject: subject.trim(),

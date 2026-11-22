@@ -19,6 +19,7 @@ import { Activity, AlertTriangle, Bot, Brain, CircleDollarSign, Eye, Gauge, Mic,
 import { getJSON } from "@/app/api";
 import { useEvents } from "@/app/events";
 import { cn } from "@/app/utils";
+import { StatTile } from "@/components/ui/metric-widget";
 
 interface MissionPulse {
   eventsPerSec: number;
@@ -44,22 +45,22 @@ function usePulse(): MissionPulse & { error: string | null } {
     let stop = false;
     async function load() {
       try {
-        const [runs, agents, approvals, status] = await Promise.all([
-          getJSON<{ runs?: { status: string }[] }>("/api/runs", { limit: "100" }),
-          getJSON<{ agents?: unknown[] }>("/api/agents", {}),
-          getJSON<{ pending?: number }>("/api/approvals", { pending: "true" }),
-          getJSON<{ version?: string; revision?: string }>("/api/status", {}),
+        const [runs, agents, approvals, version] = await Promise.all([
+          getJSON("/api/runs", { limit: "100" }),
+          getJSON("/api/agents", {}),
+          getJSON("/api/approvals"),
+          getJSON("/api/version"),
         ]);
         if (stop) return;
         setErr(null);
         setP({
           eventsPerSec: 0, // backfilled below from the live event hook
           running: runs.runs?.filter((r) => r.status === "running").length ?? 0,
-          awaiting: approvals.pending ?? 0,
+          awaiting: approvals.pending?.length ?? 0,
           spendToday: 0, // backfilled below from /api/spend
-          agentCount: agents.agents?.length ?? 0,
-          version: status.version || "—",
-          daemonCommit: status.revision?.slice(0, 8),
+          agentCount: agents.profiles?.length ?? 0,
+          version: version.agezt || "—",
+          daemonCommit: version.revision?.slice(0, 8),
         });
       } catch (e) {
         // Kept the previous values rather than zeroing them, which is right for a
@@ -99,7 +100,7 @@ function useSpendToday() {
     let stop = false;
     async function load() {
       try {
-        const r = await getJSON<{ total?: number }>("/api/spend/today", {});
+        const r = await getJSON("/api/spend/today", {});
         if (!stop) setV(r.total || 0);
       } catch {
         /* ignore */
@@ -122,7 +123,7 @@ function useAttentionQueue() {
     let stop = false;
     async function load() {
       try {
-        const r = await getJSON<{ items?: { id: string; kind: string; summary: string; ts: number }[] }>(
+        const r = await getJSON(
           "/api/attention",
           { window: "5m" },
         );
@@ -176,10 +177,10 @@ export default function MissionControl() {
             <p className="text-xs text-muted">what the system is doing right now — refreshes every 10 seconds</p>
           </header>
           <div className="mt-3 grid gap-3 sm:grid-cols-4">
-            <Metric icon={Radio} label="Events/sec" value={eventsPerSec.toFixed(2)} tone={eventsPerSec > 1 ? "good" : "muted"} />
-            <Metric icon={Activity} label="Runs in flight" value={pulse.running} tone={pulse.running > 0 ? "accent" : "muted"} />
-            <Metric icon={AlertTriangle} label="Awaiting you" value={pulse.awaiting} tone={pulse.awaiting > 0 ? "warn" : "muted"} />
-            <Metric icon={CircleDollarSign} label="Spend today" value={`$${spend.toFixed(4)}`} tone="muted" />
+            <StatTile icon={Radio} label="Events/sec" value={eventsPerSec.toFixed(2)} tone={eventsPerSec > 1 ? "good" : "muted"} />
+            <StatTile icon={Activity} label="Runs in flight" value={pulse.running} tone={pulse.running > 0 ? "accent" : "muted"} />
+            <StatTile icon={AlertTriangle} label="Awaiting you" value={pulse.awaiting} tone={pulse.awaiting > 0 ? "warn" : "muted"} />
+            <StatTile icon={CircleDollarSign} label="Spend today" value={`$${spend.toFixed(4)}`} tone="muted" />
           </div>
         </section>
 
@@ -257,19 +258,6 @@ export default function MissionControl() {
           </ul>
         </section>
       </aside>
-    </div>
-  );
-}
-
-function Metric({ icon: Icon, label, value, tone }: { icon: typeof Activity; label: string; value: string | number; tone: "good" | "warn" | "accent" | "muted" }) {
-  const cls = tone === "good" ? "text-good" : tone === "warn" ? "text-warn" : tone === "accent" ? "text-accent" : "text-muted";
-  return (
-    <div className="rounded-xl border border-border/60 bg-card/30 p-3">
-      <div className="flex items-center gap-2 text-[11px] uppercase tracking-wider text-muted">
-        <Icon className={cn("size-3.5", cls)} />
-        <span>{label}</span>
-      </div>
-      <div className="mt-1 text-2xl font-semibold tabular-nums text-foreground">{value}</div>
     </div>
   );
 }

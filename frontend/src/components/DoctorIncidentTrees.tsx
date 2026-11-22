@@ -5,11 +5,11 @@ import {
   doctorIncidentTreeOpsSummary,
   type DoctorIncidentNode,
   type DoctorIncidentTree,
-} from "@/features/autonomy/lib/autonomy";
+} from "@/lib/autonomy";
 import {
   IncidentBadges,
   incidentPhaseBadgeClass,
-} from "@/features/incidents/components/IncidentBadges";
+} from "@/components/IncidentBadges";
 
 export function DoctorIncidentTrees({
   trees,

@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/modules/knowledge/worldmodel"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -38,7 +39,7 @@ func TestWorldOperationsSocketTenantJournalIsolation(t *testing.T) {
 		args   map[string]any
 		want   string
 	}{{owner, nil, "primary-private"}, {owner, map[string]any{"tenant": "acme"}, "acme-private"}, {client, map[string]any{"tenant": "acme"}, "acme-private"}} {
-		result, err := read.client.Call(context.Background(), controlplane.CmdWorldLog, read.args)
+		result, err := read.client.Call(context.Background(), opapi.WorldLog, read.args)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -55,15 +56,15 @@ func TestWorldOperationsSocketTenantJournalIsolation(t *testing.T) {
 			}
 		}
 	}
-	if _, err := client.Call(context.Background(), controlplane.CmdWorldLog, map[string]any{"tenant": "other"}); err == nil || (!strings.Contains(err.Error(), "forbidden") && !strings.Contains(err.Error(), "unauthorized")) {
+	if _, err := client.Call(context.Background(), opapi.WorldLog, map[string]any{"tenant": "other"}); err == nil || (!strings.Contains(err.Error(), "forbidden") && !strings.Contains(err.Error(), "unauthorized")) {
 		t.Fatalf("foreign world log=%v", err)
 	}
-	for _, command := range []string{controlplane.CmdWorldAdd, controlplane.CmdWorldEdit, controlplane.CmdWorldRelate, controlplane.CmdWorldForget, controlplane.CmdWorldGet, controlplane.CmdWorldList, controlplane.CmdWorldResolve, controlplane.CmdWorldNeighbors} {
+	for _, command := range []string{opapi.WorldAdd, opapi.WorldEdit, opapi.WorldRelate, opapi.WorldForget, opapi.WorldGet, opapi.WorldList, opapi.WorldResolve, opapi.WorldNeighbors} {
 		if _, err := client.Call(context.Background(), command, map[string]any{"tenant": "acme", "id": "fixture", "name": "fixture", "query": "fixture", "from": "a", "to": "b"}); err == nil {
 			t.Errorf("primary-only %s allowed tenant token", command)
 		}
 	}
-	result, err := owner.Call(context.Background(), controlplane.CmdWorldList, map[string]any{"tenant": "acme"})
+	result, err := owner.Call(context.Background(), opapi.WorldList, map[string]any{"tenant": "acme"})
 	if err != nil {
 		t.Fatal(err)
 	}

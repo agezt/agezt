@@ -12,30 +12,22 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdTaste(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
 		return tasteUsage(stderr)
 	}
-	switch args[0] {
-	case "list", "ls":
-		return cmdTasteList(args[1:], stdout, stderr)
-	case "add", "create":
-		return cmdTasteAdd(args[1:], stdout, stderr)
-	case "remove", "rm", "delete":
-		return cmdTasteRemove(args[1:], stdout, stderr)
-	case "-h", "--help", "help":
-		return tasteUsage(stdout)
-	default:
-		fmt.Fprintf(stderr, "%s taste: unknown subcommand %q\n", brand.CLI, args[0])
-		return tasteUsage(stderr)
+	if sub, ok := cliTaste.lookup(args[0]); ok {
+		return sub.run(nil, args, stdout, stderr)
 	}
+	fmt.Fprintf(stderr, "%s taste: unknown subcommand %q\n", brand.CLI, args[0])
+	return tasteUsage(stderr)
 }
 
 func tasteUsage(w io.Writer) int {
-	fmt.Fprintf(w, "usage: %s taste <list|add|remove>\n", brand.CLI)
+	fmt.Fprintf(w, "usage: %s taste %s\n", brand.CLI, cliTaste.synopsis())
 	fmt.Fprintf(w, "  list [--scope S] [--tag T] [--limit N] [--json]\n")
 	fmt.Fprintf(w, "  add --title T --body TEXT [--scope AGENT] [--tag X] [--json]   (scope empty = every run)\n")
 	fmt.Fprintf(w, "  remove <id> [--json]\n")
@@ -67,7 +59,7 @@ func cmdTasteList(args []string, stdout, stderr io.Writer) int {
 			return 2
 		}
 	}
-	res, code := callTaste(controlplane.CmdTasteList, callArgs, stderr)
+	res, code := callTaste(opapi.TasteList, callArgs, stderr)
 	if code != 0 {
 		return code
 	}
@@ -126,7 +118,7 @@ func cmdTasteAdd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "usage: %s taste add --title T --body TEXT\n", brand.CLI)
 		return 2
 	}
-	res, code := callTaste(controlplane.CmdTasteCreate, callArgs, stderr)
+	res, code := callTaste(opapi.TasteCreate, callArgs, stderr)
 	if code != 0 {
 		return code
 	}
@@ -159,7 +151,7 @@ func cmdTasteRemove(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "usage: %s taste remove <id>\n", brand.CLI)
 		return 2
 	}
-	res, code := callTaste(controlplane.CmdTasteDelete, map[string]any{"id": id}, stderr)
+	res, code := callTaste(opapi.TasteDelete, map[string]any{"id": id}, stderr)
 	if code != 0 {
 		return code
 	}

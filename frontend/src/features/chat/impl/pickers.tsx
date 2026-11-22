@@ -77,7 +77,7 @@ export function ExecutionProfilePicker({
 
   useEffect(() => {
     if (!open) return;
-    getJSON<{ checks?: ExecutionProfileCheck[]; routable_run_profiles?: string[] }>(
+    getJSON(
       "/api/execution_profile_check",
     )
       .then((r) => {
@@ -258,7 +258,7 @@ export function PromptLauncher({ onPick }: { onPick: (text: string) => void }) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    getJSON<{ prompts?: { title: string; text: string }[] }>("/api/prompts")
+    getJSON("/api/prompts")
       .then((r) => setPrompts(r.prompts || []))
       .catch(() => {
         /* prompts are optional */

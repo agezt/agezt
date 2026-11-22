@@ -11,7 +11,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 // cmdTenant dispatches `agt tenant <subcommand>` — the operator's management
@@ -23,34 +23,11 @@ func cmdTenant(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s tenant: subcommand required (create|list|release|rm)\n", brand.CLI)
 		return 2
 	}
-	switch args[0] {
-	case "create", "add":
-		return cmdTenantByID(args[1:], stdout, stderr, "create", controlplane.CmdTenantCreate)
-	case "list", "ls":
-		return cmdTenantList(args[1:], stdout, stderr)
-	case "stats":
-		return cmdTenantStats(args[1:], stdout, stderr)
-	case "token":
-		return cmdTenantByID(args[1:], stdout, stderr, "token", controlplane.CmdTenantToken)
-	case "release", "close":
-		return cmdTenantByID(args[1:], stdout, stderr, "release", controlplane.CmdTenantRelease)
-	case "rm", "remove", "delete":
-		return cmdTenantByID(args[1:], stdout, stderr, "rm", controlplane.CmdTenantRemove)
-	case "-h", "--help", "help":
-		fmt.Fprintf(stdout, "usage: %s tenant <subcommand>\n", brand.CLI)
-		fmt.Fprintf(stdout, "  create <id> [--json]    create / open an isolated tenant (prints its token)\n")
-		fmt.Fprintf(stdout, "  list [--json]           list tenants (id, open state, base dir)\n")
-		fmt.Fprintf(stdout, "  stats [--json]          per-tenant run count / spend / last activity (primary token)\n")
-		fmt.Fprintf(stdout, "  token <id> [--json]     reveal a tenant's per-tenant credential\n")
-		fmt.Fprintf(stdout, "  release <id> [--json]   close a tenant's kernel, keep its state on disk\n")
-		fmt.Fprintf(stdout, "  rm <id> [--json]        delete a tenant and ALL its state (destructive)\n")
-		fmt.Fprintf(stdout, "  <id> is [a-z0-9_-], 1-64 chars. Requires the daemon started with %sMULTITENANT=on.\n", brand.EnvPrefix)
-		fmt.Fprintf(stdout, "  Route to a tenant: HTTP `X-Agezt-Tenant: <id>` + its token, or `%s run --tenant <id>`.\n", brand.CLI)
-		return 0
-	default:
-		fmt.Fprintf(stderr, "%s tenant: unknown subcommand %q (create|list|token|release|rm)\n", brand.CLI, args[0])
-		return 2
+	if sub, ok := cliTenant.lookup(args[0]); ok {
+		return sub.run(nil, args, stdout, stderr)
 	}
+	fmt.Fprintf(stderr, "%s tenant: unknown subcommand %q (create|list|token|release|rm)\n", brand.CLI, args[0])
+	return 2
 }
 
 func cmdTenantList(args []string, stdout, stderr io.Writer) int {
@@ -73,7 +50,7 @@ func cmdTenantList(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdTenantList, nil)
+	res, err := c.Call(ctx, opapi.TenantList, nil)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s tenant list: %v\n", brand.CLI, err)
 		return 1
@@ -126,7 +103,7 @@ func cmdTenantStats(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdTenantStats, nil)
+	res, err := c.Call(ctx, opapi.TenantStats, nil)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s tenant stats: %v\n", brand.CLI, err)
 		return 1
@@ -209,7 +186,7 @@ func cmdTenantByID(args []string, stdout, stderr io.Writer, verb, cmd string) in
 		return jsonout.Write(stdout, res)
 	}
 	switch cmd {
-	case controlplane.CmdTenantCreate:
+	case opapi.TenantCreate:
 		baseDir, _ := res["base_dir"].(string)
 		token, _ := res["token"].(string)
 		if created, _ := res["created"].(bool); created {
@@ -221,16 +198,16 @@ func cmdTenantByID(args []string, stdout, stderr io.Writer, verb, cmd string) in
 			fmt.Fprintf(stdout, "  token: %s\n", token)
 			fmt.Fprintf(stdout, "  use:   HTTP header `X-Agezt-Tenant: %s` with `Authorization: Bearer %s`\n", id, token)
 		}
-	case controlplane.CmdTenantToken:
+	case opapi.TenantToken:
 		token, _ := res["token"].(string)
 		fmt.Fprintf(stdout, "%s\n", token)
-	case controlplane.CmdTenantRelease:
+	case opapi.TenantRelease:
 		if released, _ := res["released"].(bool); !released {
 			fmt.Fprintf(stderr, "%s tenant release: %s was not open\n", brand.CLI, id)
 			return 3
 		}
 		fmt.Fprintf(stdout, "%s released (state kept on disk)\n", id)
-	case controlplane.CmdTenantRemove:
+	case opapi.TenantRemove:
 		if removed, _ := res["removed"].(bool); !removed {
 			fmt.Fprintf(stderr, "%s tenant rm: %s not found\n", brand.CLI, id)
 			return 3

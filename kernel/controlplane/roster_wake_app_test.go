@@ -23,15 +23,15 @@ func TestAgentWakeNativeTypedRegistry(t *testing.T) {
 	found := 0
 	for _, operation := range registeredAppOperations() {
 		spec := operation.Spec()
-		if spec.Name != CmdAgentWake {
+		if spec.Name != opapi.AgentWake {
 			continue
 		}
 		found++
-		if spec.Input == nil || spec.Output == nil || len(spec.OutputSchema) == 0 || spec.ReadOnly || !spec.AllowUnknownInput || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || spec.HTTP != (opapi.HTTP{Method: "POST", Path: "/api/agents/wake"}) {
+		if spec.Input == nil || spec.Output == nil || len(spec.OutputSchema) == 0 || spec.ReadOnly || !spec.AllowUnknownInput || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary {
 			t.Fatalf("agent_wake metadata=%+v", spec)
 		}
 	}
-	wire, exists := commandRegistry[CmdAgentWake]
+	wire, exists := commandRegistry[opapi.AgentWake]
 	if found != 1 || !exists || !wire.AppOwned || wire.ReadOnly || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone {
 		t.Fatalf("agent_wake native wire found=%d metadata=%+v", found, wire)
 	}
@@ -60,7 +60,7 @@ func TestAgentWakeNativeLaunchCarriesLineage(t *testing.T) {
 	a.SetDeadline(time.Now().Add(3 * time.Second))
 	done := make(chan struct{})
 	go func() { defer close(done); s.handleConn(context.Background(), b) }()
-	raw, _ := json.Marshal(Request{ID: "wake", Cmd: CmdAgentWake, Token: "primary", Args: map[string]any{"ref": "ops", "reason": "why", "incident_id": "i", "root_incident_id": "r", "parent_incident_id": "p"}})
+	raw, _ := json.Marshal(Request{ID: "wake", Cmd: opapi.AgentWake, Token: "primary", Args: map[string]any{"ref": "ops", "reason": "why", "incident_id": "i", "root_incident_id": "r", "parent_incident_id": "p"}})
 	if _, err := a.Write(append(raw, 10)); err != nil {
 		t.Fatal(err)
 	}

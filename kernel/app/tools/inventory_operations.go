@@ -14,7 +14,7 @@ func InventoryOperations(provider func(context.Context) *Inventory) ([]app.Opera
 	if provider == nil {
 		return nil, errors.New("tool inventory provider required")
 	}
-	operation, err := app.NewOperation(opapi.Spec{Name: "tool_list", ReadOnly: true, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true}, func(ctx context.Context, in InventoryInput) (InventoryOutput, error) {
+	operation, err := app.NewOperation(opapi.Spec{Name: opapi.ToolList, ReadOnly: true, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true}, func(ctx context.Context, in InventoryInput) (InventoryOutput, error) {
 		return provider(ctx).List(ctx, in)
 	})
 	if err != nil {

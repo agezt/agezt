@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Anchor, Clock, ArrowUpRight, Play, Pause, Flame, CalendarClock, Zap, Mail, LifeBuoy, Megaphone, Trash2 } from "lucide-react";
-import { getJSON } from "@/app/api";
+import { getJSON, type WritePath, type NativePath } from "@/app/api";
 import { fmtTime, fmtDateTime, clip } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,8 +8,8 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
 import { ErrorText } from "@/components/JsonView";
 import { type ConfirmOptions } from "@/components/ui/feedback";
-import { TriggerChip } from "@/components/Fleet";
-import { openAgent } from "@/features/agents/lib/agentnav";
+import { TriggerChip } from "@/features/agents/components/Fleet";
+import { openAgent } from "@/lib/agentnav";
 import { type AgentProfile } from "@/features/agents/components/Roster";
 import { type FleetTrigger, type ApiOrder, type ApiSchedule } from "@/lib/fleet";
 import { AgentWakeAccess } from "@/features/agents/components/agentdetail/shared";
@@ -37,7 +37,7 @@ export function TriggersTab({
   triggers: FleetTrigger[];
   busy: boolean;
   onAction: (
-    path: string,
+    path: WritePath | NativePath,
     params: Record<string, string>,
     success: string,
     opts?: { confirm?: ConfirmOptions },
@@ -390,7 +390,7 @@ function WhyHistory({ id }: { id: string }) {
   const [err, setErr] = useState<string | null>(null);
   useEffect(() => {
     let alive = true;
-    getJSON<{ events?: WhyEvent[] }>("/api/standing/why", { id })
+    getJSON("/api/standing/why", { id })
       .then((d) => alive && setEvents(d.events || []))
       .catch((e) => alive && setErr((e as Error).message));
     return () => {
@@ -429,7 +429,7 @@ function ScheduleForecast({
   const [fires, setFires] = useState<number[] | null>(null);
   useEffect(() => {
     let alive = true;
-    getJSON<{ forecasts?: { unix?: number }[] }>("/api/schedule/test", {
+    getJSON("/api/schedule/test", {
       id,
       count: "4",
     })

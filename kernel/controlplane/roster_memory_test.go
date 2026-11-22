@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
-	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/warden"
@@ -48,19 +48,19 @@ func TestRun_AsAgent_MemoryScope(t *testing.T) {
 		t.Fatalf("remember private: %v", err)
 	}
 
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "researcher", "soul": "You research."},
 	}); err != nil {
 		t.Fatalf("agent add: %v", err)
 	}
 
 	// Run AS the agent: both the shared fact and the private note inject.
-	if _, err := c.Stream(ctx, controlplane.CmdRun,
+	if _, err := c.Stream(ctx, opapi.Run,
 		map[string]any{"intent": "what is the deploy target?", "agent": "researcher"}, nil); err != nil {
 		t.Fatalf("run as agent: %v", err)
 	}
 	// Plain run: shared only.
-	if _, err := c.Stream(ctx, controlplane.CmdRun,
+	if _, err := c.Stream(ctx, opapi.Run,
 		map[string]any{"intent": "what is the deploy target?"}, nil); err != nil {
 		t.Fatalf("plain run: %v", err)
 	}
@@ -98,7 +98,7 @@ func TestRun_AsAgent_ModelChain(t *testing.T) {
 	_, _, c, _ := startPair(t, prov)
 	ctx := context.Background()
 
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{
 			"slug": "researcher", "model": "agent-model",
 			"fallbacks": []any{"backup-1", "backup-2"},
@@ -112,7 +112,7 @@ func TestRun_AsAgent_ModelChain(t *testing.T) {
 		{"intent": "x", "agent": "researcher", "model": "explicit-model"},
 		{"intent": "x"},
 	} {
-		if _, err := c.Stream(ctx, controlplane.CmdRun, args, nil); err != nil {
+		if _, err := c.Stream(ctx, opapi.Run, args, nil); err != nil {
 			t.Fatalf("run %v: %v", args, err)
 		}
 	}
@@ -139,14 +139,14 @@ func TestStanding_AgentFieldRoundTrips(t *testing.T) {
 	ctx := context.Background()
 
 	for _, slug := range []string{"researcher", "ops"} {
-		if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+		if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 			"profile": map[string]any{"slug": slug, "soul": "Run standing work.", "model": "m"},
 		}); err != nil {
 			t.Fatalf("agent add %s: %v", slug, err)
 		}
 	}
 
-	add, err := c.Call(ctx, controlplane.CmdStandingAdd, map[string]any{
+	add, err := c.Call(ctx, opapi.StandingAdd, map[string]any{
 		"order": map[string]any{
 			"name":     "inbox answerer",
 			"triggers": []any{map[string]any{"type": "event", "subject": "board.dm.researcher"}},
@@ -163,14 +163,14 @@ func TestStanding_AgentFieldRoundTrips(t *testing.T) {
 	}
 	id, _ := o["id"].(string)
 
-	edit, err := c.Call(ctx, controlplane.CmdStandingEdit, map[string]any{"id": id, "agent": "ops"})
+	edit, err := c.Call(ctx, opapi.StandingEdit, map[string]any{"id": id, "agent": "ops"})
 	if err != nil {
 		t.Fatalf("standing edit: %v", err)
 	}
 	if eo, _ := edit["order"].(map[string]any); eo["agent"] != "ops" {
 		t.Fatalf("edit didn't set the agent: %v", edit)
 	}
-	clear, err := c.Call(ctx, controlplane.CmdStandingEdit, map[string]any{"id": id, "agent": ""})
+	clear, err := c.Call(ctx, opapi.StandingEdit, map[string]any{"id": id, "agent": ""})
 	if err != nil {
 		t.Fatalf("standing clear: %v", err)
 	}

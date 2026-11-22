@@ -24,7 +24,7 @@ func TestAutonomyNativeMetadataComesFromOneTypedPrimaryRead(t *testing.T) {
 			continue
 		}
 		wire, ok := commandRegistry[spec.Name]
-		if spec.Name != CmdAutonomyFeed || !ok || !wire.AppOwned || !wire.ReadOnly || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone || !spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || spec.Stream != opapi.StreamNone || spec.Input != reflect.TypeFor[appautonomy.FeedRequest]() || spec.Output != reflect.TypeFor[appautonomy.FeedOutput]() || len(spec.InputSchema) == 0 || len(spec.OutputSchema) == 0 || !spec.AllowUnknownInput {
+		if spec.Name != opapi.AutonomyFeed || !ok || !wire.AppOwned || !wire.ReadOnly || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone || !spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || spec.Stream != opapi.StreamNone || spec.Input != reflect.TypeFor[appautonomy.FeedRequest]() || spec.Output != reflect.TypeFor[appautonomy.FeedOutput]() || len(spec.InputSchema) == 0 || len(spec.OutputSchema) == 0 || !spec.AllowUnknownInput {
 			t.Fatal(spec, wire)
 		}
 		seen++
@@ -45,7 +45,7 @@ func TestAutonomyAppNativeLimitsReadsUnauditedAndRowSchema(t *testing.T) {
 		args  map[string]any
 		count int
 	}{{nil, 60}, {map[string]any{"limit": "1"}, 60}, {map[string]any{"limit": nil}, 60}, {map[string]any{"limit": false}, 60}, {map[string]any{"limit": float64(0)}, 1}, {map[string]any{"limit": float64(-10)}, 1}, {map[string]any{"limit": float64(1.9)}, 1}, {map[string]any{"limit": float64(500)}, 75}, {map[string]any{"limit": float64(1), "unused": true, "tenant": "spoof"}, 1}} {
-		out := callAppHost(t, s, Request{ID: "feed", Cmd: CmdAutonomyFeed, Token: "primary", Args: tc.args})
+		out := callAppHost(t, s, Request{ID: "feed", Cmd: opapi.AutonomyFeed, Token: "primary", Args: tc.args})
 		if len(out) != 1 || out[0].Type != RespResult || out[0].Result["count"] != float64(tc.count) {
 			t.Fatal(tc, out)
 		}
@@ -76,7 +76,7 @@ func TestAutonomyAppNativeCanceledAdmissionDoesNotReturnFeed(t *testing.T) {
 	done := make(chan struct{})
 	go func() { defer close(done); s.handleConn(ctx, conn) }()
 	client.SetDeadline(time.Now().Add(time.Second))
-	raw, _ := json.Marshal(Request{ID: "canceled", Cmd: CmdAutonomyFeed, Token: "primary"})
+	raw, _ := json.Marshal(Request{ID: "canceled", Cmd: opapi.AutonomyFeed, Token: "primary"})
 	if _, err := client.Write(append(raw, 10)); err != nil {
 		t.Fatal(err)
 	}

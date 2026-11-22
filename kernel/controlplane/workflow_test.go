@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
-	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -65,11 +65,11 @@ func TestWorkflow_AsyncRunPanicDoesNotKillTheDaemon(t *testing.T) {
 		},
 		"edges": []any{map[string]any{"from": "start", "to": "call"}},
 	}
-	if _, err := c.Call(ctx, controlplane.CmdWorkflowSave, map[string]any{"workflow": graph}); err != nil {
+	if _, err := c.Call(ctx, opapi.WorkflowSave, map[string]any{"workflow": graph}); err != nil {
 		t.Fatalf("save: %v", err)
 	}
 
-	res, err := c.Call(ctx, controlplane.CmdWorkflowRun, map[string]any{"ref": "boom-flow", "async": true})
+	res, err := c.Call(ctx, opapi.WorkflowRun, map[string]any{"ref": "boom-flow", "async": true})
 	if err != nil {
 		t.Fatalf("async run: %v", err)
 	}
@@ -88,7 +88,7 @@ func TestWorkflow_AsyncRunPanicDoesNotKillTheDaemon(t *testing.T) {
 
 	// The daemon is still serving: an unrecovered panic in the detached
 	// goroutine would have taken the whole process down before this lands.
-	if _, err := c.Call(ctx, controlplane.CmdWorkflowList, nil); err != nil {
+	if _, err := c.Call(ctx, opapi.WorkflowList, nil); err != nil {
 		t.Fatalf("control plane died with the panicking workflow: %v", err)
 	}
 }
@@ -124,7 +124,7 @@ func TestWorkflow_WireRoundTrip(t *testing.T) {
 	}
 
 	// Save (create).
-	res, err := c.Call(ctx, controlplane.CmdWorkflowSave, map[string]any{"workflow": graph})
+	res, err := c.Call(ctx, opapi.WorkflowSave, map[string]any{"workflow": graph})
 	if err != nil {
 		t.Fatalf("save: %v", err)
 	}
@@ -134,13 +134,13 @@ func TestWorkflow_WireRoundTrip(t *testing.T) {
 
 	// An invalid graph is refused with the validator's reason.
 	bad := map[string]any{"name": "bad-flow", "nodes": []any{map[string]any{"id": "a", "type": "tool", "config": map[string]any{"tool": "x"}}}}
-	if _, err := c.Call(ctx, controlplane.CmdWorkflowSave, map[string]any{"workflow": bad}); err == nil ||
+	if _, err := c.Call(ctx, opapi.WorkflowSave, map[string]any{"workflow": bad}); err == nil ||
 		!strings.Contains(err.Error(), "trigger") {
 		t.Fatalf("invalid save: %v", err)
 	}
 
 	// List is light (no nodes); show carries the full graph.
-	res, err = c.Call(ctx, controlplane.CmdWorkflowList, nil)
+	res, err = c.Call(ctx, opapi.WorkflowList, nil)
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -151,7 +151,7 @@ func TestWorkflow_WireRoundTrip(t *testing.T) {
 	if first, _ := items[0].(map[string]any); first["nodes"] != nil {
 		t.Fatal("list leaked the graph body")
 	}
-	res, err = c.Call(ctx, controlplane.CmdWorkflowShow, map[string]any{"ref": "wire-flow"})
+	res, err = c.Call(ctx, opapi.WorkflowShow, map[string]any{"ref": "wire-flow"})
 	if err != nil {
 		t.Fatalf("show: %v", err)
 	}
@@ -161,7 +161,7 @@ func TestWorkflow_WireRoundTrip(t *testing.T) {
 	}
 
 	// Run with a payload: the template reaches the tool; outputs return.
-	res, err = c.Call(ctx, controlplane.CmdWorkflowRun, map[string]any{
+	res, err = c.Call(ctx, opapi.WorkflowRun, map[string]any{
 		"ref": "wire-flow", "payload": map[string]any{"who": "ersin"},
 	})
 	if err != nil {
@@ -180,12 +180,12 @@ func TestWorkflow_WireRoundTrip(t *testing.T) {
 
 	// Run history (M806): the journal folds into per-run arcs, newest first.
 	firstCorr, _ := res["correlation_id"].(string)
-	if _, err := c.Call(ctx, controlplane.CmdWorkflowRun, map[string]any{
+	if _, err := c.Call(ctx, opapi.WorkflowRun, map[string]any{
 		"ref": "wire-flow", "payload": map[string]any{"who": "ikinci"},
 	}); err != nil {
 		t.Fatalf("second run: %v", err)
 	}
-	res, err = c.Call(ctx, controlplane.CmdWorkflowRuns, map[string]any{"ref": "wire-flow"})
+	res, err = c.Call(ctx, opapi.WorkflowRuns, map[string]any{"ref": "wire-flow"})
 	if err != nil {
 		t.Fatalf("runs: %v", err)
 	}
@@ -213,7 +213,7 @@ func TestWorkflow_WireRoundTrip(t *testing.T) {
 	if _, ok := newest["finished_ms"].(float64); !ok {
 		t.Fatal("finished_ms missing on a completed run")
 	}
-	if _, err := c.Call(ctx, controlplane.CmdWorkflowRuns, map[string]any{"ref": "ghost"}); err == nil {
+	if _, err := c.Call(ctx, opapi.WorkflowRuns, map[string]any{"ref": "ghost"}); err == nil {
 		t.Fatal("runs for an unknown workflow accepted")
 	}
 
@@ -223,7 +223,7 @@ func TestWorkflow_WireRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("async subscribe: %v", err)
 	}
-	res, err = c.Call(ctx, controlplane.CmdWorkflowRun, map[string]any{
+	res, err = c.Call(ctx, opapi.WorkflowRun, map[string]any{
 		"ref": "wire-flow", "async": true, "payload": map[string]any{"who": "async"},
 	})
 	if err != nil {
@@ -243,18 +243,18 @@ func TestWorkflow_WireRoundTrip(t *testing.T) {
 		}
 	}
 	asyncSub.Cancel()
-	if _, err := c.Call(ctx, controlplane.CmdWorkflowRun, map[string]any{"ref": "ghost", "async": true}); err == nil {
+	if _, err := c.Call(ctx, opapi.WorkflowRun, map[string]any{"ref": "ghost", "async": true}); err == nil {
 		t.Fatal("async run of unknown workflow accepted")
 	}
 
 	// Single-node test (M811): the probe returns the node's real output and
 	// never pollutes run history.
-	res, err = c.Call(ctx, controlplane.CmdWorkflowRuns, map[string]any{"ref": "wire-flow"})
+	res, err = c.Call(ctx, opapi.WorkflowRuns, map[string]any{"ref": "wire-flow"})
 	if err != nil {
 		t.Fatalf("runs before probe: %v", err)
 	}
 	runsBefore, _ := res["runs"].([]any)
-	res, err = c.Call(ctx, controlplane.CmdWorkflowTestNode, map[string]any{
+	res, err = c.Call(ctx, opapi.WorkflowTestNode, map[string]any{
 		"workflow": graph, "node": "shape",
 		"data": map[string]any{"call": map[string]any{"output": map[string]any{"status": "probed"}}},
 	})
@@ -264,7 +264,7 @@ func TestWorkflow_WireRoundTrip(t *testing.T) {
 	if res["output"] != "status=probed" {
 		t.Fatalf("test node output = %v", res["output"])
 	}
-	res, err = c.Call(ctx, controlplane.CmdWorkflowRuns, map[string]any{"ref": "wire-flow"})
+	res, err = c.Call(ctx, opapi.WorkflowRuns, map[string]any{"ref": "wire-flow"})
 	if err != nil {
 		t.Fatalf("runs after probe: %v", err)
 	}
@@ -284,13 +284,13 @@ func TestWorkflow_WireRoundTrip(t *testing.T) {
 		},
 		"edges": []any{map[string]any{"from": "start", "to": "echo_it"}},
 	}
-	if _, err := c.Call(ctx, controlplane.CmdWorkflowSave, map[string]any{"workflow": hookGraph}); err != nil {
+	if _, err := c.Call(ctx, opapi.WorkflowSave, map[string]any{"workflow": hookGraph}); err != nil {
 		t.Fatalf("save hooked: %v", err)
 	}
 	// A short secret is refused at validation time.
 	short := map[string]any{"name": "shorty", "nodes": []any{map[string]any{
 		"id": "start", "type": "trigger", "config": map[string]any{"kind": "webhook", "secret": "tiny"}}}}
-	if _, err := c.Call(ctx, controlplane.CmdWorkflowSave, map[string]any{"workflow": short}); err == nil ||
+	if _, err := c.Call(ctx, opapi.WorkflowSave, map[string]any{"workflow": short}); err == nil ||
 		!strings.Contains(err.Error(), "secret") {
 		t.Fatalf("short secret: %v", err)
 	}
@@ -300,7 +300,7 @@ func TestWorkflow_WireRoundTrip(t *testing.T) {
 		t.Fatalf("subscribe: %v", err)
 	}
 	defer sub.Cancel()
-	res, err = c.Call(ctx, controlplane.CmdWorkflowWebhook, map[string]any{
+	res, err = c.Call(ctx, opapi.WorkflowWebhook, map[string]any{
 		"ref": "hooked", "secret": "s3cret-string-12",
 		"payload": map[string]any{"kind": "webhook", "body": map[string]any{"x": "dis"}},
 	})
@@ -331,10 +331,10 @@ func TestWorkflow_WireRoundTrip(t *testing.T) {
 		},
 		"edges": []any{map[string]any{"from": "start", "to": "shape"}},
 	}
-	if _, err := c.Call(ctx, controlplane.CmdWorkflowSave, map[string]any{"workflow": replyGraph}); err != nil {
+	if _, err := c.Call(ctx, opapi.WorkflowSave, map[string]any{"workflow": replyGraph}); err != nil {
 		t.Fatalf("save echoer: %v", err)
 	}
-	res, err = c.Call(ctx, controlplane.CmdWorkflowWebhook, map[string]any{
+	res, err = c.Call(ctx, opapi.WorkflowWebhook, map[string]any{
 		"ref": "echoer", "secret": "reply-s3cret-99",
 		"payload": map[string]any{"kind": "webhook", "body": map[string]any{"ping": "42"}},
 	})
@@ -354,31 +354,31 @@ func TestWorkflow_WireRoundTrip(t *testing.T) {
 		{"ref": "hooked", "secret": "wrong-secret-123"},
 		{"ref": "ghost", "secret": "s3cret-string-12"},
 	} {
-		if _, err := c.Call(ctx, controlplane.CmdWorkflowWebhook, args); err == nil ||
+		if _, err := c.Call(ctx, opapi.WorkflowWebhook, args); err == nil ||
 			!strings.Contains(err.Error(), "webhook refused") {
 			t.Fatalf("args %v: %v", args, err)
 		}
 	}
-	if _, err := c.Call(ctx, controlplane.CmdWorkflowSetEnabled, map[string]any{"ref": "hooked", "enabled": false}); err != nil {
+	if _, err := c.Call(ctx, opapi.WorkflowSetEnabled, map[string]any{"ref": "hooked", "enabled": false}); err != nil {
 		t.Fatalf("disable hooked: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdWorkflowWebhook, map[string]any{
+	if _, err := c.Call(ctx, opapi.WorkflowWebhook, map[string]any{
 		"ref": "hooked", "secret": "s3cret-string-12"}); err == nil || !strings.Contains(err.Error(), "webhook refused") {
 		t.Fatalf("disabled webhook accepted: %v", err)
 	}
 
 	// Disable → remove → ghost refs are honest errors.
-	if _, err := c.Call(ctx, controlplane.CmdWorkflowSetEnabled, map[string]any{"ref": "wire-flow", "enabled": false}); err != nil {
+	if _, err := c.Call(ctx, opapi.WorkflowSetEnabled, map[string]any{"ref": "wire-flow", "enabled": false}); err != nil {
 		t.Fatalf("disable: %v", err)
 	}
-	res, err = c.Call(ctx, controlplane.CmdWorkflowRemove, map[string]any{"ref": "wire-flow"})
+	res, err = c.Call(ctx, opapi.WorkflowRemove, map[string]any{"ref": "wire-flow"})
 	if err != nil {
 		t.Fatalf("remove: %v", err)
 	}
 	if removed, _ := res["removed"].(bool); !removed {
 		t.Fatal("remove reported false")
 	}
-	if _, err := c.Call(ctx, controlplane.CmdWorkflowRun, map[string]any{"ref": "wire-flow"}); err == nil {
+	if _, err := c.Call(ctx, opapi.WorkflowRun, map[string]any{"ref": "wire-flow"}); err == nil {
 		t.Fatal("running a removed workflow accepted")
 	}
 }

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -42,7 +42,7 @@ func TestMCP_WireRoundTrip(t *testing.T) {
 	defer cancel()
 
 	// Add.
-	res, err := c.Call(ctx, controlplane.CmdMCPAdd, map[string]any{
+	res, err := c.Call(ctx, opapi.MCPAdd, map[string]any{
 		"server": map[string]any{"name": "fake", "command": "python", "args": []any{"server.py"}},
 	})
 	if err != nil {
@@ -54,7 +54,7 @@ func TestMCP_WireRoundTrip(t *testing.T) {
 	}
 
 	// Attach → tool names come back, list shows it live.
-	res, err = c.Call(ctx, controlplane.CmdMCPAttach, map[string]any{"ref": "fake"})
+	res, err = c.Call(ctx, opapi.MCPAttach, map[string]any{"ref": "fake"})
 	if err != nil {
 		t.Fatalf("attach: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestMCP_WireRoundTrip(t *testing.T) {
 	if len(tools) != 1 || tools[0] != "mcp_fake_greet" {
 		t.Fatalf("attach tools = %v", tools)
 	}
-	res, err = c.Call(ctx, controlplane.CmdMCPList, nil)
+	res, err = c.Call(ctx, opapi.MCPList, nil)
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -71,7 +71,7 @@ func TestMCP_WireRoundTrip(t *testing.T) {
 	}
 
 	// Disable auto-attach (registration survives, attachment untouched).
-	res, err = c.Call(ctx, controlplane.CmdMCPSetEnabled, map[string]any{"ref": "fake", "enabled": false})
+	res, err = c.Call(ctx, opapi.MCPSetEnabled, map[string]any{"ref": "fake", "enabled": false})
 	if err != nil {
 		t.Fatalf("set_enabled: %v", err)
 	}
@@ -81,7 +81,7 @@ func TestMCP_WireRoundTrip(t *testing.T) {
 	}
 
 	// Detach (kill switch).
-	if _, err = c.Call(ctx, controlplane.CmdMCPDetach, map[string]any{"ref": "fake"}); err != nil {
+	if _, err = c.Call(ctx, opapi.MCPDetach, map[string]any{"ref": "fake"}); err != nil {
 		t.Fatalf("detach: %v", err)
 	}
 	if !conn.closed {
@@ -89,7 +89,7 @@ func TestMCP_WireRoundTrip(t *testing.T) {
 	}
 
 	// Remove.
-	res, err = c.Call(ctx, controlplane.CmdMCPRemove, map[string]any{"ref": "fake"})
+	res, err = c.Call(ctx, opapi.MCPRemove, map[string]any{"ref": "fake"})
 	if err != nil {
 		t.Fatalf("remove: %v", err)
 	}
@@ -98,7 +98,7 @@ func TestMCP_WireRoundTrip(t *testing.T) {
 	}
 
 	// Ghost refs are honest errors.
-	if _, err := c.Call(ctx, controlplane.CmdMCPAttach, map[string]any{"ref": "ghost"}); err == nil {
+	if _, err := c.Call(ctx, opapi.MCPAttach, map[string]any{"ref": "ghost"}); err == nil {
 		t.Fatal("ghost attach accepted")
 	}
 }
@@ -113,7 +113,7 @@ func TestMCP_RemoteServerViewRedactsHeaders(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	res, err := c.Call(ctx, controlplane.CmdMCPAdd, map[string]any{
+	res, err := c.Call(ctx, opapi.MCPAdd, map[string]any{
 		"server": map[string]any{
 			"name": "remote",
 			"url":  "https://mcp.example.com/v1",

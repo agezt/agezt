@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/agezt/agezt/kernel/app/binding"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"strings"
 	"testing"
 
@@ -21,13 +22,13 @@ import (
 )
 
 // TestToolList_ReturnsRegisteredTools verifies the wire shape:
-// CmdToolList returns a `tools` array sorted by name, each entry
+// opapi.ToolList returns a `tools` array sorted by name, each entry
 // carrying {name, description}. The default startPair rig wires
 // one tool ("shell"), so this asserts the minimal happy path.
 func TestToolList_ReturnsRegisteredTools(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 
-	res, err := c.Call(context.Background(), controlplane.CmdToolList, nil)
+	res, err := c.Call(context.Background(), opapi.ToolList, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -89,7 +90,7 @@ func TestToolList_EmptyWhenNoToolsRegistered(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	res, err := client.Call(context.Background(), controlplane.CmdToolList, nil)
+	res, err := client.Call(context.Background(), opapi.ToolList, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -143,7 +144,7 @@ func TestToolList_SortsByName(t *testing.T) {
 	// definition name, not the map key — verify the count is 2
 	// and the order is stable across repeated calls.
 	for i := 0; i < 3; i++ {
-		res, err := client.Call(context.Background(), controlplane.CmdToolList, nil)
+		res, err := client.Call(context.Background(), opapi.ToolList, nil)
 		if err != nil {
 			t.Fatalf("Call %d: %v", i, err)
 		}
@@ -220,7 +221,7 @@ func TestAgentPermissions_ReturnsEffectiveToolPolicy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	res, err := client.Call(context.Background(), controlplane.CmdAgentPermissions, map[string]any{"ref": "guarded"})
+	res, err := client.Call(context.Background(), opapi.AgentPermissions, map[string]any{"ref": "guarded"})
 	if err != nil {
 		t.Fatalf("agent permissions: %v", err)
 	}
@@ -307,7 +308,7 @@ func TestAgentPermissions_ReturnsEffectiveToolPolicy(t *testing.T) {
 		t.Fatalf("permission_passport = %q, want trust/tool/memory passport", got)
 	}
 
-	workerRes, err := client.Call(context.Background(), controlplane.CmdAgentPermissions, map[string]any{"ref": "worker"})
+	workerRes, err := client.Call(context.Background(), opapi.AgentPermissions, map[string]any{"ref": "worker"})
 	if err != nil {
 		t.Fatalf("worker permissions: %v", err)
 	}
@@ -353,7 +354,7 @@ func TestAgentCapabilities_PatchesResourceAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	res, err := client.Call(context.Background(), controlplane.CmdAgentCapabilities, map[string]any{
+	res, err := client.Call(context.Background(), opapi.AgentCapabilities, map[string]any{
 		"ref":          "builder",
 		"memory_scope": "agent/builder",
 		"workdir":      "agents/builder",
@@ -368,7 +369,7 @@ func TestAgentCapabilities_PatchesResourceAuthority(t *testing.T) {
 		intOf(prof["max_cost_mc"]) != 100 || intOf(prof["max_daily_mc"]) != 500 {
 		t.Fatalf("resource authority fields not patched: %+v", prof)
 	}
-	if _, err := client.Call(context.Background(), controlplane.CmdAgentCapabilities, map[string]any{
+	if _, err := client.Call(context.Background(), opapi.AgentCapabilities, map[string]any{
 		"ref":     "builder",
 		"workdir": "../escape",
 	}); err == nil || !strings.Contains(err.Error(), "workdir must be a relative path") {

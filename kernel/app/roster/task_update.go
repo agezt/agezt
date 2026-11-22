@@ -219,7 +219,7 @@ func TaskUpdateOperations(provider func(context.Context) *TaskUpdateService) ([]
 	if err != nil {
 		return nil, err
 	}
-	op, err := app.NewOperation(opapi.Spec{Name: "agent_task_update", OutputSchema: output, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{},"op":{},"task":{},"id":{},"title":{},"description":{},"scope":{},"status":{}}}`), HTTP: opapi.HTTP{Method: "POST", Path: "/api/agents/task"}}, func(ctx context.Context, in TaskUpdateRequest) (TaskUpdateOutput, error) {
+	op, err := app.NewOperation(opapi.Spec{Name: opapi.AgentTaskUpdate, OutputSchema: output, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{},"op":{},"task":{},"id":{},"title":{},"description":{},"scope":{},"status":{}}}`)}, func(ctx context.Context, in TaskUpdateRequest) (TaskUpdateOutput, error) {
 		return provider(ctx).TaskUpdate(ctx, in)
 	})
 	if err != nil {

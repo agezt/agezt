@@ -30,7 +30,7 @@ import { cn } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { useUI } from "@/components/ui/feedback";
 import { Badge } from "@/components/ui/badge";
-import { ApiKeyField, ChatGPTSignInCard } from "@/features/api-keys";
+import { ApiKeyField, ChatGPTSignInCard } from "@/components/apikeys/index";
 import {
   defaultSetupFallbacks,
   mergeSetupTaskRouting,
@@ -63,15 +63,15 @@ export {
 type Step = "catalog" | "access" | "provider" | "model" | "routing" | "telegram" | "done";
 type RoutingMode = "simple" | "default" | "tasks";
 
-interface SetupRoutingResp {
+type SetupRoutingResp = {
   task_types?: string[];
   chains?: Record<string, string[]>;
-}
+};
 
-interface SetupChainsResp {
+type SetupChainsResp = {
   chains?: Record<string, string[]>;
   default?: string;
-}
+};
 
 const SETUP_STEPS: { id: Exclude<Step, "done">; label: string; detail: string; icon: LucideIcon }[] = [
   { id: "catalog", label: "Catalog", detail: "models.dev sync", icon: Database },
@@ -126,7 +126,7 @@ export function Setup({
   const loadCatalog = useCallback(async () => {
     setLoading(true);
     try {
-      const c = await getJSON<SetupCatalog>("/api/catalog");
+      const c = await getJSON("/api/catalog");
       setCat(c);
       // Skip straight past steps already satisfied so a re-open isn't tedious.
       if ((c.providers?.length ?? 0) > 0) setStep((s) => (s === "catalog" ? "access" : s));
@@ -180,7 +180,7 @@ export function Setup({
   useEffect(() => {
     if (step !== "routing") return;
     let live = true;
-    getJSON<SetupRoutingResp>("/api/routing")
+    getJSON("/api/routing")
       .then((r) => {
         if (!live) return;
         setRoutingInfo(r);
@@ -189,7 +189,7 @@ export function Setup({
       .catch(() => {
         if (live) setRoutingTasks((cur) => (cur.length ? cur : setupTaskSelection(undefined)));
       });
-    getJSON<SetupChainsResp>("/api/chains")
+    getJSON("/api/chains")
       .then((c) => {
         if (live) setChainsInfo(c);
       })
@@ -218,7 +218,7 @@ export function Setup({
   const onChatGPTConnected = useCallback(async () => {
     setBusy(true);
     try {
-      const fresh = await getJSON<SetupCatalog>("/api/catalog").catch(() => null);
+      const fresh = await getJSON("/api/catalog").catch(() => null);
       if (fresh) {
         setCat(fresh);
         const gpt = fresh.providers?.find((p) => p.id === "chatgpt");
@@ -241,14 +241,13 @@ export function Setup({
     setBusy(true);
     try {
       await postJSON("/api/config/set", { name: "AGEZT_PROVIDER", value: picked.id });
-      await postAction("/api/provider/reload", {});
-      const fresh = await getJSON<SetupCatalog>("/api/catalog").catch(() => null);
+      await postJSON("/api/provider/reload", {});
+      const fresh = await getJSON("/api/catalog").catch(() => null);
       if (fresh) {
         setCat(fresh);
         setPicked(fresh.providers?.find((p) => p.id === picked.id) || picked);
       }
-      setProviderReadyText(readyText);
-      setStep("model");
+      setProviderReadyText(readyText);      setStep("model");
     } catch (e) {
       ui.toast((e as Error).message, "error");
     } finally {
@@ -273,8 +272,8 @@ export function Setup({
       try {
         await postJSON("/api/provider/keys/add", { provider: picked.id, env, label: "default", value: key, active: true });
         await postJSON("/api/config/set", { name: "AGEZT_PROVIDER", value: picked.id });
-        await postAction("/api/provider/reload", {});
-        const fresh = await getJSON<SetupCatalog>("/api/catalog").catch(() => null);
+        await postJSON("/api/provider/reload", {});
+        const fresh = await getJSON("/api/catalog").catch(() => null);
         if (fresh) {
           setCat(fresh);
           setPicked(fresh.providers?.find((p) => p.id === picked.id) || picked);

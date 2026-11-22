@@ -5,8 +5,8 @@ import { cn } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { Advanced, Disclosure } from "@/components/ui/disclosure";
 import { ModelPicker } from "@/components/ModelPicker";
-import { isChainRef } from "@/features/workflows/lib/chains";
-import { slugOk, usdToMc, type AgentLifecycle, type AgentProfile, type AgentTask } from "./shared";
+import { isChainRef } from "@/lib/chains";
+import { slugOk, usdToMc, type AgentLifecycle, type AgentProfile, type AgentTask } from "@/lib/agentshared";
 import { agentTaskContractSummary } from "./passports";
 
 function nonNegativeInt(s: string, label: string): number | string {

@@ -4,6 +4,7 @@ package controlplane
 
 import (
 	"github.com/agezt/agezt/kernel/app/binding"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -46,9 +47,9 @@ func TestGatewayPlatformPreservesNativeProviderAndWhatsAppResults(t *testing.T) 
 	defer k.Close()
 	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
-	for _, cmd := range []string{CmdProviderProbe, CmdWhatsAppGatewayStatus, CmdWhatsAppGatewayQR} {
+	for _, cmd := range []string{opapi.ProviderProbe, opapi.WhatsAppGatewayStatus, opapi.WhatsAppGatewayQR} {
 		base := endpoint.URL
-		if cmd == CmdProviderProbe {
+		if cmd == opapi.ProviderProbe {
 			base += "/v1/"
 		}
 		responses := callAppHost(t, s, Request{ID: cmd, Cmd: cmd, Token: "primary", Args: map[string]any{"url": base, "key": " fixture "}})
@@ -57,15 +58,15 @@ func TestGatewayPlatformPreservesNativeProviderAndWhatsAppResults(t *testing.T) 
 			t.Fatalf("%s = %+v", cmd, last)
 		}
 		switch cmd {
-		case CmdProviderProbe:
+		case opapi.ProviderProbe:
 			if last.Result["models"] != float64(2) || last.Result["reachable"] != true || last.Result["authorized"] != true || last.Result["http_status"] != float64(200) {
 				t.Fatalf("probe = %v", last.Result)
 			}
-		case CmdWhatsAppGatewayStatus:
+		case opapi.WhatsAppGatewayStatus:
 			if last.Result["connected"] != true || last.Result["status"] != "WORKING" {
 				t.Fatalf("gateway status = %v", last.Result)
 			}
-		case CmdWhatsAppGatewayQR:
+		case opapi.WhatsAppGatewayQR:
 			if qr, _ := last.Result["qr"].(string); !strings.HasPrefix(qr, "data:image/png;base64,") {
 				t.Fatalf("QR = %v", last.Result)
 			}

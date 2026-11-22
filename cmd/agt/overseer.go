@@ -18,7 +18,7 @@ import (
 
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 // cmdOverseer dispatches `agt overseer <subcommand>` — the CLI gateway to the
@@ -104,7 +104,7 @@ func overseerStatus(stdout, stderr io.Writer) int {
 	if c == nil {
 		return 1
 	}
-	res, err := c.Call(context.TODO(), controlplane.CmdStatus, nil)
+	res, err := c.Call(context.TODO(), opapi.Status, nil)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s: %v\n", brand.CLI, err)
 		return 1
@@ -119,7 +119,7 @@ func overseerAgents(stdout, stderr io.Writer) int {
 	if c == nil {
 		return 1
 	}
-	res, err := c.Call(context.TODO(), controlplane.CmdAgentList, map[string]any{})
+	res, err := c.Call(context.TODO(), opapi.AgentList, map[string]any{})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s: %v\n", brand.CLI, err)
 		return 1
@@ -134,7 +134,7 @@ func overseerRuns(stdout, stderr io.Writer) int {
 	if c == nil {
 		return 1
 	}
-	res, err := c.Call(context.TODO(), controlplane.CmdStatus, nil)
+	res, err := c.Call(context.TODO(), opapi.Status, nil)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s: %v\n", brand.CLI, err)
 		return 1
@@ -149,7 +149,7 @@ func overseerHalt(stdout, stderr io.Writer) int {
 	if c == nil {
 		return 1
 	}
-	res, err := c.Call(context.TODO(), controlplane.CmdHalt, nil)
+	res, err := c.Call(context.TODO(), opapi.Halt, nil)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s: %v\n", brand.CLI, err)
 		return 1
@@ -163,7 +163,7 @@ func overseerResume(stdout, stderr io.Writer) int {
 	if c == nil {
 		return 1
 	}
-	res, err := c.Call(context.TODO(), controlplane.CmdResume, nil)
+	res, err := c.Call(context.TODO(), opapi.Resume, nil)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s: %v\n", brand.CLI, err)
 		return 1
@@ -181,7 +181,7 @@ func overseerCancel(args []string, stdout, stderr io.Writer) int {
 	if c == nil {
 		return 1
 	}
-	res, err := c.Call(context.TODO(), controlplane.CmdCancelRun, map[string]any{"correlation": strings.TrimSpace(args[0])})
+	res, err := c.Call(context.TODO(), opapi.CancelRun, map[string]any{"correlation": strings.TrimSpace(args[0])})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s: %v\n", brand.CLI, err)
 		return 1
@@ -199,7 +199,7 @@ func overseerPauseResume(args []string, stdout, stderr io.Writer, enabled bool) 
 	if c == nil {
 		return 1
 	}
-	res, err := c.Call(context.TODO(), controlplane.CmdAgentSetEnabled, map[string]any{"ref": strings.TrimSpace(args[0]), "enabled": enabled})
+	res, err := c.Call(context.TODO(), opapi.AgentSetEnabled, map[string]any{"ref": strings.TrimSpace(args[0]), "enabled": enabled})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s: %v\n", brand.CLI, err)
 		return 1

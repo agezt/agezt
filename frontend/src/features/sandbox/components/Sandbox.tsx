@@ -81,19 +81,19 @@ function downloadText(name: string, text: string) {
 }
 
 // One file inside a project (name relative to the project root, byte size).
-interface SbFile {
+type SbFile = {
   name: string;
   bytes: number;
-}
+};
 
 // One persistent code_exec project the agent built under <baseDir>/sandbox/projects.
-interface Project {
+type Project = {
   name: string;
   files: SbFile[];
   file_count: number;
   total_bytes: number;
   modified_unix: number;
-}
+};
 
 
 // Sandbox shows what the agents BUILT with the code_exec tool: each persistent
@@ -131,7 +131,7 @@ export function Sandbox() {
   async function reload() {
     setLoading(true);
     try {
-      const d = await getJSON<{ projects?: Project[] }>("/api/sandbox");
+      const d = await getJSON("/api/sandbox");
       setProjects(d.projects || []);
       setErr(null);
     } catch (e) {
@@ -415,7 +415,7 @@ function FileRow({ project, file }: { project: string; file: SbFile }) {
     if (content !== null) return content;
     setLoading(true);
     try {
-      const d = await getJSON<{ content?: string; truncated?: boolean }>("/api/sandbox_file", {
+      const d = await getJSON("/api/sandbox_file", {
         project,
         file: file.name,
       });

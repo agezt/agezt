@@ -61,7 +61,7 @@ describe("useCursorPager", () => {
   it("first page terminal: cursor stays null, hasMore=false", async () => {
     nextResponse = () => ({ items: [row("a"), row("b")], next_cursor: null });
     const { result } = renderHook(() =>
-      useCursorPager<Row>("/api/x", "items", "id", 50),
+      useCursorPager<Row>("/api/journal", "items", "id", 50),
     );
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.paged.map((r) => r.id)).toEqual(["a", "b"]);
@@ -81,7 +81,7 @@ describe("useCursorPager", () => {
       return { items: rows, next_cursor: next };
     };
     const { result } = renderHook(() =>
-      useCursorPager<Row>("/api/x", "items", "id", 50),
+      useCursorPager<Row>("/api/journal", "items", "id", 50),
     );
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.hasMore).toBe(true);
@@ -104,7 +104,7 @@ describe("useCursorPager", () => {
       return { items: [row("a"), row("c")], next_cursor: null };
     };
     const { result } = renderHook(() =>
-      useCursorPager<Row>("/api/x", "items", "id", 50),
+      useCursorPager<Row>("/api/journal", "items", "id", 50),
     );
     await waitFor(() => expect(result.current.loading).toBe(false));
     await act(async () => {
@@ -121,7 +121,7 @@ describe("useCursorPager", () => {
       throw new Error("boom");
     };
     const { result } = renderHook(() =>
-      useCursorPager<Row>("/api/x", "items", "id", 50),
+      useCursorPager<Row>("/api/journal", "items", "id", 50),
     );
     await waitFor(() => expect(result.current.loading).toBe(false));
     // Override the global to make page 2 throw.
@@ -136,7 +136,7 @@ describe("useCursorPager", () => {
   it("forwards extra params (channel, topic) on every request", async () => {
     nextResponse = () => ({ items: [row("a")], next_cursor: "100:1" });
     const { result } = renderHook(() =>
-      useCursorPager<Row>("/api/x", "items", "id", 50, { channel: "telegram", topic: "ops" }),
+      useCursorPager<Row>("/api/journal", "items", "id", 50, { channel: "telegram", topic: "ops" }),
     );
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(messages[0]).toContain("channel=telegram");
@@ -237,7 +237,7 @@ describe("useCursorPager dedup key — absent ids", () => {
             next_cursor: null,
           };
     const { result } = renderHook(() =>
-      useCursorPager<MaybeIdRow>("/api/x", "items", "id", 50),
+      useCursorPager<MaybeIdRow>("/api/journal", "items", "id", 50),
     );
     await waitFor(() => expect(result.current.loading).toBe(false));
     await act(async () => {
@@ -262,7 +262,7 @@ describe("useCursorPager dedup key — absent ids", () => {
             next_cursor: null,
           };
     const { result } = renderHook(() =>
-      useCursorPager<MaybeIdRow>("/api/x", "items", "id", 50),
+      useCursorPager<MaybeIdRow>("/api/journal", "items", "id", 50),
     );
     await waitFor(() => expect(result.current.loading).toBe(false));
     await act(async () => {

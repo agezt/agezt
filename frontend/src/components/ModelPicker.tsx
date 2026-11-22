@@ -10,8 +10,8 @@ import {
   fmtContext,
   type ModelCatalog,
   type ModelOption,
-} from "@/features/models/lib/models";
-import { isChainRef, chainName, chainRef, type ChainsState } from "@/features/workflows/lib/chains";
+} from "@/lib/models";
+import { isChainRef, chainName, chainRef, type ChainsState } from "@/lib/chains";
 
 // PinnedModels is an ordered id list shown as the picker's FIRST group (M931) —
 // e.g. the chat task's routing chain, so the models the run will actually fall
@@ -49,7 +49,7 @@ export function ModelPicker({
   const isRef = isChainRef(value);
   useEffect(() => {
     if (!isRef) return;
-    getJSON<ChainsState>("/api/chains")
+    getJSON("/api/chains")
       .then((c) => setChainCount(c.chains?.[chainName(value)]?.length ?? null))
       .catch(() => setChainCount(null));
   }, [isRef, value]);
@@ -125,14 +125,14 @@ function ModelModal({
   }, [onClose]);
 
   useEffect(() => {
-    getJSON<ModelCatalog>("/api/catalog")
+    getJSON("/api/catalog")
       .then(setCat)
       .catch((e) => setErr((e as Error).message));
   }, []);
 
   useEffect(() => {
     if (!allowChains) return;
-    getJSON<ChainsState>("/api/chains")
+    getJSON("/api/chains")
       .then((c) => {
         setChains(c.chains || {});
         setDefaultChain(c.default || "");

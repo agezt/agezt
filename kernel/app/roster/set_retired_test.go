@@ -188,9 +188,9 @@ func TestRosterSetRetiredOperationsAreAudited(t *testing.T) {
 	for i, want := range []struct {
 		name, path string
 		out        reflect.Type
-	}{{"agent_retire", "/api/agents/retire", reflect.TypeFor[RetireOutput]()}, {"agent_revive", "/api/agents/revive", reflect.TypeFor[ReviveOutput]()}} {
+	}{{opapi.AgentRetire, "/api/agents/retire", reflect.TypeFor[RetireOutput]()}, {opapi.AgentRevive, "/api/agents/revive", reflect.TypeFor[ReviveOutput]()}} {
 		spec := ops[i].Spec()
-		if spec.Name != want.name || spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.Input != reflect.TypeFor[SetRetiredRequest]() || spec.Output != want.out || spec.HTTP != (opapi.HTTP{Method: "POST", Path: want.path}) {
+		if spec.Name != want.name || spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.Input != reflect.TypeFor[SetRetiredRequest]() || spec.Output != want.out {
 			t.Fatal(spec)
 		}
 	}
@@ -200,7 +200,7 @@ func TestRosterSetRetiredOperationsAreAudited(t *testing.T) {
 	}
 	audit := &recordingAudit{fail: errors.New("audit unavailable")}
 	d, _ := app.NewDispatcher(ops, app.Dependencies{Auth: listAuth{opapi.Principal{Kind: opapi.Operator}}, Router: listRoute{}, Audit: audit})
-	for _, name := range []string{"agent_retire", "agent_revive"} {
+	for _, name := range []string{opapi.AgentRetire, "agent_revive"} {
 		if _, err := d.Dispatch(context.Background(), opapi.Caller{}, name, json.RawMessage(`{"ref":"ops"}`), nil); err == nil || err.Error() != "audit unavailable" || calls.steps != nil {
 			t.Fatal("failed audit admission must block the write", name, err, calls.steps)
 		}

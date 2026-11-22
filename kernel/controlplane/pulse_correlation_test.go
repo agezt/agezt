@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -34,7 +34,7 @@ func TestPulse_FiltersByCorrelation(t *testing.T) {
 	)
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- c.StreamUntilCancel(ctx, controlplane.CmdPulseSubscribe,
+		errCh <- c.StreamUntilCancel(ctx, opapi.PulseSubscribe,
 			map[string]any{
 				"pattern":     ">",
 				"correlation": wantCorr,

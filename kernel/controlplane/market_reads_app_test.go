@@ -88,7 +88,7 @@ func marketTypedReply(t *testing.T, ctx context.Context, s *Server, cmd string) 
 func TestMarketTypedNativeLargeIntegersRemainExact(t *testing.T) {
 	k, s, p := marketTypedFixture(t)
 	head, hash := k.Journal().Head()
-	for _, tc := range []struct{ name, cmd, want string }{{"downloads", CmdMarketList, "9007199254740993"}, {"added_ms", CmdMarketSources, "9223372036854775807"}, {"signed_at", CmdMarketShow, "9007199254740993"}, {"created_ms", CmdMarketShow, "9007199254740993"}, {"updated_ms", CmdMarketShow, "9223372036854775807"}, {"installed_at", CmdMarketShow, "9223372036854775807"}} {
+	for _, tc := range []struct{ name, cmd, want string }{{"downloads", opapi.MarketList, "9007199254740993"}, {"added_ms", opapi.MarketSources, "9223372036854775807"}, {"signed_at", opapi.MarketShow, "9007199254740993"}, {"created_ms", opapi.MarketShow, "9007199254740993"}, {"updated_ms", opapi.MarketShow, "9223372036854775807"}, {"installed_at", opapi.MarketShow, "9223372036854775807"}} {
 		t.Run(tc.name, func(t *testing.T) {
 			reply := marketTypedReply(t, context.Background(), s, tc.cmd)
 			if reply["type"] != RespResult {
@@ -120,7 +120,7 @@ func TestMarketTypedNativeLargeIntegersRemainExact(t *testing.T) {
 	}
 }
 func TestMarketTypedNativeCanceledReadAdmission(t *testing.T) {
-	for _, cmd := range []string{CmdMarketList, CmdMarketShow, CmdMarketSources} {
+	for _, cmd := range []string{opapi.MarketList, opapi.MarketShow, opapi.MarketSources} {
 		t.Run(cmd, func(t *testing.T) {
 			k, s, p := marketTypedFixture(t)
 			head, hash := k.Journal().Head()
@@ -138,7 +138,7 @@ func TestMarketTypedNativeCanceledReadAdmission(t *testing.T) {
 
 func TestMarketTypedNativeThreeReadPoliciesAndTypes(t *testing.T) {
 	type signature struct{ input, output reflect.Type }
-	expected := map[string]signature{CmdMarketList: {reflect.TypeFor[appmarket.ListRequest](), reflect.TypeFor[appmarket.ListOutput]()}, CmdMarketShow: {reflect.TypeFor[appmarket.ShowRequest](), reflect.TypeFor[appmarket.ShowOutput]()}, CmdMarketSources: {reflect.TypeFor[appmarket.SourcesInput](), reflect.TypeFor[appmarket.SourcesOutput]()}}
+	expected := map[string]signature{opapi.MarketList: {reflect.TypeFor[appmarket.ListRequest](), reflect.TypeFor[appmarket.ListOutput]()}, opapi.MarketShow: {reflect.TypeFor[appmarket.ShowRequest](), reflect.TypeFor[appmarket.ShowOutput]()}, opapi.MarketSources: {reflect.TypeFor[appmarket.SourcesInput](), reflect.TypeFor[appmarket.SourcesOutput]()}}
 	seen := map[string]int{}
 	for _, operation := range registeredAppOperations() {
 		spec := operation.Spec()

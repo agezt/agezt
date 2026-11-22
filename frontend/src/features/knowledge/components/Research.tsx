@@ -13,15 +13,25 @@ import { Button } from "@/components/ui/button";
 import { postJSON } from "@/app/api";
 import { cn, fmtTime } from "@/app/utils/utils";
 import { useUI } from "@/components/ui/feedback";
+import type { ResearchAskResponse } from "@/app/api/types.generated";
 
+// ResearchResult is the browser's view of the daemon's answer to
+// /api/research/ask. The daemon names the answer `markdown`, sends the
+// sub-questions as plain strings, and gives every claim a verdict
+// (supported / refuted / uncertain). The panel used to read `answer`,
+// `sub_questions[].question` and `verified_claims[].verified` — none of which
+// the daemon sends, so every section of it rendered empty.
 interface ResearchResult {
-  answer?: string;
-  sub_questions?: { id?: string; question?: string; answer?: string }[];
-  sources?: { id?: string; title?: string; url?: string; snippet?: string; confidence?: number }[];
-  verified_claims?: { claim?: string; verified?: boolean; sources?: string[] }[];
-  transcript?: string[];
-  duration_ms?: number;
-  [k: string]: unknown;
+  markdown?: ResearchAskResponse["markdown"];
+  sub_questions?: ResearchAskResponse["sub_questions"];
+  sources?: ResearchAskResponse["sources"];
+  claims?: ResearchAskResponse["claims"];
+  notes?: ResearchAskResponse["notes"];
+  confidence?: ResearchAskResponse["confidence"];
+  cited_sources?: ResearchAskResponse["cited_sources"];
+  question?: ResearchAskResponse["question"];
+  verified?: ResearchAskResponse["verified"];
+  correlation_id?: ResearchAskResponse["correlation_id"];
 }
 
 const DEFAULT_RESULT: ResearchResult = {};
@@ -42,7 +52,7 @@ export function Research() {
     if (!q) return;
     setBusy(true);
     try {
-      const r = await postJSON<ResearchResult>("/api/research/ask", {
+      const r = await postJSON("/api/research/ask", {
         question: q,
         max_sub_questions: maxSub,
         max_sources: maxSources,
@@ -183,9 +193,9 @@ function Result({ result, busy }: { result: ResearchResult; busy: boolean }) {
   }
   const subQuestions = result.sub_questions || [];
   const sources = result.sources || [];
-  const claims = result.verified_claims || [];
+  const claims = result.claims || [];
 
-  if (!result.answer && subQuestions.length === 0 && sources.length === 0) {
+  if (!result.markdown && subQuestions.length === 0 && sources.length === 0) {
     return (
       <div className="flex h-64 items-center justify-center rounded-lg border border-dashed border-border bg-card">
         <p className="text-sm text-muted">
@@ -197,17 +207,12 @@ function Result({ result, busy }: { result: ResearchResult; busy: boolean }) {
 
   return (
     <div className="flex flex-col gap-4 overflow-auto pb-8">
-      {result.answer && (
+      {result.markdown && (
         <section className="rounded-lg border border-border bg-card p-4">
           <h3 className="text-sm font-semibold text-fg">Answer</h3>
           <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-fg/90">
-            {result.answer}
+            {result.markdown}
           </p>
-          {typeof result.duration_ms === "number" && (
-            <p className="mt-2 text-[10px] uppercase tracking-wide text-muted">
-              Composed in {(result.duration_ms / 1000).toFixed(1)}s
-            </p>
-          )}
         </section>
       )}
 
@@ -216,13 +221,10 @@ function Result({ result, busy }: { result: ResearchResult; busy: boolean }) {
           <ul className="flex flex-col gap-2">
             {subQuestions.map((sq, i) => (
               <li
-                key={sq.id || i}
+                key={i}
                 className="rounded-md border border-border bg-bg/60 px-3 py-2 text-sm text-fg"
               >
-                <p className="font-medium">{sq.question || `Sub-question ${i + 1}`}</p>
-                {sq.answer && (
-                  <p className="mt-1 text-xs leading-relaxed text-fg/80">{sq.answer}</p>
-                )}
+                <p className="font-medium">{sq}</p>
               </li>
             ))}
           </ul>
@@ -244,13 +246,8 @@ function Result({ result, busy }: { result: ResearchResult; busy: boolean }) {
                 {s.url && (
                   <p className="mt-1 truncate text-[10px] text-muted">{s.url}</p>
                 )}
-                {s.snippet && (
-                  <p className="mt-1 line-clamp-3 text-fg/80">{s.snippet}</p>
-                )}
-                {typeof s.confidence === "number" && (
-                  <p className="mt-1 text-[10px] uppercase tracking-wide text-muted">
-                    confidence {(s.confidence * 100).toFixed(0)}%
-                  </p>
+                {s.hash && (
+                  <p className="mt-1 truncate font-mono text-[10px] text-muted">{s.hash}</p>
                 )}
               </li>
             ))}
@@ -266,16 +263,16 @@ function Result({ result, busy }: { result: ResearchResult; busy: boolean }) {
                 key={i}
                 className={cn(
                   "flex items-start gap-2 rounded-md border px-3 py-2 text-xs",
-                  c.verified
+                  c.verdict === "supported"
                     ? "border-success/30 bg-success/5 text-fg"
                     : "border-warning/30 bg-warning/5 text-fg",
                 )}
               >
-                <ChevronRow verified={c.verified} />
-                <span className="flex-1">{c.claim}</span>
-                {c.sources && c.sources.length > 0 && (
+                <ChevronRow verified={c.verdict === "supported"} />
+                <span className="flex-1">{c.text}</span>
+                {c.source_ids && c.source_ids.length > 0 && (
                   <span className="text-[10px] uppercase tracking-wide text-muted">
-                    {c.sources.length} source{c.sources.length === 1 ? "" : "s"}
+                    {c.source_ids.length} source{c.source_ids.length === 1 ? "" : "s"}
                   </span>
                 )}
               </li>
@@ -284,7 +281,7 @@ function Result({ result, busy }: { result: ResearchResult; busy: boolean }) {
         </Section>
       )}
 
-      {result.transcript && result.transcript.length > 0 && <TranscriptView lines={result.transcript} />}
+      {result.notes && result.notes.length > 0 && <TranscriptView lines={result.notes} />}
     </div>
   );
 }

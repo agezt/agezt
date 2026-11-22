@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Gauge, Scissors, Sparkles, X } from "lucide-react";
 import { cn } from "@/app/utils";
 import { fmtCount } from "@/app/format";
-import { findModelContext, fmtContext, type ModelCatalog } from "@/features/models/lib/models";
+import { findModelContext, fmtContext, type ModelCatalog } from "@/lib/models";
 import { getJSON } from "@/app/api";
 import { CHARS_PER_TOKEN, contextTokensUsed, type ChatTurn, type TurnCompaction } from "@/lib/chat";
 
@@ -11,7 +11,7 @@ import { CHARS_PER_TOKEN, contextTokensUsed, type ChatTurn, type TurnCompaction 
 let catalogPromise: Promise<ModelCatalog> | null = null;
 function loadCatalog(): Promise<ModelCatalog> {
   if (!catalogPromise) {
-    catalogPromise = getJSON<ModelCatalog>("/api/catalog").catch(() => {
+    catalogPromise = getJSON("/api/catalog").catch(() => {
       catalogPromise = null; // transient failure — let a later chip retry
       return {} as ModelCatalog;
     });

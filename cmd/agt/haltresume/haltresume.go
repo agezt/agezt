@@ -16,7 +16,7 @@ import (
 
 	"github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 // Halt is `agt halt [--reason "..."] [--json]`. It cancels every
@@ -80,9 +80,9 @@ func run(action string, args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	cmd := controlplane.CmdHalt
+	cmd := opapi.Halt
 	if action == "resume" {
-		cmd = controlplane.CmdResume
+		cmd = opapi.Resume
 	}
 	callArgs := map[string]any{}
 	if reason != "" {

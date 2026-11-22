@@ -762,7 +762,7 @@ describe("AgentDetail lifecycle intervention", () => {
   });
 
   it("can wake a directly callable agent from the identity header", async () => {
-    postAction.mockResolvedValueOnce({ accepted: true, agent: "ops", correlation_id: "wake-1" });
+    postJSON.mockResolvedValueOnce({ accepted: true, agent: "ops", correlation_id: "wake-1" });
     render(
       withUI(
         <AgentDetail
@@ -781,7 +781,7 @@ describe("AgentDetail lifecycle intervention", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Wake ops" }));
     await waitFor(() =>
-      expect(postAction).toHaveBeenCalledWith("/api/agents/wake", {
+      expect(postJSON).toHaveBeenCalledWith("/api/agents/wake", {
         ref: "ops",
         reason: "manual operator wake",
       }),
@@ -1065,7 +1065,7 @@ describe("AgentDetail lifecycle intervention", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Open wake owner lead" }));
     expect(location.hash).toBe("#agent/lead");
     fireEvent.click(wake);
-    expect(postAction).not.toHaveBeenCalledWith("/api/agents/wake", expect.anything());
+    expect(postJSON).not.toHaveBeenCalledWith("/api/agents/wake", expect.anything());
   });
 
   it("surfaces the active run in the Now panel and focuses it on Activity", async () => {

@@ -106,7 +106,7 @@ func TestOperations(t *testing.T) {
 		t.Fatal(ops, err)
 	}
 	spec := ops[0].Spec()
-	if spec.Name != "reaper_scan" || !spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.HTTP != (opapi.HTTP{Method: "GET", Path: "/api/reaper/scan"}) {
+	if spec.Name != "reaper_scan" || !spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput {
 		t.Fatal(spec)
 	}
 	out, _ := svc.Scan(context.Background(), ScanRequest{})

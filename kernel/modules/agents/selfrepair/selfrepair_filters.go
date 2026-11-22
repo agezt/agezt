@@ -8,7 +8,6 @@ import (
 
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
-	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 )
 
 func autoRepairShouldHandle(ev *event.Event) bool {
@@ -36,12 +35,12 @@ func autoRepairMaxAttempts(p roster.Profile) int {
 	}
 	return p.SelfRepairPolicy.MaxAttempts
 }
-func previousAutoRepairAttempts(k *kernelruntime.Kernel, slug, fingerprint string) int {
-	if k == nil || k.Journal() == nil || strings.TrimSpace(slug) == "" || strings.TrimSpace(fingerprint) == "" {
+func previousAutoRepairAttempts(ports Ports, slug, fingerprint string) int {
+	if ports.Journal == nil || strings.TrimSpace(slug) == "" || strings.TrimSpace(fingerprint) == "" {
 		return 0
 	}
 	count := 0
-	_ = k.Journal().Range(func(e *event.Event) error {
+	_ = ports.journalRange(func(e *event.Event) error {
 		if e.Kind != event.KindInfo || e.Subject != autoRepairEventSubject {
 			return nil
 		}

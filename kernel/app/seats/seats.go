@@ -168,19 +168,19 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 	if err != nil {
 		return nil, err
 	}
-	listOp, err := app.NewOperation(opapi.Spec{Name: "seat_list", ReadOnly: true, OutputSchema: listOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true}, func(ctx context.Context, in ListRequest) (ListOutput, error) {
+	listOp, err := app.NewOperation(opapi.Spec{Name: opapi.SeatList, ReadOnly: true, OutputSchema: listOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true}, func(ctx context.Context, in ListRequest) (ListOutput, error) {
 		return provider(ctx).List(ctx, in)
 	})
 	if err != nil {
 		return nil, err
 	}
-	createOp, err := app.NewOperation(opapi.Spec{Name: "seat_create", OutputSchema: seatOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"id":{},"name":{},"description":{},"execution_profile":{},"model_chain":{},"tools":{},"restrict_tools":{}}}`)}, func(ctx context.Context, in CreateRequest) (SeatOutput, error) {
+	createOp, err := app.NewOperation(opapi.Spec{Name: opapi.SeatCreate, OutputSchema: seatOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"id":{},"name":{},"description":{},"execution_profile":{},"model_chain":{},"tools":{},"restrict_tools":{}}}`)}, func(ctx context.Context, in CreateRequest) (SeatOutput, error) {
 		return provider(ctx).Create(ctx, in)
 	})
 	if err != nil {
 		return nil, err
 	}
-	deleteOp, err := app.NewOperation(opapi.Spec{Name: "seat_delete", OutputSchema: deleteOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"id":{}}}`)}, func(ctx context.Context, in DeleteRequest) (DeleteOutput, error) {
+	deleteOp, err := app.NewOperation(opapi.Spec{Name: opapi.SeatDelete, OutputSchema: deleteOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"id":{}}}`)}, func(ctx context.Context, in DeleteRequest) (DeleteOutput, error) {
 		return provider(ctx).Delete(ctx, in)
 	})
 	if err != nil {

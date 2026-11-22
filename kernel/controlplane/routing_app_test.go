@@ -5,6 +5,7 @@ package controlplane
 import (
 	"encoding/json"
 	"github.com/agezt/agezt/kernel/app/binding"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -53,10 +54,10 @@ func TestRoutingBindsTheKernel(t *testing.T) {
 		}
 		return string(raw)
 	}
-	if got := result(CmdChainsSet, map[string]any{"chains": map[string]any{"fast": []any{"known", "mock/known", "zz"}}, "default": "fast"}); got != `{"applied":"live","chain_count":1,"default":"fast","saved":true,"unknown_models":["zz"]}` {
+	if got := result(opapi.ChainsSet, map[string]any{"chains": map[string]any{"fast": []any{"known", "mock/known", "zz"}}, "default": "fast"}); got != `{"applied":"live","chain_count":1,"default":"fast","saved":true,"unknown_models":["zz"]}` {
 		t.Fatal(got)
 	}
-	if got := result(CmdRoutingSet, map[string]any{"chains": map[string]any{"code": []any{"@fast"}}}); got != `{"applied":"live","saved":true,"task_count":1,"unknown_models":["@fast"]}` {
+	if got := result(opapi.RoutingSet, map[string]any{"chains": map[string]any{"code": []any{"@fast"}}}); got != `{"applied":"live","saved":true,"task_count":1,"unknown_models":["@fast"]}` {
 		t.Fatal(got)
 	}
 	chains, def := gov.FallbackChainsView()
@@ -72,13 +73,13 @@ func TestRoutingBindsTheKernel(t *testing.T) {
 			t.Fatalf("%s persisted %q under %s", name, got, filepath.Join(base, settings.FileName))
 		}
 	}
-	if got := result(CmdChainsGet, nil); got != `{"chains":{"fast":["known","mock/known","zz"]},"default":"fast","usage":{"fast":{"agents":["amy"],"default":true,"tasks":["code"]}}}` {
+	if got := result(opapi.ChainsGet, nil); got != `{"chains":{"fast":["known","mock/known","zz"]},"default":"fast","usage":{"fast":{"agents":["amy"],"default":true,"tasks":["code"]}}}` {
 		t.Fatal(got)
 	}
-	if got := result(CmdRoutingGet, nil); got != `{"activity":{},"chains":{"code":["@fast"]},"task_types":["chat","plan","code","verify","summarize","salience","distill","forge","shadow-eval","delegate"]}` {
+	if got := result(opapi.RoutingGet, nil); got != `{"activity":{},"chains":{"code":["@fast"]},"task_types":["chat","plan","code","verify","summarize","salience","distill","forge","shadow-eval","delegate"]}` {
 		t.Fatal(got)
 	}
-	for cmd, read := range map[string]bool{CmdRoutingGet: true, CmdRoutingSet: false, CmdChainsGet: true, CmdChainsSet: false} {
+	for cmd, read := range map[string]bool{opapi.RoutingGet: true, opapi.RoutingSet: false, opapi.ChainsGet: true, opapi.ChainsSet: false} {
 		if wire, exists := commandRegistry[cmd]; !exists || !wire.AppOwned || wire.ReadOnly != read || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone {
 			t.Fatalf("%s native wire %+v", cmd, wire)
 		}

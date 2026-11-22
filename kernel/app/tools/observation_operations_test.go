@@ -64,7 +64,7 @@ func TestToolObservationTypedAdmissionCodecsClockAndNoAudit(t *testing.T) {
 	beforeProviders, beforeReads := providers, port.reads
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	for _, name := range []string{"tool_log", "tool_stats"} {
+	for _, name := range []string{opapi.ToolLog, "tool_stats"} {
 		if _, err := d.Dispatch(ctx, caller, name, json.RawMessage(`{}`), nil); err != context.Canceled {
 			t.Fatal(name, err)
 		}

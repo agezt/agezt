@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/approval"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -36,7 +36,7 @@ func TestApprovalsLog_JoinsRequestAndOutcome(t *testing.T) {
 	resolved("a2", event.KindApprovalDenied, "bob")
 	reqd("a3", "fs", "file") // pending
 
-	res, err := c.Call(context.Background(), controlplane.CmdApprovalsLog, nil)
+	res, err := c.Call(context.Background(), opapi.ApprovalsLog, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +57,7 @@ func TestApprovalsLog_JoinsRequestAndOutcome(t *testing.T) {
 	}
 
 	// --denied → only a2.
-	dres, err := c.Call(context.Background(), controlplane.CmdApprovalsLog,
+	dres, err := c.Call(context.Background(), opapi.ApprovalsLog,
 		map[string]any{"denied": true})
 	if err != nil {
 		t.Fatal(err)
@@ -96,7 +96,7 @@ func TestApprovalsStats_Aggregates(t *testing.T) {
 	res2("a3", event.KindApprovalGranted)
 	reqd("a4", "shell") // pending
 
-	res, err := c.Call(context.Background(), controlplane.CmdApprovalsStats, nil)
+	res, err := c.Call(context.Background(), opapi.ApprovalsStats, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -161,7 +161,7 @@ func TestApprovals_PendingIncludesIntentAndEffectMetadata(t *testing.T) {
 		}
 	})
 
-	res, err := c.Call(context.Background(), controlplane.CmdApprovals, nil)
+	res, err := c.Call(context.Background(), opapi.Approvals, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

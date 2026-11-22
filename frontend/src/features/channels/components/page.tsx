@@ -16,7 +16,7 @@ import { Page } from "@/components/ui/page";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ApiKeyField } from "@/features/api-keys";
+import { ApiKeyField } from "@/components/apikeys/index";
 import { Badge } from "@/components/ui/badge";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { useUI } from "@/components/ui/feedback";
@@ -166,17 +166,17 @@ export function ConnectForm({
     }
     setOAuth((o) => ({ ...o, busy: true, status: "Opening provider…", error: undefined }));
     try {
-      const r = await postJSON<{ authorize_url?: string; state?: string; error?: string }>("/api/channel/oauth/start", {
+      const r = await postJSON("/api/channel/oauth/start", {
         kind: row.kind, label: lbl, client_id: clientId, client_secret: clientSecret,
         redirect_uri: redirectURI, instance_url: oauth.instance.trim(),
       });
-      if (!r.authorize_url || !r.state) throw new Error(r.error || "could not start OAuth");
+      if (!r.authorize_url || !r.state) throw new Error("could not start OAuth");
       window.open(r.authorize_url, "_blank", "noopener,noreferrer");
       setOAuth((o) => ({ ...o, status: "Waiting for you to authorize in the new tab…" }));
       // Poll the flow status until it resolves (or ~2.5 min timeout).
       for (let i = 0; i < 75; i++) {
         await new Promise((res) => setTimeout(res, 2000));
-        const st = await postJSON<{ status?: string; error?: string }>("/api/channel/oauth/status", { state: r.state });
+        const st = await postJSON("/api/channel/oauth/status", { state: r.state });
         if (st.status === "done") {
           ui.toast(`Connected ${row.display}${lbl ? ` · ${lbl}` : ""} — restart to apply`, "success");
           setOAuth((o) => ({ ...o, busy: false, status: "Connected ✓" }));
@@ -202,7 +202,7 @@ export function ConnectForm({
   async function checkGateway() {
     setGw({ checking: true });
     try {
-      const r = await postJSON<{ ok: boolean; connected?: boolean; status?: string; error?: string }>("/api/whatsappgw/status", gwArgs());
+      const r = await postJSON("/api/whatsappgw/status", gwArgs());
       setGw({ connected: r.connected, status: r.status, error: r.ok ? undefined : r.error || "probe failed" });
     } catch (e) {
       setGw({ error: (e as Error).message });
@@ -211,7 +211,7 @@ export function ConnectForm({
   async function showQR() {
     setQR({ loading: true });
     try {
-      const r = await postJSON<{ ok: boolean; qr?: string; error?: string }>("/api/whatsappgw/qr", gwArgs());
+      const r = await postJSON("/api/whatsappgw/qr", gwArgs());
       setQR(r.ok && r.qr ? { img: r.qr } : { error: r.error || "no QR available" });
     } catch (e) {
       setQR({ error: (e as Error).message });
@@ -582,7 +582,7 @@ export function Channels() {
 
   async function load() {
     try {
-      const res = await getJSON<{ channels: ChannelRow[] }>("/api/channels");
+      const res = await getJSON("/api/channels");
       setRows(res.channels || []);
       setErr("");
     } catch (e) {

@@ -11,14 +11,12 @@ package selfrepair
 import (
 	"context"
 	"fmt"
-	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/contract/boardapi"
-	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 	"strings"
 	"time"
 )
 
-func (c *autoRepairCoordinator) applyDelegatedResolution(ctx context.Context, k *kernelruntime.Kernel, b *bus.Bus, mailbox Mailbox, postNotify func(boardapi.Message, string), cand autoRepairCandidate, wake autoRepairWakeResult) error {
+func (c *autoRepairCoordinator) applyDelegatedResolution(ctx context.Context, ports Ports, mailbox Mailbox, postNotify func(boardapi.Message, string), cand autoRepairCandidate, wake autoRepairWakeResult) error {
 	target := strings.TrimSpace(wake.Resolution.DelegateTo)
 	if target == "" {
 		return fmt.Errorf("delegated resolution is missing delegate_to")
@@ -40,7 +38,7 @@ func (c *autoRepairCoordinator) applyDelegatedResolution(ctx context.Context, k 
 		postNotify(msg, wake.Correlation)
 	}
 	childIncidentID := autoRepairChildIncidentID(cand, target, c.now())
-	publishAutoRepair(b, wake.Correlation, map[string]any{
+	publishAutoRepair(ports.Bus, wake.Correlation, map[string]any{
 		"phase":              "delegation_queued",
 		"agent":              cand.Slug,
 		"mode":               cand.Mode,
@@ -58,7 +56,7 @@ func (c *autoRepairCoordinator) applyDelegatedResolution(ctx context.Context, k 
 		"resolution_summary": wake.Resolution.Summary,
 		"delegate_to":        target,
 	})
-	res, wakeErr := autoRepairWakeAgent(ctx, k, autoRepairCandidate{
+	res, wakeErr := autoRepairWakeAgent(ctx, ports, autoRepairCandidate{
 		Slug:        cand.Slug,
 		Mode:        cand.Mode,
 		Reason:      autoRepairDelegationReason(cand, wake),
@@ -71,7 +69,7 @@ func (c *autoRepairCoordinator) applyDelegatedResolution(ctx context.Context, k 
 		ParentHopID: autoRepairIncidentIDValue(cand),
 	}, &msg)
 	if wakeErr != nil {
-		publishAutoRepair(b, res.Correlation, map[string]any{
+		publishAutoRepair(ports.Bus, res.Correlation, map[string]any{
 			"phase":              "delegation_failed",
 			"agent":              cand.Slug,
 			"mode":               cand.Mode,
@@ -93,7 +91,7 @@ func (c *autoRepairCoordinator) applyDelegatedResolution(ctx context.Context, k 
 		return wakeErr
 	}
 	if res.Skipped != "" {
-		publishAutoRepair(b, "", map[string]any{
+		publishAutoRepair(ports.Bus, "", map[string]any{
 			"phase":              "delegation_failed",
 			"agent":              cand.Slug,
 			"mode":               cand.Mode,
@@ -114,7 +112,7 @@ func (c *autoRepairCoordinator) applyDelegatedResolution(ctx context.Context, k 
 		})
 		return nil
 	}
-	publishAutoRepair(b, res.Correlation, map[string]any{
+	publishAutoRepair(ports.Bus, res.Correlation, map[string]any{
 		"phase":              "delegation_woke",
 		"agent":              cand.Slug,
 		"mode":               cand.Mode,

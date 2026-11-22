@@ -77,7 +77,7 @@ func TestRedactionOperations(t *testing.T) {
 		t.Fatal(ops, err)
 	}
 	spec := ops[0].Spec()
-	if spec.Name != "redact_test" || !spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.HTTP != (opapi.HTTP{Method: "POST", Path: "/api/redact/test"}) {
+	if spec.Name != "redact_test" || !spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput {
 		t.Fatal(spec)
 	}
 	out, _ := svc.Test(context.Background(), TestRequest{})

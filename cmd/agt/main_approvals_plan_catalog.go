@@ -13,7 +13,7 @@ import (
 
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdCatalog(args []string, stdout, stderr io.Writer) int {
@@ -21,21 +21,11 @@ func cmdCatalog(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s catalog: subcommand required: sync|list|discover\n", brand.CLI)
 		return 2
 	}
-	switch args[0] {
-	case "sync":
-		return cmdCatalogSync(args[1:], stdout, stderr)
-	case "discover":
-		callArgs := map[string]any{}
-		if len(args) > 1 {
-			callArgs["endpoint"] = args[1]
-		}
-		return cmdSimple(controlplane.CmdCatalogDiscover, callArgs, stdout, stderr)
-	case "list":
-		return cmdCatalogList(args[1:], stdout, stderr)
-	default:
-		fmt.Fprintf(stderr, "%s catalog: unknown subcommand %q\n", brand.CLI, args[0])
-		return 2
+	if sub, ok := cliCatalog.lookup(args[0]); ok {
+		return sub.run(nil, args, stdout, stderr)
 	}
+	fmt.Fprintf(stderr, "%s catalog: unknown subcommand %q\n", brand.CLI, args[0])
+	return 2
 }
 func cmdCatalogList(args []string, stdout, stderr io.Writer) int {
 	asJSON := false
@@ -59,7 +49,7 @@ func cmdCatalogList(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdCatalogList, nil)
+	res, err := c.Call(ctx, opapi.CatalogList, nil)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s catalog list: %v\n", brand.CLI, err)
 		return 1

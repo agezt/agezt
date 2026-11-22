@@ -84,12 +84,12 @@ export type FleetEntityFilter = "all" | FleetKind | "running" | "guardians" | "g
 // Loose mirrors of the list-endpoint JSON. Extra fields are ignored; missing
 // optional ones degrade gracefully.
 
-export interface FleetRun {
+export type FleetRun = {
   correlation_id?: string;
   status?: string;
   agent?: string;
   started_unix_ms?: number;
-}
+};
 
 export interface ApiProfile {
   slug: string;
@@ -149,11 +149,11 @@ export interface ApiProfile {
   };
 }
 
-interface ApiTrigger {
+type ApiTrigger = {
   type?: string;
   schedule?: string;
   subject?: string;
-}
+};
 
 export interface ApiOrder {
   id: string;
@@ -165,7 +165,7 @@ export interface ApiOrder {
   initiative?: { mode?: string };
 }
 
-export interface ApiSchedule {
+export type ApiSchedule = {
   id: string;
   intent?: string;
   model?: string;
@@ -174,7 +174,7 @@ export interface ApiSchedule {
   workflow?: string;
   system_task?: string;
   tool?: string;
-  payload?: unknown;
+  payload?: any;
   cadence?: string;
   mode?: string;
   interval_sec?: number;
@@ -183,7 +183,7 @@ export interface ApiSchedule {
   next_run_unix?: number;
   last_status?: string;
   fires?: number;
-}
+};
 
 export interface ApiWorkflow {
   id?: string;

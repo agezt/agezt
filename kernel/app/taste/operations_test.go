@@ -52,7 +52,7 @@ func TestTasteSpecsRetainNativePolicyAndActualSchemas(t *testing.T) {
 	for _, op := range ops {
 		spec := op.Spec()
 		read, found := want[spec.Name]
-		if !found || seen[spec.Name] || spec.ReadOnly != read || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || spec.Stream != opapi.StreamNone || !spec.AllowUnknownInput || spec.HTTP.Method != "" || spec.HTTP.Path != "" {
+		if !found || seen[spec.Name] || spec.ReadOnly != read || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || spec.Stream != opapi.StreamNone || !spec.AllowUnknownInput {
 			t.Fatalf("metadata=%+v", spec)
 		}
 		seen[spec.Name] = true

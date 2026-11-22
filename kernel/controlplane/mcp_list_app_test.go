@@ -50,7 +50,7 @@ func mcpListReply(t *testing.T, ctx context.Context, s *Server) map[string]any {
 	done := make(chan struct{})
 	go func() { defer close(done); s.handleConn(ctx, conn) }()
 	client.SetDeadline(time.Now().Add(3 * time.Second))
-	raw, _ := json.Marshal(Request{ID: "owned", Cmd: CmdMCPList, Token: "primary", Args: map[string]any{"tenant": "spoof", "unknown": true}})
+	raw, _ := json.Marshal(Request{ID: "owned", Cmd: opapi.MCPList, Token: "primary", Args: map[string]any{"tenant": "spoof", "unknown": true}})
 	if _, err := client.Write(append(raw, 10)); err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +107,7 @@ func TestMCPListNativeReadPolicyComesFromOneTypedOperation(t *testing.T) {
 	seen := 0
 	for _, op := range registeredAppOperations() {
 		spec := op.Spec()
-		if spec.Name != CmdMCPList {
+		if spec.Name != opapi.MCPList {
 			continue
 		}
 		wire, ok := commandRegistry[spec.Name]

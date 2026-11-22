@@ -111,13 +111,13 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 	if err != nil {
 		return nil, err
 	}
-	list, err := app.NewOperation(opapi.Spec{Name: "state_list", ReadOnly: true, OutputSchema: listOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"namespace":{}}}`)}, func(ctx context.Context, in ListRequest) (ListOutput, error) {
+	list, err := app.NewOperation(opapi.Spec{Name: opapi.StateList, ReadOnly: true, OutputSchema: listOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"namespace":{}}}`)}, func(ctx context.Context, in ListRequest) (ListOutput, error) {
 		return provider(ctx).List(ctx, in)
 	})
 	if err != nil {
 		return nil, err
 	}
-	get, err := app.NewOperation(opapi.Spec{Name: "state_get", ReadOnly: true, OutputSchema: getOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"namespace":{},"key":{}}}`)}, func(ctx context.Context, in GetRequest) (GetOutput, error) {
+	get, err := app.NewOperation(opapi.Spec{Name: opapi.StateGet, ReadOnly: true, OutputSchema: getOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"namespace":{},"key":{}}}`)}, func(ctx context.Context, in GetRequest) (GetOutput, error) {
 		return provider(ctx).Get(ctx, in)
 	})
 	if err != nil {

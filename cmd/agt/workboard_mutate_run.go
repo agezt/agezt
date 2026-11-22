@@ -13,7 +13,7 @@ import (
 
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdWorkboardSweep(args []string, stdout, stderr io.Writer) int {
@@ -57,7 +57,7 @@ func cmdWorkboardSweep(args []string, stdout, stderr io.Writer) int {
 			return 2
 		}
 	}
-	res, code := callWorkboard(controlplane.CmdWorkboardSweep, callArgs, stderr)
+	res, code := callWorkboard(opapi.WorkboardSweep, callArgs, stderr)
 	if code != 0 {
 		return code
 	}
@@ -109,7 +109,7 @@ func cmdWorkboardDispatch(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	callArgs["id"] = id
-	res, code := callWorkboard(controlplane.CmdWorkboardDispatch, callArgs, stderr)
+	res, code := callWorkboard(opapi.WorkboardDispatch, callArgs, stderr)
 	if code != 0 {
 		return code
 	}
@@ -179,7 +179,7 @@ func cmdWorkboardWatch(args []string, stdout, stderr io.Writer) int {
 	}
 	callArgs["id"] = id
 	for {
-		res, code := callWorkboard(controlplane.CmdWorkboardWatch, callArgs, stderr)
+		res, code := callWorkboard(opapi.WorkboardWatch, callArgs, stderr)
 		if code != 0 {
 			return code
 		}

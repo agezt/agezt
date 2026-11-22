@@ -15,7 +15,7 @@ import (
 
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdRuns(args []string, stdout, stderr io.Writer) int {
@@ -23,44 +23,11 @@ func cmdRuns(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s runs: subcommand required (list|show)\n", brand.CLI)
 		return 2
 	}
-	switch args[0] {
-	case "list":
-		return cmdRunsList(args[1:], stdout, stderr)
-	case "show":
-		return cmdRunsShow(args[1:], stdout, stderr)
-	case "last":
-		return cmdRunsLast(args[1:], stdout, stderr)
-	case "stats":
-		return cmdRunsStats(args[1:], stdout, stderr)
-	case "cancel":
-		return cmdRunsCancel(args[1:], stdout, stderr)
-	case "pause":
-		return cmdRunsSteerVerb(controlplane.CmdRunPause, "pause", args[1:], stdout, stderr)
-	case "resume":
-		return cmdRunsSteerVerb(controlplane.CmdRunResume, "resume", args[1:], stdout, stderr)
-	case "step":
-		return cmdRunsSteerVerb(controlplane.CmdRunStep, "step", args[1:], stdout, stderr)
-	case "steer":
-		return cmdRunsSteer(args[1:], stdout, stderr)
-	case "intervene":
-		return cmdRunsIntervene(args[1:], stdout, stderr)
-	case "-h", "--help", "help":
-		fmt.Fprintf(stdout, "usage: %s runs <subcommand>\n", brand.CLI)
-		fmt.Fprintf(stdout, "  list [N] [--json]            show the last N agent runs (default 20)\n")
-		fmt.Fprintf(stdout, "  show <correlation> [--json]  render one run as a task arc\n")
-		fmt.Fprintf(stdout, "  last [--json]                shorthand for show <newest correlation>\n")
-		fmt.Fprintf(stdout, "  stats [--json]               aggregate run health (counts, success rate, durations)\n")
-		fmt.Fprintf(stdout, "  cancel <correlation>         cancel one in-flight run (→ failed/canceled)\n")
-		fmt.Fprintf(stdout, "  pause <correlation>          park a live run at its next iteration boundary\n")
-		fmt.Fprintf(stdout, "  resume <correlation>         let a paused run continue\n")
-		fmt.Fprintf(stdout, "  step <correlation>           advance a run one iteration, then re-pause\n")
-		fmt.Fprintf(stdout, "  steer <correlation> <text>   inject an operator directive into a live run\n")
-		fmt.Fprintf(stdout, "  intervene <primitive> <correlation> [text] [--lease <dur>] [--key <id>]\n")
-		return 0
-	default:
-		fmt.Fprintf(stderr, "%s runs: unknown subcommand %q (list|show|last|stats|cancel|pause|resume|step|steer|intervene)\n", brand.CLI, args[0])
-		return 2
+	if sub, ok := cliRuns.lookup(args[0]); ok {
+		return sub.run(nil, args, stdout, stderr)
 	}
+	fmt.Fprintf(stderr, "%s runs: unknown subcommand %q (list|show|last|stats|cancel|pause|resume|step|steer|intervene)\n", brand.CLI, args[0])
+	return 2
 }
 func cmdRunsSteerVerb(cmd, verb string, args []string, stdout, stderr io.Writer) int {
 	asJSON := false
@@ -138,7 +105,7 @@ func cmdRunsSteer(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdRunSteer, map[string]any{"correlation": corr, "directive": directive})
+	res, err := c.Call(ctx, opapi.RunSteer, map[string]any{"correlation": corr, "directive": directive})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s runs steer: %v\n", brand.CLI, err)
 		return 1

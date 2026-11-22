@@ -12,12 +12,11 @@ import (
 	"fmt"
 	"github.com/agezt/agezt/kernel/modules/agents/api"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
-	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 	"sort"
 	"time"
 )
 
-func (c *autoRepairCoordinator) claim(k *kernelruntime.Kernel, rep api.ReaperReport, profiles []roster.Profile) []autoRepairCandidate {
+func (c *autoRepairCoordinator) claim(ports Ports, rep api.ReaperReport, profiles []roster.Profile) []autoRepairCandidate {
 	bySlug := make(map[string]roster.Profile, len(profiles))
 	for _, p := range profiles {
 		bySlug[p.Slug] = p
@@ -48,7 +47,7 @@ func (c *autoRepairCoordinator) claim(k *kernelruntime.Kernel, rep api.ReaperRep
 			IncidentID:   incidentID,
 			RootChainID:  incidentID,
 		}
-		if cand, claimOK = c.claimOne(k, now, cand, p); !claimOK {
+		if cand, claimOK = c.claimOne(ports, now, cand, p); !claimOK {
 			continue
 		}
 		claimed[p.Slug] = true
@@ -76,7 +75,7 @@ func (c *autoRepairCoordinator) claim(k *kernelruntime.Kernel, rep api.ReaperRep
 			IncidentID:   incidentID,
 			RootChainID:  incidentID,
 		}
-		if cand, claimOK = c.claimOne(k, now, cand, p); !claimOK {
+		if cand, claimOK = c.claimOne(ports, now, cand, p); !claimOK {
 			continue
 		}
 		claimed[p.Slug] = true
@@ -106,7 +105,7 @@ func (c *autoRepairCoordinator) claim(k *kernelruntime.Kernel, rep api.ReaperRep
 			RoutingRollbackTaskType: row.TaskType,
 			RoutingRollbackToChain:  append([]string(nil), row.ForcedChain...),
 		}
-		if cand, claimOK = c.claimOne(k, now, cand, p); !claimOK {
+		if cand, claimOK = c.claimOne(ports, now, cand, p); !claimOK {
 			continue
 		}
 		claimed[p.Slug] = true
@@ -136,7 +135,7 @@ func (c *autoRepairCoordinator) claim(k *kernelruntime.Kernel, rep api.ReaperRep
 			RoutingRollbackTaskType: row.TaskType,
 			RoutingRollbackToChain:  append([]string(nil), row.ForcedChain...),
 		}
-		if cand, claimOK = c.claimOne(k, now, cand, p); !claimOK {
+		if cand, claimOK = c.claimOne(ports, now, cand, p); !claimOK {
 			continue
 		}
 		claimed[p.Slug] = true
@@ -164,13 +163,13 @@ func (c *autoRepairCoordinator) claim(k *kernelruntime.Kernel, rep api.ReaperRep
 			IncidentID:   incidentID,
 			RootChainID:  incidentID,
 		}
-		if plan := autoRepairRoutingRollbackPlan(k, p, row, now); plan != nil {
+		if plan := autoRepairRoutingRollbackPlan(ports, p, row, now); plan != nil {
 			cand.RoutingRollbackTaskType = plan.TaskType
 			cand.RoutingRollbackFromChain = append([]string(nil), plan.FromChain...)
 			cand.RoutingRollbackToChain = append([]string(nil), plan.ToChain...)
 			cand.Reason = plan.Reason
 		}
-		if cand, claimOK = c.claimOne(k, now, cand, p); !claimOK {
+		if cand, claimOK = c.claimOne(ports, now, cand, p); !claimOK {
 			continue
 		}
 		claimed[p.Slug] = true
@@ -198,7 +197,7 @@ func (c *autoRepairCoordinator) claim(k *kernelruntime.Kernel, rep api.ReaperRep
 			IncidentID:   incidentID,
 			RootChainID:  incidentID,
 		}
-		if cand, claimOK = c.claimOne(k, now, cand, p); !claimOK {
+		if cand, claimOK = c.claimOne(ports, now, cand, p); !claimOK {
 			continue
 		}
 		claimed[p.Slug] = true
@@ -226,7 +225,7 @@ func (c *autoRepairCoordinator) claim(k *kernelruntime.Kernel, rep api.ReaperRep
 			IncidentID:   incidentID,
 			RootChainID:  incidentID,
 		}
-		if cand, claimOK = c.claimOne(k, now, cand, p); !claimOK {
+		if cand, claimOK = c.claimOne(ports, now, cand, p); !claimOK {
 			continue
 		}
 		claimed[p.Slug] = true
@@ -236,7 +235,7 @@ func (c *autoRepairCoordinator) claim(k *kernelruntime.Kernel, rep api.ReaperRep
 	return out
 }
 
-func (c *autoRepairCoordinator) claimOne(k *kernelruntime.Kernel, now time.Time, cand autoRepairCandidate, p roster.Profile) (autoRepairCandidate, bool) {
+func (c *autoRepairCoordinator) claimOne(ports Ports, now time.Time, cand autoRepairCandidate, p roster.Profile) (autoRepairCandidate, bool) {
 	if _, busy := c.inflight[cand.Slug]; busy {
 		return cand, false
 	}
@@ -244,7 +243,7 @@ func (c *autoRepairCoordinator) claimOne(k *kernelruntime.Kernel, now time.Time,
 		return cand, false
 	}
 	max := autoRepairMaxAttempts(p)
-	attempts := previousAutoRepairAttempts(k, cand.Slug, cand.Fingerprint)
+	attempts := previousAutoRepairAttempts(ports, cand.Slug, cand.Fingerprint)
 	cand.SelfRepairMaxAttempts = max
 	cand.SelfRepairAttempt = attempts + 1
 	if max > 0 && attempts >= max {

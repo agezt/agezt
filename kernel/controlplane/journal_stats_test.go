@@ -6,7 +6,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -31,7 +31,7 @@ func TestJournalStats_CountsAndBreaksDownByKind(t *testing.T) {
 	pub(event.KindTaskReceived)
 	pub(event.KindTaskCompleted)
 
-	res, err := c.Call(context.Background(), controlplane.CmdJournalStats, nil)
+	res, err := c.Call(context.Background(), opapi.JournalStats, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}

@@ -17,7 +17,7 @@ import (
 
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdAgentWake(args []string, stdout, stderr io.Writer) int {
@@ -25,14 +25,14 @@ func cmdAgentWake(args []string, stdout, stderr io.Writer) int {
 	if !ok {
 		return 2
 	}
-	return callAgentAsyncAction(controlplane.CmdAgentWake, "wake", payload, stdout, stderr)
+	return callAgentAsyncAction(opapi.AgentWake, "wake", payload, stdout, stderr)
 }
 func cmdAgentRepair(args []string, stdout, stderr io.Writer) int {
 	payload, ok := buildAgentRepairPayload(args, stderr)
 	if !ok {
 		return 2
 	}
-	return callAgentAsyncAction(controlplane.CmdAgentRepair, "repair", payload, stdout, stderr)
+	return callAgentAsyncAction(opapi.AgentRepair, "repair", payload, stdout, stderr)
 }
 func cmdAgentRepairStatus(args []string, stdout, stderr io.Writer) int {
 	ref := ""
@@ -72,7 +72,7 @@ func cmdAgentRepairStatus(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdAgentRepairStatus, map[string]any{"ref": ref, "limit": limit})
+	res, err := c.Call(ctx, opapi.AgentRepairStatus, map[string]any{"ref": ref, "limit": limit})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s agent repair-status: %v\n", brand.CLI, err)
 		return 1

@@ -54,7 +54,7 @@ func TestReadOperationsTypedMetadataNoAuditContextAndAdmission(t *testing.T) {
 	d, ops := readDispatcher(t, p, a, opapi.Operator, &f, &seen)
 	inputs := []reflect.Type{reflect.TypeFor[ListRequest](), reflect.TypeFor[ShowRequest](), reflect.TypeFor[SourcesInput]()}
 	outputs := []reflect.Type{reflect.TypeFor[ListOutput](), reflect.TypeFor[ShowOutput](), reflect.TypeFor[SourcesOutput]()}
-	names := []string{"market_list", "market_show", "market_sources"}
+	names := []string{opapi.MarketList, "market_show", "market_sources"}
 	if len(ops) != 3 {
 		t.Fatal(ops)
 	}
@@ -99,7 +99,7 @@ func TestReadOperationsPermissiveTextCodecsAndAvailabilityPrecedence(t *testing.
 		var seen context.Context
 		d, _ := readDispatcher(t, p, a, opapi.Operator, &f, &seen)
 		raw := json.RawMessage(`{"name":` + value + `,"marketplace":` + value + `,"query":` + value + `,"unknown":true}`)
-		for _, name := range []string{"market_list", "market_show", "market_sources"} {
+		for _, name := range []string{opapi.MarketList, "market_show", "market_sources"} {
 			out, err := d.Dispatch(context.Background(), opapi.Caller{}, name, raw, nil)
 			if name == "market_show" && value != `" owned "` {
 				if err == nil || err.Error() != "args.name required" {
@@ -121,7 +121,7 @@ func TestReadOperationsPermissiveTextCodecsAndAvailabilityPrecedence(t *testing.
 			t.Fatal(err)
 		}
 		unavailable, _ := app.NewDispatcher(ops, app.Dependencies{Auth: readAuth{opapi.Operator}, Router: readRouter{}, Audit: a})
-		for _, name := range []string{"market_list", "market_show", "market_sources"} {
+		for _, name := range []string{opapi.MarketList, "market_show", "market_sources"} {
 			_, err := unavailable.Dispatch(context.Background(), opapi.Caller{}, name, raw, nil)
 			if err == nil || err.Error() != "marketplace not available on this daemon" {
 				t.Fatal(name, err)

@@ -16,8 +16,8 @@ import { Input } from "@/components/ui/input";
 import { useUI } from "@/components/ui/feedback";
 import { Disclosure } from "@/components/ui/disclosure";
 import { cn } from "@/app/utils";
-import { FieldRow, type Field, type ValueEntry } from "@/features/configcenter/components/ConfigCenter";
-import { ApiKeyField } from "@/features/api-keys";
+import { FieldRow, type Field, type ValueEntry } from "@/components/configcenter/ConfigCenter";
+import { ApiKeyField } from "@/components/apikeys/index";
 import {
   STT_PROVIDERS,
   TTS_PROVIDERS,
@@ -34,13 +34,13 @@ import {
 // a model (and a voice), drop in a key if it's a hosted one. The raw fields are
 // still there for custom endpoints, tucked under "Advanced".
 
-interface SchemaSection {
+type SchemaSection = {
   id: string;
   fields?: Field[];
-}
-interface SchemaResponse {
+};
+type SchemaResponse = {
   sections?: SchemaSection[];
-}
+};
 
 // FALLBACK mirrors kernel/settings/schema.go's "voice" section so the Advanced
 // editor works even when the schema can't be fetched (older daemon / test).
@@ -70,7 +70,7 @@ export function VoiceSetup() {
 
   const loadValues = useCallback(async () => {
     try {
-      const v = await getJSON<{ fields?: ValueEntry[] }>("/api/config/values");
+      const v = await getJSON("/api/config/values");
       const map: Record<string, ValueEntry> = {};
       for (const f of v.fields || []) map[f.env] = f;
       setValues(map);
@@ -81,7 +81,7 @@ export function VoiceSetup() {
 
   const loadSchema = useCallback(async () => {
     try {
-      const s = await getJSON<SchemaResponse>("/api/config/schema");
+      const s = await getJSON("/api/config/schema");
       const sec = s.sections?.find((x) => x.id === "voice");
       if (sec?.fields?.length) setFields(sec.fields);
     } catch {
@@ -104,7 +104,7 @@ export function VoiceSetup() {
     async (env: string, value: string, quiet = false) => {
       setBusy(true);
       try {
-        const r = await postJSON<{ env_pinned?: boolean }>("/api/config/set", { name: env, value });
+        const r = await postJSON("/api/config/set", { name: env, value });
         await loadValues();
         if (r?.env_pinned) toast(`${env} is pinned in the environment — unset it to change here`, "info");
         else if (!quiet) toast("Saved — restart to apply", "success");

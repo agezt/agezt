@@ -13,13 +13,14 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/plugins/tools/peer"
 )
 
 func checkMeshLoops(ctx context.Context, client *controlplane.Client) (doctorCheck, bool) {
-	res, err := client.Call(ctx, controlplane.CmdJournalStats, nil)
+	res, err := client.Call(ctx, opapi.JournalStats, nil)
 	if err != nil {
 		// Journal stats unavailable — stay silent; daemon-health checks above
 		// already cover a non-responsive control plane.
@@ -38,7 +39,7 @@ func meshLoopCheck(byKind map[string]any) (doctorCheck, bool) {
 		"a peer is delegating back into this node — check the federation topology for a cycle"), true
 }
 func checkProviderFallbacks(ctx context.Context, client *controlplane.Client) (doctorCheck, bool) {
-	res, err := client.Call(ctx, controlplane.CmdJournalStats, nil)
+	res, err := client.Call(ctx, opapi.JournalStats, nil)
 	if err != nil {
 		return doctorCheck{}, false
 	}

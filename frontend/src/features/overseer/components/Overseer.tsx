@@ -20,7 +20,7 @@ import {
   ArchiveRestore,
 } from "lucide-react";
 import { getJSON, postAction } from "@/app/api";
-import { focusRun } from "@/features/runs/lib/runfocus";
+import { focusRun } from "@/lib/runfocus";
 import { cn, fmtTime } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { ErrorText } from "@/components/JsonView";
@@ -32,7 +32,7 @@ import { Page } from "@/components/ui/page";
 import { Advanced } from "@/components/ui/disclosure";
 import { useUI } from "@/components/ui/feedback";
 import { LoadMoreFooter } from "@/components/ui/load-more-footer";
-import { incidentEventSummary, isIncidentFamilyEvent } from "@/features/incidents/lib/incidentevents";
+import { incidentEventSummary, isIncidentFamilyEvent } from "@/lib/incidentevents";
 import { StatTile } from "@/components/ui/metric-widget";
 
 // Shapes mirror the read routes this view aggregates — kept loose (all optional)
@@ -55,7 +55,7 @@ interface AgentProfile {
   enabled?: boolean;
   retired?: boolean;
 }
-interface HelpMsg {
+type HelpMsg = {
   id?: string;
   topic?: string;
   from?: string;
@@ -63,7 +63,7 @@ interface HelpMsg {
   text?: string;
   ts_unix_ms?: number;
   help?: boolean;
-}
+};
 
 interface OverseerData {
   runs: Run[];
@@ -161,9 +161,9 @@ export function Overseer() {
     setLoading(true);
     try {
       const [runsRes, agentsRes, helpRes] = await Promise.all([
-        getJSON<{ runs?: Run[] }>("/api/runs", { limit: "200" }).catch(() => ({ runs: [] })),
-        getJSON<{ profiles?: AgentProfile[] }>("/api/agents", { limit: "200" }).catch(() => ({ profiles: [] })),
-        getJSON<{ open_help?: HelpMsg[] }>("/api/board/help").catch(() => ({ open_help: [] })),
+        getJSON("/api/runs", { limit: "200" }).catch(() => ({ runs: [] })),
+        getJSON("/api/agents", { limit: "200" }).catch(() => ({ profiles: [] })),
+        getJSON("/api/board/help").catch(() => ({ open_help: [] })),
       ]);
       setData({
         runs: runsRes.runs || [],

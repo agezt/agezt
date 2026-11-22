@@ -130,7 +130,7 @@ func Operations(providers Providers) ([]app.Operation, error) {
 	var ops []app.Operation
 	bindings := []func() error{
 		func() error {
-			return bind(&ops, "workflow_list", true, nil, func(ctx context.Context, in RequestInput) (ListOutput, error) {
+			return bind(&ops, opapi.WorkflowList, true, nil, func(ctx context.Context, in RequestInput) (ListOutput, error) {
 				listing := providers.Reads(ctx).PrepareList()
 				withRuns, err := requestFlag(in.WithRuns, "with_runs")
 				if err != nil {
@@ -140,7 +140,7 @@ func Operations(providers Providers) ([]app.Operation, error) {
 			})
 		},
 		func() error {
-			return bind(&ops, "workflow_show", true, outputs["show"], func(ctx context.Context, in RequestInput) (ShowOutput, error) {
+			return bind(&ops, opapi.WorkflowShow, true, outputs["show"], func(ctx context.Context, in RequestInput) (ShowOutput, error) {
 				ref, err := requiredText(in.Ref, "ref")
 				if err != nil {
 					return ShowOutput{}, err
@@ -149,7 +149,7 @@ func Operations(providers Providers) ([]app.Operation, error) {
 			})
 		},
 		func() error {
-			return bind(&ops, "workflow_save", false, outputs["save"], func(ctx context.Context, in RequestInput) (SaveOutput, error) {
+			return bind(&ops, opapi.WorkflowSave, false, outputs["save"], func(ctx context.Context, in RequestInput) (SaveOutput, error) {
 				graph, err := requestGraph(in.Workflow)
 				if err != nil {
 					return SaveOutput{}, err
@@ -158,7 +158,7 @@ func Operations(providers Providers) ([]app.Operation, error) {
 			})
 		},
 		func() error {
-			return bind(&ops, "workflow_restore", false, outputs["save"], func(ctx context.Context, in RequestInput) (SaveOutput, error) {
+			return bind(&ops, opapi.WorkflowRestore, false, outputs["save"], func(ctx context.Context, in RequestInput) (SaveOutput, error) {
 				graph, err := requestGraph(in.Workflow)
 				if err != nil {
 					return SaveOutput{}, err
@@ -171,7 +171,7 @@ func Operations(providers Providers) ([]app.Operation, error) {
 			})
 		},
 		func() error {
-			return bind(&ops, "workflow_remove", false, nil, func(ctx context.Context, in RequestInput) (RemoveOutput, error) {
+			return bind(&ops, opapi.WorkflowRemove, false, nil, func(ctx context.Context, in RequestInput) (RemoveOutput, error) {
 				ref, err := requiredText(in.Ref, "ref")
 				if err != nil {
 					return RemoveOutput{}, err
@@ -180,7 +180,7 @@ func Operations(providers Providers) ([]app.Operation, error) {
 			})
 		},
 		func() error {
-			return bind(&ops, "workflow_set_enabled", false, nil, func(ctx context.Context, in RequestInput) (EnableOutput, error) {
+			return bind(&ops, opapi.WorkflowSetEnabled, false, nil, func(ctx context.Context, in RequestInput) (EnableOutput, error) {
 				ref, err := requiredText(in.Ref, "ref")
 				if err != nil {
 					return EnableOutput{}, err
@@ -189,7 +189,7 @@ func Operations(providers Providers) ([]app.Operation, error) {
 			})
 		},
 		func() error {
-			return bind(&ops, "workflow_run", false, nil, func(ctx context.Context, in RequestInput) (RunOutput, error) {
+			return bind(&ops, opapi.WorkflowRun, false, nil, func(ctx context.Context, in RequestInput) (RunOutput, error) {
 				ref, err := requiredText(in.Ref, "ref")
 				if err != nil {
 					return RunOutput{}, err
@@ -198,7 +198,7 @@ func Operations(providers Providers) ([]app.Operation, error) {
 			})
 		},
 		func() error {
-			return bind(&ops, "workflow_draft", false, outputs["copilot"], func(ctx context.Context, in RequestInput) (CopilotOutput, error) {
+			return bind(&ops, opapi.WorkflowDraft, false, outputs["copilot"], func(ctx context.Context, in RequestInput) (CopilotOutput, error) {
 				description, err := requiredText(in.Description, "description")
 				if err != nil {
 					return CopilotOutput{}, err
@@ -211,7 +211,7 @@ func Operations(providers Providers) ([]app.Operation, error) {
 			})
 		},
 		func() error {
-			return bind(&ops, "workflow_refine", false, outputs["copilot"], func(ctx context.Context, in RequestInput) (CopilotOutput, error) {
+			return bind(&ops, opapi.WorkflowRefine, false, outputs["copilot"], func(ctx context.Context, in RequestInput) (CopilotOutput, error) {
 				instruction, err := requiredText(in.Instruction, "instruction")
 				if err != nil {
 					return CopilotOutput{}, err
@@ -238,7 +238,7 @@ func Operations(providers Providers) ([]app.Operation, error) {
 			})
 		},
 		func() error {
-			return bind(&ops, "workflow_runs", true, nil, func(ctx context.Context, in RequestInput) (RunsOutput, error) {
+			return bind(&ops, opapi.WorkflowRuns, true, nil, func(ctx context.Context, in RequestInput) (RunsOutput, error) {
 				ref, err := requiredText(in.Ref, "ref")
 				if err != nil {
 					return RunsOutput{}, err
@@ -251,19 +251,19 @@ func Operations(providers Providers) ([]app.Operation, error) {
 			})
 		},
 		func() error {
-			return bind(&ops, "workflow_templates", true, outputs["templates"], func(ctx context.Context, _ RequestInput) (TemplatesOutput, error) {
+			return bind(&ops, opapi.WorkflowTemplates, true, outputs["templates"], func(ctx context.Context, _ RequestInput) (TemplatesOutput, error) {
 				return providers.Reads(ctx).Templates(ctx, TemplatesInput{})
 			})
 		},
 		func() error {
-			return bind(&ops, "workflow_webhook", false, nil, func(ctx context.Context, in RequestInput) (WebhookOutput, error) {
+			return bind(&ops, opapi.WorkflowWebhook, false, nil, func(ctx context.Context, in RequestInput) (WebhookOutput, error) {
 				ref, refErr := requestText(in.Ref, "ref")
 				secret, secErr := requestText(in.Secret, "secret")
 				return providers.Execution(ctx).Webhook(ctx, WebhookInput{Ref: ref, Secret: secret, Invalid: refErr != nil || secErr != nil, Payload: requestValue(in.Payload)})
 			})
 		},
 		func() error {
-			return bind(&ops, "workflow_test_node", false, nil, func(ctx context.Context, in RequestInput) (NodeOutput, error) {
+			return bind(&ops, opapi.WorkflowTestNode, false, nil, func(ctx context.Context, in RequestInput) (NodeOutput, error) {
 				graph, err := requestGraph(in.Workflow)
 				if err != nil {
 					return NodeOutput{}, err

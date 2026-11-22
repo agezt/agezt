@@ -14,17 +14,17 @@ func TestChannelNativeElevenTypedOperationsExit(t *testing.T) {
 		read          bool
 	}
 	expected := map[string]signature{
-		CmdChannelList:           {reflect.TypeFor[appchannels.ListInput](), reflect.TypeFor[appchannels.ListOutput](), true},
-		CmdChannelAccountSet:     {reflect.TypeFor[appchannels.SetAccountRequest](), reflect.TypeFor[appchannels.SetAccountOutput](), false},
-		CmdChannelAccountRemove:  {reflect.TypeFor[appchannels.RemoveAccountRequest](), reflect.TypeFor[appchannels.RemoveAccountOutput](), false},
-		CmdChannelOAuthStart:     {reflect.TypeFor[appchannels.OAuthStartRequest](), reflect.TypeFor[appchannels.OAuthStartOutput](), false},
-		CmdChannelOAuthCallback:  {reflect.TypeFor[appchannels.OAuthCallbackRequest](), reflect.TypeFor[appchannels.OAuthCallbackOutput](), false},
-		CmdChannelOAuthStatus:    {reflect.TypeFor[appchannels.OAuthStatusRequest](), reflect.TypeFor[appchannels.OAuthStatusOutput](), true},
-		CmdWhatsAppGatewayStatus: {reflect.TypeFor[appchannels.GatewayRequest](), reflect.TypeFor[appchannels.GatewayStatusOutput](), true},
-		CmdWhatsAppGatewayQR:     {reflect.TypeFor[appchannels.GatewayRequest](), reflect.TypeFor[appchannels.GatewayQROutput](), true},
-		CmdInbox:                 {reflect.TypeFor[appchannels.InboxRequest](), reflect.TypeFor[appchannels.InboxOutput](), true},
-		CmdSend:                  {reflect.TypeFor[appchannels.SendRequest](), reflect.TypeFor[appchannels.SendOutput](), false},
-		CmdACPAgents:             {reflect.TypeFor[appchannels.ACPInput](), reflect.TypeFor[appchannels.ACPOutput](), true},
+		opapi.ChannelList:           {reflect.TypeFor[appchannels.ListInput](), reflect.TypeFor[appchannels.ListOutput](), true},
+		opapi.ChannelAccountSet:     {reflect.TypeFor[appchannels.SetAccountRequest](), reflect.TypeFor[appchannels.SetAccountOutput](), false},
+		opapi.ChannelAccountRemove:  {reflect.TypeFor[appchannels.RemoveAccountRequest](), reflect.TypeFor[appchannels.RemoveAccountOutput](), false},
+		opapi.ChannelOAuthStart:     {reflect.TypeFor[appchannels.OAuthStartRequest](), reflect.TypeFor[appchannels.OAuthStartOutput](), false},
+		opapi.ChannelOAuthCallback:  {reflect.TypeFor[appchannels.OAuthCallbackRequest](), reflect.TypeFor[appchannels.OAuthCallbackOutput](), false},
+		opapi.ChannelOAuthStatus:    {reflect.TypeFor[appchannels.OAuthStatusRequest](), reflect.TypeFor[appchannels.OAuthStatusOutput](), true},
+		opapi.WhatsAppGatewayStatus: {reflect.TypeFor[appchannels.GatewayRequest](), reflect.TypeFor[appchannels.GatewayStatusOutput](), true},
+		opapi.WhatsAppGatewayQR:     {reflect.TypeFor[appchannels.GatewayRequest](), reflect.TypeFor[appchannels.GatewayQROutput](), true},
+		opapi.Inbox:                 {reflect.TypeFor[appchannels.InboxRequest](), reflect.TypeFor[appchannels.InboxOutput](), true},
+		opapi.Send:                  {reflect.TypeFor[appchannels.SendRequest](), reflect.TypeFor[appchannels.SendOutput](), false},
+		opapi.ACPAgents:             {reflect.TypeFor[appchannels.ACPInput](), reflect.TypeFor[appchannels.ACPOutput](), true},
 	}
 	seen := map[string]int{}
 	for _, operation := range registeredAppOperations() {

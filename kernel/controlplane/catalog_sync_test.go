@@ -16,8 +16,8 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
-	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -59,7 +59,7 @@ func TestCatalogSync_TriggersProviderReload(t *testing.T) {
 		OnReload: func() error { reloads.Add(1); return nil },
 	})
 
-	res, err := c.Call(context.Background(), controlplane.CmdCatalogSync, map[string]any{"url": ts.URL})
+	res, err := c.Call(context.Background(), opapi.CatalogSync, map[string]any{"url": ts.URL})
 	if err != nil {
 		t.Fatalf("catalog sync: %v", err)
 	}
@@ -90,7 +90,7 @@ func TestCatalogSync_ProviderReloadFailureIsNonFatal(t *testing.T) {
 		OnReload: func() error { return context.DeadlineExceeded },
 	})
 
-	res, err := c.Call(context.Background(), controlplane.CmdCatalogSync, map[string]any{"url": ts.URL})
+	res, err := c.Call(context.Background(), opapi.CatalogSync, map[string]any{"url": ts.URL})
 	if err != nil {
 		t.Fatalf("catalog sync should succeed when only the provider rebuild fails: %v", err)
 	}

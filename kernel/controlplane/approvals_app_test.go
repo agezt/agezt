@@ -23,7 +23,7 @@ import (
 )
 
 func TestApprovalHistoryNativeTypedRegistry(t *testing.T) {
-	for _, cmd := range []string{CmdApprovalsLog, CmdApprovalsStats} {
+	for _, cmd := range []string{opapi.ApprovalsLog, opapi.ApprovalsStats} {
 		found := 0
 		for _, operation := range registeredAppOperations() {
 			spec := operation.Spec()
@@ -96,18 +96,18 @@ func TestApprovalHistoryNativeRouting(t *testing.T) {
 		args       map[string]any
 		want       string
 	}{
-		{"primary", CmdApprovalsLog, nil, `"approval_id":"primary-ap"`},
-		{"primary", CmdApprovalsLog, map[string]any{"tenant": " acme "}, `"resolved_by":"lead"`},
-		{tenantToken, CmdApprovalsLog, map[string]any{"tenant": "acme", "denied": true}, `"approval_id":"tenant-ap"`},
-		{"primary", CmdApprovalsStats, nil, `"pending":1`},
-		{tenantToken, CmdApprovalsStats, map[string]any{"tenant": "acme", "since_ms": 600000}, `"denied":1`},
-		{"primary", CmdApprovalsLog, map[string]any{"denied": "yes"}, `"error":"args.denied must be a boolean"`},
+		{"primary", opapi.ApprovalsLog, nil, `"approval_id":"primary-ap"`},
+		{"primary", opapi.ApprovalsLog, map[string]any{"tenant": " acme "}, `"resolved_by":"lead"`},
+		{tenantToken, opapi.ApprovalsLog, map[string]any{"tenant": "acme", "denied": true}, `"approval_id":"tenant-ap"`},
+		{"primary", opapi.ApprovalsStats, nil, `"pending":1`},
+		{tenantToken, opapi.ApprovalsStats, map[string]any{"tenant": "acme", "since_ms": 600000}, `"denied":1`},
+		{"primary", opapi.ApprovalsLog, map[string]any{"denied": "yes"}, `"error":"args.denied must be a boolean"`},
 	} {
 		if line := call(c.token, c.cmd, c.args); !strings.Contains(line, c.want) {
 			t.Fatalf("%s %v: %s", c.cmd, c.args, line)
 		}
 	}
-	if line := call(tenantToken, CmdApprovalsLog, map[string]any{"tenant": "acme"}); strings.Contains(line, "primary-ap") {
+	if line := call(tenantToken, opapi.ApprovalsLog, map[string]any{"tenant": "acme"}); strings.Contains(line, "primary-ap") {
 		t.Fatal("a tenant reads only its own approvals", line)
 	}
 	// A 1 ms window excludes every approval only once the clock has moved past
@@ -119,13 +119,13 @@ func TestApprovalHistoryNativeRouting(t *testing.T) {
 	for time.Now().UnixMilli() <= newest[0].TSUnixMS+1 {
 		time.Sleep(time.Millisecond)
 	}
-	if line := call("primary", CmdApprovalsStats, map[string]any{"since_ms": 1}); !strings.Contains(line, `"total":0`) || !strings.Contains(line, `"window_ms":1`) {
+	if line := call("primary", opapi.ApprovalsStats, map[string]any{"since_ms": 1}); !strings.Contains(line, `"total":0`) || !strings.Contains(line, `"window_ms":1`) {
 		t.Fatal("the window follows the daemon clock", line)
 	}
 }
 
 func TestApprovalLiveNativeTypedRegistry(t *testing.T) {
-	for cmd, readOnly := range map[string]bool{CmdApprovals: true, CmdDecide: false} {
+	for cmd, readOnly := range map[string]bool{opapi.Approvals: true, opapi.Decide: false} {
 		found := 0
 		for _, operation := range registeredAppOperations() {
 			spec := operation.Spec()
@@ -191,22 +191,22 @@ func TestApprovalLiveNativeDecide(t *testing.T) {
 		}
 		return string(line)
 	}
-	if line := call(tenantToken, CmdApprovals, map[string]any{"tenant": "acme"}); !strings.Contains(line, `"type":"error"`) {
+	if line := call(tenantToken, opapi.Approvals, map[string]any{"tenant": "acme"}); !strings.Contains(line, `"type":"error"`) {
 		t.Fatal("a tenant token may not list the operator's approvals", line)
 	}
-	if line := call(tenantToken, CmdDecide, map[string]any{"tenant": "acme", "id": id, "decision": "grant"}); !strings.Contains(line, `"type":"error"`) || k.Approvals().PendingCount() != 1 {
+	if line := call(tenantToken, opapi.Decide, map[string]any{"tenant": "acme", "id": id, "decision": "grant"}); !strings.Contains(line, `"type":"error"`) || k.Approvals().PendingCount() != 1 {
 		t.Fatal("a tenant token may not decide", line)
 	}
-	if line := call("primary", CmdApprovals, nil); !strings.Contains(line, `"id":"`+id+`"`) || !strings.Contains(line, `"count":1`) {
+	if line := call("primary", opapi.Approvals, nil); !strings.Contains(line, `"id":"`+id+`"`) || !strings.Contains(line, `"count":1`) {
 		t.Fatal(line)
 	}
-	if line := call("primary", CmdDecide, map[string]any{"id": id, "decision": "deny", "reason": "no"}); !strings.Contains(line, `"decision":"deny"`) {
+	if line := call("primary", opapi.Decide, map[string]any{"id": id, "decision": "deny", "reason": "no"}); !strings.Contains(line, `"decision":"deny"`) {
 		t.Fatal(line)
 	}
 	if out := <-outcome; out.Decision != approval.DecisionDeny || out.Reason != "no" || out.ResolvedBy != "operator" {
 		t.Fatal("the waiting request is denied by the operator", out)
 	}
-	if line := call("primary", CmdDecide, map[string]any{"id": id, "decision": "grant"}); !strings.Contains(line, approval.ErrUnknownApproval.Error()) {
+	if line := call("primary", opapi.Decide, map[string]any{"id": id, "decision": "grant"}); !strings.Contains(line, approval.ErrUnknownApproval.Error()) {
 		t.Fatal(line)
 	}
 }

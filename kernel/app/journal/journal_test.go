@@ -150,11 +150,7 @@ func TestOperations(t *testing.T) {
 		{"journal_stats", opapi.CallerTenant, reflect.TypeFor[StatsOutput](), opapi.PrimaryOnly},
 	} {
 		spec := ops[i].Spec()
-		http := opapi.HTTP{}
-		if w.name == "journal_grep" {
-			http = opapi.HTTP{Method: "GET", Path: "/api/journal"}
-		}
-		if spec.Name != w.name || !spec.ReadOnly || spec.Authz != w.authz || spec.Tenancy != w.tenancy || !spec.AllowUnknownInput || spec.Output != w.out || spec.HTTP != http {
+		if spec.Name != w.name || !spec.ReadOnly || spec.Authz != w.authz || spec.Tenancy != w.tenancy || !spec.AllowUnknownInput || spec.Output != w.out {
 			t.Fatal(spec)
 		}
 	}

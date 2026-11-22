@@ -15,7 +15,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/internal/paths"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 )
 
@@ -161,11 +161,11 @@ func persistProviderModel(pid, model string, stdout io.Writer) bool {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	if _, err := c.Call(ctx, controlplane.CmdConfigSet, map[string]any{"name": brand.EnvPrefix + "PROVIDER", "value": pid}); err != nil {
+	if _, err := c.Call(ctx, opapi.ConfigSet, map[string]any{"name": brand.EnvPrefix + "PROVIDER", "value": pid}); err != nil {
 		return false
 	}
 	if model != "" {
-		if _, err := c.Call(ctx, controlplane.CmdConfigSet, map[string]any{"name": brand.EnvPrefix + "MODEL", "value": model}); err != nil {
+		if _, err := c.Call(ctx, opapi.ConfigSet, map[string]any{"name": brand.EnvPrefix + "MODEL", "value": model}); err != nil {
 			return false
 		}
 	}

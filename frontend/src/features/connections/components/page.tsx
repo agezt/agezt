@@ -16,7 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { AnimatedNumber } from "@/components/AnimatedNumber";
 import { useUI } from "@/components/ui/feedback";
-import { ApiKeyField } from "@/features/api-keys";
+import { ApiKeyField } from "@/components/apikeys/index";
 
 // Connections — one cockpit for "what's actually wired up". Read-only on the
 // Status tab (AI providers, channels, MCP servers, peer nodes), and the
@@ -27,9 +27,22 @@ import { ApiKeyField } from "@/features/api-keys";
 // catalog itself so the wiring is canonical. (See providerPresets removal.)
 
 interface Provider { id: string; name?: string; credentialed?: boolean; env?: string[]; family?: string; api?: string; models?: { id: string; name?: string }[]; model_count?: number }
-interface ChannelRow { kind: string; display?: string; live?: boolean; configured?: boolean }
+type ChannelRow = {
+  kind: string;
+  display?: string;
+  live?: boolean;
+  configured?: boolean;
+};
 interface MCPServer { name: string; enabled?: boolean; attached?: boolean }
-interface NodeRow { id?: string; name: string; local?: boolean; reachable?: boolean; url?: string; version?: string; status?: string }
+type NodeRow = {
+  id?: string;
+  name: string;
+  local?: boolean;
+  reachable?: boolean;
+  url?: string;
+  version?: string;
+  status?: string;
+};
 
 type Tab = "status" | "keys";
 
@@ -99,10 +112,10 @@ function StatusTab({ onSwitchToKeys }: { onSwitchToKeys: () => void }) {
     setErr("");
     try {
       const [cat, ch, mcp, nodeRes] = await Promise.all([
-        getJSON<{ providers?: Provider[] }>("/api/catalog").catch(() => ({ providers: [] })),
-        getJSON<{ channels?: ChannelRow[] }>("/api/channels").catch(() => ({ channels: [] })),
-        getJSON<{ servers?: MCPServer[] }>("/api/mcp").catch(() => ({ servers: [] })),
-        getJSON<{ nodes?: NodeRow[] }>("/api/nodes").catch(() => ({ nodes: [] })),
+        getJSON("/api/catalog").catch(() => ({ providers: [] })),
+        getJSON("/api/channels").catch(() => ({ channels: [] })),
+        getJSON("/api/mcp").catch(() => ({ servers: [] })),
+        getJSON("/api/nodes").catch(() => ({ nodes: [] })),
       ]);
       setProviders(cat.providers || []);
       setChannels(ch.channels || []);
@@ -231,7 +244,7 @@ function ProviderKeysTab() {
     setLoading(true);
     setErr("");
     try {
-      const r = await getJSON<{ providers?: Provider[] }>("/api/catalog");
+      const r = await getJSON("/api/catalog");
       setProviders(r.providers || []);
     } catch (e) {
       setErr((e as Error).message);
@@ -610,10 +623,10 @@ export function ConnectivityStrip() {
   const [s, setS] = useState<{ providers: number; channels: number; mcp: number; nodes: number } | null>(null);
   useEffect(() => {
     Promise.all([
-      getJSON<{ providers?: Provider[] }>("/api/catalog").catch(() => ({ providers: [] })),
-      getJSON<{ channels?: ChannelRow[] }>("/api/channels").catch(() => ({ channels: [] })),
-      getJSON<{ servers?: MCPServer[] }>("/api/mcp").catch(() => ({ servers: [] })),
-      getJSON<{ nodes?: NodeRow[] }>("/api/nodes").catch(() => ({ nodes: [] })),
+      getJSON("/api/catalog").catch(() => ({ providers: [] })),
+      getJSON("/api/channels").catch(() => ({ channels: [] })),
+      getJSON("/api/mcp").catch(() => ({ servers: [] })),
+      getJSON("/api/nodes").catch(() => ({ nodes: [] })),
     ]).then(([cat, ch, mcp, nodeRes]) =>
       setS({
         providers: (cat.providers || []).filter((p) => p.credentialed).length,

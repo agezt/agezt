@@ -8,10 +8,14 @@ import { skillToRef, memoryToRef, runToRef, type AttachRef, type RefKind } from 
 // skill, memory, or past run to hand the agent as context for your next message.
 // It loads the same list APIs the dedicated views use; selecting an item resolves
 // it to an AttachRef (label + content) the caller stacks above the textarea.
-const TABS: { kind: RefKind; label: string; icon: typeof Sparkles; path: string }[] = [
-  { kind: "skill", label: "Skills", icon: Sparkles, path: "/api/skills" },
-  { kind: "memory", label: "Memory", icon: Brain, path: "/api/memory" },
-  { kind: "run", label: "Runs", icon: ListTree, path: "/api/runs" },
+//
+// Each tab carries its own loader rather than a path: the three lists are a
+// parameterless read and two query reads, and naming the path inside the
+// loader keeps every one of them checked against the catalogue.
+const TABS: { kind: RefKind; label: string; icon: typeof Sparkles; load: () => Promise<any> }[] = [
+  { kind: "skill", label: "Skills", icon: Sparkles, load: () => getJSON("/api/skills") },
+  { kind: "memory", label: "Memory", icon: Brain, load: () => getJSON("/api/memory") },
+  { kind: "run", label: "Runs", icon: ListTree, load: () => getJSON("/api/runs") },
 ];
 
 export function AttachPicker({
@@ -43,7 +47,7 @@ export function AttachPicker({
     if (data[tab].length || loading[tab]) return;
     setLoading((l) => ({ ...l, [tab]: true }));
     const t = TABS.find((x) => x.kind === tab)!;
-    getJSON<any>(t.path)
+    t.load()
       .then((d) => {
         const refs =
           tab === "skill"

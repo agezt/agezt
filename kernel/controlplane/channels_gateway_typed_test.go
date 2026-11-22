@@ -24,16 +24,16 @@ func TestChannelGatewayNativeTypedMetadata(t *testing.T) {
 	seen := map[string]int{}
 	for _, op := range registeredAppOperations() {
 		s := op.Spec()
-		if s.Name != CmdWhatsAppGatewayStatus && s.Name != CmdWhatsAppGatewayQR {
+		if s.Name != opapi.WhatsAppGatewayStatus && s.Name != opapi.WhatsAppGatewayQR {
 			continue
 		}
 		seen[s.Name]++
 		wire := commandRegistry[s.Name]
-		output, path := reflect.TypeFor[appchannels.GatewayStatusOutput](), "/api/whatsappgw/status"
-		if s.Name == CmdWhatsAppGatewayQR {
-			output, path = reflect.TypeFor[appchannels.GatewayQROutput](), "/api/whatsappgw/qr"
+		output := reflect.TypeFor[appchannels.GatewayStatusOutput]()
+		if s.Name == opapi.WhatsAppGatewayQR {
+			output = reflect.TypeFor[appchannels.GatewayQROutput]()
 		}
-		if !wire.AppOwned || !wire.ReadOnly || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.HTTP.Method != "POST" || s.HTTP.Path != path || s.Input != reflect.TypeFor[appchannels.GatewayRequest]() || s.Output != output {
+		if !wire.AppOwned || !wire.ReadOnly || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Input != reflect.TypeFor[appchannels.GatewayRequest]() || s.Output != output {
 			t.Fatal(s, wire)
 		}
 	}
@@ -47,7 +47,7 @@ func TestChannelGatewayNativeTypedMetadata(t *testing.T) {
 	}
 }
 func TestChannelGatewayNativeCanceledBeforeHTTPAndReadWithoutAudit(t *testing.T) {
-	for _, command := range []string{CmdWhatsAppGatewayStatus, CmdWhatsAppGatewayQR} {
+	for _, command := range []string{opapi.WhatsAppGatewayStatus, opapi.WhatsAppGatewayQR} {
 		for _, gate := range []string{"canceled", "closed-journal"} {
 			t.Run(command+"/"+gate, func(t *testing.T) {
 				p := mock.New()

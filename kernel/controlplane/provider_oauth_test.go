@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/modules/providers/chatgptauth"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -37,10 +38,10 @@ func TestProviderOAuthStartStatus(t *testing.T) {
 	// fails before the explicit logout below — otherwise the leaked
 	// listener causes port-bind failures on subsequent test runs.
 	t.Cleanup(func() {
-		_, _ = c.Call(ctx, controlplane.CmdProviderOAuthLogout, nil)
+		_, _ = c.Call(ctx, opapi.ProviderOAuthLogout, nil)
 	})
 
-	res, err := c.Call(ctx, controlplane.CmdProviderOAuthStart, map[string]any{"provider": "chatgpt"})
+	res, err := c.Call(ctx, opapi.ProviderOAuthStart, map[string]any{"provider": "chatgpt"})
 	if err != nil {
 		// On shared/CI runners port 1455 may be held by a leaked listener
 		// from a previous test run (TIME_WAIT or a crashed process). The
@@ -61,15 +62,15 @@ func TestProviderOAuthStartStatus(t *testing.T) {
 		t.Fatalf("authorize query = %v", u.Query())
 	}
 
-	st, err := c.Call(ctx, controlplane.CmdProviderOAuthStatus, map[string]any{"state": state})
+	st, err := c.Call(ctx, opapi.ProviderOAuthStatus, map[string]any{"state": state})
 	if err != nil || st["status"] != "pending" {
 		t.Fatalf("status = %v err=%v", st["status"], err)
 	}
 
 	// Clean up the 1455 listener the start opened.
-	_, _ = c.Call(ctx, controlplane.CmdProviderOAuthLogout, nil)
+	_, _ = c.Call(ctx, opapi.ProviderOAuthLogout, nil)
 
-	if _, err := c.Call(ctx, controlplane.CmdProviderOAuthStart, map[string]any{"provider": "telegram"}); err == nil {
+	if _, err := c.Call(ctx, opapi.ProviderOAuthStart, map[string]any{"provider": "telegram"}); err == nil {
 		t.Fatal("telegram should not support provider oauth")
 	}
 }
@@ -83,9 +84,9 @@ func TestProviderOAuthStatus_ConcurrentWithCallback(t *testing.T) {
 	t.Setenv("AGEZT_VAULT_PASSPHRASE", "test-pass")
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
-	t.Cleanup(func() { _, _ = c.Call(ctx, controlplane.CmdProviderOAuthLogout, nil) })
+	t.Cleanup(func() { _, _ = c.Call(ctx, opapi.ProviderOAuthLogout, nil) })
 
-	res, err := c.Call(ctx, controlplane.CmdProviderOAuthStart, map[string]any{"provider": "chatgpt"})
+	res, err := c.Call(ctx, opapi.ProviderOAuthStart, map[string]any{"provider": "chatgpt"})
 	if err != nil {
 		if strings.Contains(err.Error(), "is it in use?") {
 			t.Skipf("port 1455 in use — likely a leaked listener from a previous run: %v", err)
@@ -112,7 +113,7 @@ func TestProviderOAuthStatus_ConcurrentWithCallback(t *testing.T) {
 	go func() { // reader: the operator polling the console
 		defer wg.Done()
 		for i := 0; i < 40; i++ {
-			if _, err := c.Call(ctx, controlplane.CmdProviderOAuthStatus, map[string]any{"state": state}); err != nil {
+			if _, err := c.Call(ctx, opapi.ProviderOAuthStatus, map[string]any{"state": state}); err != nil {
 				t.Errorf("status poll: %v", err)
 				return
 			}
@@ -138,7 +139,7 @@ func TestProviderOAuthImport(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	res, err := c.Call(ctx, controlplane.CmdProviderOAuthImport, map[string]any{"path": authPath})
+	res, err := c.Call(ctx, opapi.ProviderOAuthImport, map[string]any{"path": authPath})
 	if err != nil {
 		t.Fatalf("import: %v", err)
 	}
@@ -147,10 +148,10 @@ func TestProviderOAuthImport(t *testing.T) {
 	}
 
 	// Logout clears it.
-	if _, err := c.Call(ctx, controlplane.CmdProviderOAuthLogout, nil); err != nil {
+	if _, err := c.Call(ctx, opapi.ProviderOAuthLogout, nil); err != nil {
 		t.Fatalf("logout: %v", err)
 	}
-	st, _ := c.Call(ctx, controlplane.CmdProviderOAuthStatus, map[string]any{"state": ""})
+	st, _ := c.Call(ctx, opapi.ProviderOAuthStatus, map[string]any{"state": ""})
 	if st["connected"] != false {
 		t.Fatalf("still connected after logout: %v", st)
 	}
@@ -178,7 +179,7 @@ func TestProviderOAuthModelSurface(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	res, err := c.Call(ctx, controlplane.CmdProviderOAuthImport, map[string]any{"path": authPath})
+	res, err := c.Call(ctx, opapi.ProviderOAuthImport, map[string]any{"path": authPath})
 	if err != nil {
 		t.Fatalf("import: %v", err)
 	}
@@ -190,7 +191,7 @@ func TestProviderOAuthModelSurface(t *testing.T) {
 	}
 
 	// The status poll reports the same surface while connected.
-	st, err := c.Call(ctx, controlplane.CmdProviderOAuthStatus, map[string]any{"state": ""})
+	st, err := c.Call(ctx, opapi.ProviderOAuthStatus, map[string]any{"state": ""})
 	if err != nil {
 		t.Fatalf("status: %v", err)
 	}
@@ -202,11 +203,11 @@ func TestProviderOAuthModelSurface(t *testing.T) {
 	}
 
 	// Disconnected: no model surface (and no pointless discovery).
-	if _, err := c.Call(ctx, controlplane.CmdProviderOAuthLogout, nil); err != nil {
+	if _, err := c.Call(ctx, opapi.ProviderOAuthLogout, nil); err != nil {
 		t.Fatalf("logout: %v", err)
 	}
 	before := syncs
-	st, _ = c.Call(ctx, controlplane.CmdProviderOAuthStatus, map[string]any{"state": ""})
+	st, _ = c.Call(ctx, opapi.ProviderOAuthStatus, map[string]any{"state": ""})
 	if st["default_model"] != "" || syncs != before {
 		t.Errorf("status after logout = %v (syncs %d → %d)", st, before, syncs)
 	}

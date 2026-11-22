@@ -13,7 +13,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdWorkflowDraft(args []string, stdout, stderr io.Writer) int {
@@ -51,7 +51,7 @@ func cmdWorkflowDraft(args []string, stdout, stderr io.Writer) int {
 	if name != "" {
 		callArgs["name"] = name
 	}
-	res, err := c.Call(ctx, controlplane.CmdWorkflowDraft, callArgs)
+	res, err := c.Call(ctx, opapi.WorkflowDraft, callArgs)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s workflow draft: %v\n", brand.CLI, err)
 		return 1
@@ -77,7 +77,7 @@ func cmdWorkflowDraft(args []string, stdout, stderr io.Writer) int {
 			return 1
 		}
 	}
-	saveRes, err := c.Call(saveCtx, controlplane.CmdWorkflowSave, map[string]any{"workflow": w})
+	saveRes, err := c.Call(saveCtx, opapi.WorkflowSave, map[string]any{"workflow": w})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s workflow draft: save: %v\n", brand.CLI, err)
 		return 1
@@ -129,7 +129,7 @@ func cmdWorkflowRefine(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdWorkflowRefine, map[string]any{"ref": ref, "instruction": instruction})
+	res, err := c.Call(ctx, opapi.WorkflowRefine, map[string]any{"ref": ref, "instruction": instruction})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s workflow refine: %v\n", brand.CLI, err)
 		return 1
@@ -153,7 +153,7 @@ func cmdWorkflowRefine(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s workflow refine: checkpoint: %v\n", brand.CLI, cerr)
 		return 1
 	}
-	saveRes, err := c.Call(saveCtx, controlplane.CmdWorkflowSave, map[string]any{"workflow": w})
+	saveRes, err := c.Call(saveCtx, opapi.WorkflowSave, map[string]any{"workflow": w})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s workflow refine: save: %v\n", brand.CLI, err)
 		return 1
@@ -209,7 +209,7 @@ func cmdWorkflowRun(args []string, stdout, stderr io.Writer) int {
 	// Runs can legitimately take minutes (delay nodes, slow tools, HITL asks).
 	ctx, cancel := context.WithTimeout(context.Background(), 16*time.Minute)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdWorkflowRun, callArgs)
+	res, err := c.Call(ctx, opapi.WorkflowRun, callArgs)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s workflow run: %v\n", brand.CLI, err)
 		return 1

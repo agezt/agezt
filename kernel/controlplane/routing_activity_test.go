@@ -6,7 +6,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -33,7 +33,7 @@ func TestRoutingActivity_SeparatesModelChainFallbacks(t *testing.T) {
 	})
 
 	// routing_get.activity attributes the model-chain fallback to "chat".
-	res, err := c.Call(context.Background(), controlplane.CmdRoutingGet, nil)
+	res, err := c.Call(context.Background(), opapi.RoutingGet, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +54,7 @@ func TestRoutingActivity_SeparatesModelChainFallbacks(t *testing.T) {
 	}
 
 	// status splits the two counts.
-	st, err := c.Call(context.Background(), controlplane.CmdStatus, nil)
+	st, err := c.Call(context.Background(), opapi.Status, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

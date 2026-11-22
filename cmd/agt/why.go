@@ -12,7 +12,7 @@ import (
 
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 // cmdWhy implements `agt why <event_id> [--json|--payload]`.
@@ -86,7 +86,7 @@ func cmdWhy(args []string, stdout, stderr io.Writer) int {
 	if tenant != "" {
 		callArgs["tenant"] = tenant // M53: trace this tenant's own journal
 	}
-	res, err := c.Call(ctx, controlplane.CmdWhy, callArgs)
+	res, err := c.Call(ctx, opapi.Why, callArgs)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s why: %v\n", brand.CLI, err)
 		return 1

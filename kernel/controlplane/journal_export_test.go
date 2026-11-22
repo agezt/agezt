@@ -8,13 +8,13 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/contract/llm"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
 // TestJournalExport runs a task to populate the journal, exports it via
-// CmdJournalExport (byte-preserving CallRaw), then re-verifies the exported
+// opapi.JournalExport (byte-preserving CallRaw), then re-verifies the exported
 // events offline: each event's BLAKE3 hash must recompute, and consecutive
 // events must chain by prev_hash. This is the guarantee the M101 bundle relies
 // on — proving the export survives the wire round-trip verifiably.
@@ -23,7 +23,7 @@ func TestJournalExport(t *testing.T) {
 	sub := watchOpAudit(t, k)
 
 	// Generate some journaled events.
-	if _, err := c.Stream(context.Background(), controlplane.CmdRun,
+	if _, err := c.Stream(context.Background(), opapi.Run,
 		map[string]any{"intent": "hello"}, nil); err != nil {
 		t.Fatalf("run: %v", err)
 	}
@@ -32,7 +32,7 @@ func TestJournalExport(t *testing.T) {
 	// from 5 to 6 between the export snapshot and the fixture's Head call.
 	awaitOpAudit(t, sub)
 
-	raw, err := c.CallRaw(context.Background(), controlplane.CmdJournalExport, nil)
+	raw, err := c.CallRaw(context.Background(), opapi.JournalExport, nil)
 	if err != nil {
 		t.Fatalf("export: %v", err)
 	}
@@ -80,7 +80,7 @@ func TestJournalExport(t *testing.T) {
 func TestJournalExportSinceWindow(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("done")))
 	sub := watchOpAudit(t, k)
-	if _, err := c.Stream(context.Background(), controlplane.CmdRun,
+	if _, err := c.Stream(context.Background(), opapi.Run,
 		map[string]any{"intent": "x"}, nil); err != nil {
 		t.Fatalf("run: %v", err)
 	}
@@ -88,7 +88,7 @@ func TestJournalExportSinceWindow(t *testing.T) {
 	// A 1ms window in the distant-past sense: since_ms is "last N ms", so a
 	// tiny window should yield few/zero events but never error, and a huge
 	// window should yield the same as no filter. Use a large window here.
-	raw, err := c.CallRaw(context.Background(), controlplane.CmdJournalExport,
+	raw, err := c.CallRaw(context.Background(), opapi.JournalExport,
 		map[string]any{"since_ms": int64(60_000)})
 	if err != nil {
 		t.Fatalf("export since: %v", err)
@@ -116,7 +116,7 @@ func TestJournalExportScopedByCorrelation(t *testing.T) {
 	k, _, c, _ := startPair(t, prov)
 	sub := watchOpAudit(t, k)
 	for _, intent := range []string{"run one", "run two"} {
-		if _, err := c.Stream(context.Background(), controlplane.CmdRun,
+		if _, err := c.Stream(context.Background(), opapi.Run,
 			map[string]any{"intent": intent}, nil); err != nil {
 			t.Fatalf("run %q: %v", intent, err)
 		}
@@ -124,7 +124,7 @@ func TestJournalExportScopedByCorrelation(t *testing.T) {
 	}
 
 	// Full export first, to discover a real correlation id and the full count.
-	rawFull, err := c.CallRaw(context.Background(), controlplane.CmdJournalExport, nil)
+	rawFull, err := c.CallRaw(context.Background(), opapi.JournalExport, nil)
 	if err != nil {
 		t.Fatalf("full export: %v", err)
 	}
@@ -152,7 +152,7 @@ func TestJournalExportScopedByCorrelation(t *testing.T) {
 	}
 
 	// Scoped export.
-	rawScoped, err := c.CallRaw(context.Background(), controlplane.CmdJournalExport,
+	rawScoped, err := c.CallRaw(context.Background(), opapi.JournalExport,
 		map[string]any{"correlation": target})
 	if err != nil {
 		t.Fatalf("scoped export: %v", err)

@@ -6,7 +6,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
@@ -15,7 +15,7 @@ func TestReflectRunAndShow(t *testing.T) {
 	ctx := context.Background()
 
 	// show before any pass → not found.
-	res, err := c.Call(ctx, controlplane.CmdReflectShow, nil)
+	res, err := c.Call(ctx, opapi.ReflectShow, nil)
 	if err != nil {
 		t.Fatalf("show: %v", err)
 	}
@@ -24,7 +24,7 @@ func TestReflectRunAndShow(t *testing.T) {
 	}
 
 	// run a pass → returns a report with a correlation.
-	res, err = c.Call(ctx, controlplane.CmdReflectRun, nil)
+	res, err = c.Call(ctx, opapi.ReflectRun, nil)
 	if err != nil {
 		t.Fatalf("run: %v", err)
 	}
@@ -36,7 +36,7 @@ func TestReflectRunAndShow(t *testing.T) {
 	}
 
 	// show now finds the latest report.
-	res, err = c.Call(ctx, controlplane.CmdReflectShow, nil)
+	res, err = c.Call(ctx, opapi.ReflectShow, nil)
 	if err != nil {
 		t.Fatalf("show 2: %v", err)
 	}

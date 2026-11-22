@@ -4,6 +4,7 @@ package controlplane
 import (
 	"context"
 	"github.com/agezt/agezt/kernel/app/binding"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"path/filepath"
 	"testing"
 	"time"
@@ -40,7 +41,7 @@ func TestTheAdapterBindsTheWorkboardPortsToItsOwnKernel(t *testing.T) {
 
 	// The daemon's task list — the adapter's own wiring — shows the kernel's
 	// tasks.
-	response := callAppHost(t, s, Request{ID: "list", Cmd: CmdWorkboardList, Token: "primary"})[0]
+	response := callAppHost(t, s, Request{ID: "list", Cmd: opapi.WorkboardList, Token: "primary"})[0]
 	if response.Type != RespResult {
 		t.Fatalf("the task list: %s", response.Error)
 	}

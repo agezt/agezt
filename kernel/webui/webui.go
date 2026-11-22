@@ -27,7 +27,7 @@ import (
 //
 // Call handles single request→response commands (every read panel, the
 // query-arg writes). Stream handles a command that emits a sequence of
-// RespEvent frames before its terminal result — currently only CmdPlan, used
+// RespEvent frames before its terminal result — currently only opapi.Plan, used
 // by Flow Studio's "Run". The streamed events are discarded here (the browser
 // already sees them live on the SSE /events firehose); Stream is driven to its
 // terminal result only so the control-plane connection stays open for the
@@ -160,5 +160,7 @@ func New(b *bus.Bus, client Caller, token string) *Server {
 	}
 }
 
-// apiRoutes maps each GET /api path to the read-only control-plane command it
-// proxies. Read-only by construction: there is no path here that mutates.
+// The console's routes are derived from the operation catalogue
+// (kernel/contract/opapi/http.go): each catalogue entry says which path
+// answers which operation and which arguments the console forwards. Read-only
+// by construction: the catalogue's read kinds carry no mutation.

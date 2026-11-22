@@ -18,7 +18,7 @@ import (
 
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdJournalGrep(args []string, stdout, stderr io.Writer) int {
@@ -121,7 +121,7 @@ func cmdJournalGrep(args []string, stdout, stderr io.Writer) int {
 	if corr != "" {
 		callArgs["correlation_id"] = corr
 	}
-	res, err := c.Call(ctx, controlplane.CmdJournalGrep, callArgs)
+	res, err := c.Call(ctx, opapi.JournalGrep, callArgs)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s journal grep: %v\n", brand.CLI, err)
 		return 1

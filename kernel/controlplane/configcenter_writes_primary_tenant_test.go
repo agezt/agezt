@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	core "github.com/agezt/agezt/kernel/configcenter"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -24,7 +24,7 @@ func TestConfigCenterWritesNativeTenantDenialPreservesStateJournalAndProvider(t 
 
 	client := tenantClient(t, dir, mustTenant(t, registry, "acme"))
 	head, hash := k.Journal().Head()
-	for _, command := range []string{controlplane.CmdConfigCenterSet, controlplane.CmdConfigCenterDelete, controlplane.CmdConfigCenterSetRating, controlplane.CmdConfigCenterSetAccess} {
+	for _, command := range []string{opapi.ConfigCenterSet, opapi.ConfigCenterDelete, opapi.ConfigCenterSetRating, opapi.ConfigCenterSetAccess} {
 		if _, err := client.Call(context.Background(), command, map[string]any{"tenant": "acme", "key": "owned", "value": "replacement", "rating": "public", "allowed_agents": []any{"other"}}); err == nil || (!strings.Contains(err.Error(), "forbidden") && !strings.Contains(err.Error(), "unauthorized")) {
 			t.Fatal(command, err)
 		}
@@ -45,11 +45,11 @@ func TestConfigCenterWritesNativeAuditPairsRedactionAndFailedLookup(t *testing.T
 		args    map[string]any
 		failed  bool
 	}{
-		{controlplane.CmdConfigCenterSet, map[string]any{"key": "owned", "value": "owned-sensitive-middle", "rating": "secret"}, false},
-		{controlplane.CmdConfigCenterSetRating, map[string]any{"key": "owned", "rating": "internal"}, false},
-		{controlplane.CmdConfigCenterSetAccess, map[string]any{"key": "owned", "allowed_agents": []any{"allowed"}}, false},
-		{controlplane.CmdConfigCenterDelete, map[string]any{"key": "owned"}, false},
-		{controlplane.CmdConfigCenterDelete, map[string]any{"key": "missing"}, true},
+		{opapi.ConfigCenterSet, map[string]any{"key": "owned", "value": "owned-sensitive-middle", "rating": "secret"}, false},
+		{opapi.ConfigCenterSetRating, map[string]any{"key": "owned", "rating": "internal"}, false},
+		{opapi.ConfigCenterSetAccess, map[string]any{"key": "owned", "allowed_agents": []any{"allowed"}}, false},
+		{opapi.ConfigCenterDelete, map[string]any{"key": "owned"}, false},
+		{opapi.ConfigCenterDelete, map[string]any{"key": "missing"}, true},
 	} {
 		seq, _ := k.Journal().Head()
 		_, err := client.Call(context.Background(), tc.command, tc.args)

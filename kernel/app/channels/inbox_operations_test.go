@@ -24,7 +24,7 @@ func TestChannelInboxOperationSpecNestedSchemaAndPresence(t *testing.T) {
 		t.Fatal(ops, err)
 	}
 	s := ops[0].Spec()
-	if s.Name != "inbox" || !s.ReadOnly || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Stream != opapi.StreamNone || !s.AllowUnknownInput || s.HTTP.Method != "GET" || s.HTTP.Path != "/api/inbox" || s.Input != reflect.TypeFor[InboxRequest]() || s.Output != reflect.TypeFor[InboxOutput]() {
+	if s.Name != "inbox" || !s.ReadOnly || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Stream != opapi.StreamNone || !s.AllowUnknownInput || s.Input != reflect.TypeFor[InboxRequest]() || s.Output != reflect.TypeFor[InboxOutput]() {
 		t.Fatal(s)
 	}
 	var node map[string]any

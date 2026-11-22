@@ -44,7 +44,7 @@ type skillBundleBody struct {
 }
 
 // buildSkillBundle projects a daemon skill record (the map returned under
-// CmdSkillGet's "skill" key) into a portable bundle. The JSON round-trip drops
+// opapi.SkillGet's "skill" key) into a portable bundle. The JSON round-trip drops
 // every non-shareable field by construction, since skillBundleBody declares only
 // the content fields.
 func buildSkillBundle(skillMap map[string]any, nowMS int64) (skillBundle, error) {
@@ -110,7 +110,7 @@ func safeSkillFilename(name, id string) string {
 }
 
 // exportAllSkills writes every skill to its own bundle file in dir (one
-// CmdSkillList call supplies the full records, bodies included). It is the
+// opapi.SkillList call supplies the full records, bodies included). It is the
 // publisher side of the skill registry: a node exports its whole skill library
 // as a directory another node can browse with `agt skill registry`.
 // exportAllSkills writes one bundle per skill into dir plus a registry index.

@@ -12,7 +12,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 // cmdRedact dispatches `agt redact <subcommand>`. Today the only subcommand is
@@ -22,13 +22,11 @@ func cmdRedact(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s redact: subcommand required (test)\n", brand.CLI)
 		return 2
 	}
-	switch args[0] {
-	case "test":
-		return cmdRedactTest(args[1:], stdout, stderr)
-	default:
-		fmt.Fprintf(stderr, "%s redact: unknown subcommand %q (test)\n", brand.CLI, args[0])
-		return 2
+	if sub, ok := cliRedact.lookup(args[0]); ok {
+		return sub.run(nil, args, stdout, stderr)
 	}
+	fmt.Fprintf(stderr, "%s redact: unknown subcommand %q (test)\n", brand.CLI, args[0])
+	return 2
 }
 
 // cmdRedactTest implements `agt redact test <string> [--json]` (M104) — asks the
@@ -64,7 +62,7 @@ func cmdRedactTest(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdRedactTest, map[string]any{"text": text})
+	res, err := c.Call(ctx, opapi.RedactTest, map[string]any{"text": text})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s redact test: %v\n", brand.CLI, err)
 		return 1

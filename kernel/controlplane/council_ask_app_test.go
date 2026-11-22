@@ -4,6 +4,7 @@ package controlplane
 
 import (
 	"github.com/agezt/agezt/kernel/app/binding"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"reflect"
 	"sort"
 	"strings"
@@ -52,7 +53,7 @@ func TestCouncilAskBindsTheKernel(t *testing.T) {
 	k := councilKernel(t)
 	s := NewServer(binding.ScopeFromKernel(k, t.TempDir()))
 	s.token = "primary"
-	resp := callAppHost(t, s, Request{ID: "c", Cmd: CmdCouncilAsk, Token: "primary", Args: map[string]any{
+	resp := callAppHost(t, s, Request{ID: "c", Cmd: opapi.CouncilAsk, Token: "primary", Args: map[string]any{
 		"question": "why?", "rounds": 1, "corr": "client-corr",
 	}})[0]
 	if resp.Type != RespResult {
@@ -88,12 +89,12 @@ func TestCouncilAskBindsTheKernel(t *testing.T) {
 		t.Fatalf("opinion row=%v", opinions[0])
 	}
 	// The operation is a live, audited, primary-only write.
-	if wire, exists := commandRegistry[CmdCouncilAsk]; !exists || !wire.AppOwned || wire.ReadOnly || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamLive {
+	if wire, exists := commandRegistry[opapi.CouncilAsk]; !exists || !wire.AppOwned || wire.ReadOnly || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamLive {
 		t.Fatalf("native wire %+v", wire)
 	}
 	var audited []event.Event
 	_ = k.Journal().Range(func(e *event.Event) error {
-		if e.Subject == "op."+CmdCouncilAsk {
+		if e.Subject == "op."+opapi.CouncilAsk {
 			audited = append(audited, *e)
 		}
 		return nil
@@ -108,7 +109,7 @@ func TestCouncilAskRejectsAMissingQuestion(t *testing.T) {
 	k := councilKernel(t)
 	s := NewServer(binding.ScopeFromKernel(k, t.TempDir()))
 	s.token = "primary"
-	resp := callAppHost(t, s, Request{ID: "c", Cmd: CmdCouncilAsk, Token: "primary", Args: map[string]any{}})[0]
+	resp := callAppHost(t, s, Request{ID: "c", Cmd: opapi.CouncilAsk, Token: "primary", Args: map[string]any{}})[0]
 	if resp.Type != RespError || !strings.Contains(resp.Error, "args.question required") {
 		t.Fatalf("response=%+v", resp)
 	}
@@ -120,7 +121,7 @@ func TestConductorAskBindsTheKernel(t *testing.T) {
 	k := councilKernel(t)
 	s := NewServer(binding.ScopeFromKernel(k, t.TempDir()))
 	s.token = "primary"
-	resp := callAppHost(t, s, Request{ID: "c", Cmd: CmdConductorAsk, Token: "primary", Args: map[string]any{
+	resp := callAppHost(t, s, Request{ID: "c", Cmd: opapi.ConductorAsk, Token: "primary", Args: map[string]any{
 		"task": "what is 2+2?", "max_rounds": 1,
 	}})[0]
 	if resp.Type != RespResult {
@@ -147,7 +148,7 @@ func TestConductorAskBindsTheKernel(t *testing.T) {
 	if !ok || step["role"] == "" || step["model"] == "" {
 		t.Fatalf("step row=%v", steps[0])
 	}
-	if wire, exists := commandRegistry[CmdConductorAsk]; !exists || !wire.AppOwned || wire.ReadOnly || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamLive {
+	if wire, exists := commandRegistry[opapi.ConductorAsk]; !exists || !wire.AppOwned || wire.ReadOnly || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamLive {
 		t.Fatalf("native wire %+v", wire)
 	}
 }
@@ -155,7 +156,7 @@ func TestConductorAskBindsTheKernel(t *testing.T) {
 // TestCognitionOperationsAreTyped: both commands are app-owned typed
 // operations, registered once each.
 func TestCognitionOperationsAreTyped(t *testing.T) {
-	for _, cmd := range []string{CmdCouncilAsk, CmdConductorAsk} {
+	for _, cmd := range []string{opapi.CouncilAsk, opapi.ConductorAsk} {
 		found := 0
 		for _, operation := range registeredAppOperations() {
 			if operation.Spec().Name == cmd {

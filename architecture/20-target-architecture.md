@@ -303,7 +303,7 @@ Rules that keep modules clean:
 
 | Metric | Today | Target |
 |---|---|---|
-| archcheck violations (`tools/archcheck/allowlist.txt`) | **200** (88 plugin-reach · 70 cross-module · 34 adapter-bypass · 8 upward), 2026-10-02 → **2** after W5.4k (`controlplane → runtime`, `selfrepair → runtime`) | **0** |
+| archcheck violations (`tools/archcheck/allowlist.txt`) | **200** (88 plugin-reach · 70 cross-module · 34 adapter-bypass · 8 upward), 2026-10-02 → **2** after W5.4k (`controlplane → runtime`, `selfrepair → runtime`) → **0** after W5.4bd (the last edge: `selfrepair → runtime`) — the allowlist holds no entries | **0** |
 | Methods on the biggest type | `controlplane.Server` 437, `runtime.Kernel` 284 | no type > 60 methods |
 | Largest Go package (files) | controlplane 204, runtime 81 | ≤ 40 |
 | Run entry points outside `modules/runs` | 10 | **1** (`RunService.Start`, called only from `app` ops and triggers) |

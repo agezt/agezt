@@ -200,7 +200,7 @@ func TestRosterTaskUpdateOperationIsAudited(t *testing.T) {
 		t.Fatal(ops, err)
 	}
 	spec := ops[0].Spec()
-	if spec.Name != "agent_task_update" || spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.Input != reflect.TypeFor[TaskUpdateRequest]() || spec.Output != reflect.TypeFor[TaskUpdateOutput]() || spec.HTTP != (opapi.HTTP{Method: "POST", Path: "/api/agents/task"}) {
+	if spec.Name != "agent_task_update" || spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.Input != reflect.TypeFor[TaskUpdateRequest]() || spec.Output != reflect.TypeFor[TaskUpdateOutput]() {
 		t.Fatal(spec)
 	}
 	profile := `{"id":"i","slug":"s","enabled":true,"created_ms":0,"updated_ms":0,"kind":"custom","managed":false}`

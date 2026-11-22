@@ -29,18 +29,18 @@ import {
 // synthesizes), and renders the opinions + the consensus. The agent reaches the
 // same engine via the `council` tool; this is the operator's seat at the table.
 
-interface Member {
+type Member = {
   seat: string;
   model: string;
-}
-interface Opinion {
+};
+type Opinion = {
   seat: string;
   model: string;
   round: number;
   text: string;
   error?: string;
-}
-interface CouncilResult {
+};
+type CouncilResult = {
   question: string;
   consensus: string;
   dissent?: string;
@@ -49,7 +49,7 @@ interface CouncilResult {
   opinions: Opinion[];
   as_of?: string;
   brief?: string;
-}
+};
 
 export function Council() {
   const ui = useUI();
@@ -80,7 +80,7 @@ export function Council() {
   }, []);
 
   function loadPast() {
-    getJSON<{ events?: AgentEvent[] }>("/api/journal", { kind: "council.convened", limit: "20" })
+    getJSON("/api/journal", { kind: "council.convened", limit: "20" })
       .then((d) => setPast(d.events || []))
       .catch(() => {});
   }
@@ -97,7 +97,7 @@ export function Council() {
     if (!corr || replaying) return;
     setReplaying(corr);
     try {
-      const d = await getJSON<{ events?: AgentEvent[] }>("/api/journal", {
+      const d = await getJSON("/api/journal", {
         correlation_id: corr,
         limit: "400",
       });
@@ -111,7 +111,7 @@ export function Council() {
   }
 
   function loadMembers() {
-    getJSON<{ members: Member[] }>("/api/council/members")
+    getJSON("/api/council/members")
       .then((d) => {
         setMembers(d.members ?? []);
         setDraftMembers(d.members ?? []);
@@ -133,7 +133,7 @@ export function Council() {
     if (saving) return;
     setSaving(true);
     try {
-      const res = await postJSON<{ saved: boolean; unknown_models?: string[] }>("/api/council/set", {
+      const res = await postJSON("/api/council/set", {
         members: draftMembers.map((m) => ({ seat: m.seat, model: m.model })),
       });
       await loadMembers();
@@ -182,7 +182,7 @@ export function Council() {
     // Seed the run immediately so the live view appears at once, then convene.
     startCouncilRun(newCorr, q, members.map((m) => ({ seat: m.seat, model: m.model })), rounds);
     try {
-      const res = await postJSON<CouncilResult>("/api/council/ask", { question: q, rounds, corr: newCorr });
+      const res = await postJSON("/api/council/ask", { question: q, rounds, corr: newCorr });
       applyCouncilResult(newCorr, { ...res, asOf: res.as_of, brief: res.brief });
     } catch (e) {
       // The deliberation streams over events independently of this POST, so if the

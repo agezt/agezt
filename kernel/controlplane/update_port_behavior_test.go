@@ -3,6 +3,7 @@ package controlplane
 
 import (
 	"github.com/agezt/agezt/kernel/app/binding"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"testing"
 
 	core "github.com/agezt/agezt/kernel/contract/updateapi"
@@ -29,7 +30,7 @@ func TestTheUpdateOperationsReachTheContractPort(t *testing.T) {
 	s := NewServerWithDeps(binding.ScopeFromKernel(k, dir), Deps{UpdateSvc: backend})
 	s.token = "primary"
 
-	frames := callAppHost(t, s, Request{ID: "owned", Cmd: CmdUpdateCheck, Token: "primary"})
+	frames := callAppHost(t, s, Request{ID: "owned", Cmd: opapi.UpdateCheck, Token: "primary"})
 	last := frames[len(frames)-1]
 	if last.Type != RespResult || last.Result["current"] != "owned-current" {
 		t.Fatalf("EXPECTED:the port's answer ACTUAL:%+v", last)
@@ -41,7 +42,7 @@ func TestTheUpdateOperationsReachTheContractPort(t *testing.T) {
 func TestTheUpdateOperationsWithoutAPortReportDisabled(t *testing.T) {
 	_, s, _, _ := pulseAppFixture(t)
 
-	frames := callAppHost(t, s, Request{ID: "owned", Cmd: CmdUpdateCheck, Token: "primary"})
+	frames := callAppHost(t, s, Request{ID: "owned", Cmd: opapi.UpdateCheck, Token: "primary"})
 	last := frames[len(frames)-1]
 	if last.Type != RespResult || last.Result["status"] != "update is disabled" {
 		t.Fatalf("EXPECTED:update is disabled ACTUAL:%+v", last)
@@ -56,7 +57,7 @@ func TestTheUpdateOperationsWithoutAPortReportDisabled(t *testing.T) {
 func TestTheUpdatePortIsTheContractPort(t *testing.T) {
 	var port core.Backend = &ownedUpdateBackend{}
 	_, s, _, _ := pulseAppFixtureWithDeps(t, Deps{UpdateSvc: port})
-	frames := callAppHost(t, s, Request{ID: "owned", Cmd: CmdUpdateCheck, Token: "primary"})
+	frames := callAppHost(t, s, Request{ID: "owned", Cmd: opapi.UpdateCheck, Token: "primary"})
 	if last := frames[len(frames)-1]; last.Type != RespResult {
 		t.Fatalf("EXPECTED:the wired port answers ACTUAL:%+v", last)
 	}

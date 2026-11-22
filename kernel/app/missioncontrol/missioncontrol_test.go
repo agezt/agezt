@@ -136,9 +136,9 @@ func TestOperations(t *testing.T) {
 	if err != nil || len(ops) != 2 {
 		t.Fatal(ops, err)
 	}
-	for i, want := range []struct{ name, path string }{{"spend_today", "/api/spend/today"}, {"attention", "/api/attention"}} {
+	for i, want := range []struct{ name, path string }{{opapi.SpendToday, "/api/spend/today"}, {opapi.Attention, "/api/attention"}} {
 		spec := ops[i].Spec()
-		if spec.Name != want.name || !spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.HTTP != (opapi.HTTP{Method: "GET", Path: want.path}) {
+		if spec.Name != want.name || !spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput {
 			t.Fatal(spec)
 		}
 	}

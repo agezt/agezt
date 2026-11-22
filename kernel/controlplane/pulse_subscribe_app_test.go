@@ -17,7 +17,7 @@ import (
 )
 
 func TestPulseFourteenNativeOperationsAndStreamProjectionMetadata(t *testing.T) {
-	want := map[string]bool{CmdPulseStatus: true, CmdPulseAsks: true, CmdPulseSubscribe: true, CmdPulseAskResolve: false, CmdPulsePause: false, CmdPulseResume: false, CmdPulseBeat: false, CmdPulseCadence: false, CmdPulseDial: false, CmdPulseQuiet: false, CmdPulseFlush: false, CmdPulseWatch: false, CmdPulseProbe: false, CmdPulseUnwatch: false}
+	want := map[string]bool{opapi.PulseStatus: true, opapi.PulseAsks: true, opapi.PulseSubscribe: true, opapi.PulseAskResolve: false, opapi.PulsePause: false, opapi.PulseResume: false, opapi.PulseBeat: false, opapi.PulseCadence: false, opapi.PulseDial: false, opapi.PulseQuiet: false, opapi.PulseFlush: false, opapi.PulseWatch: false, opapi.PulseProbe: false, opapi.PulseUnwatch: false}
 	seen := map[string]bool{}
 	for _, operation := range registeredAppOperations() {
 		spec := operation.Spec()
@@ -29,7 +29,7 @@ func TestPulseFourteenNativeOperationsAndStreamProjectionMetadata(t *testing.T) 
 		if !known || seen[spec.Name] || !exists || !wire.AppOwned || wire.ReadOnly != read || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone || spec.ReadOnly != read || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary {
 			t.Fatal(spec, wire)
 		}
-		if spec.Name == CmdPulseSubscribe {
+		if spec.Name == opapi.PulseSubscribe {
 			if spec.Stream != opapi.StreamLive || spec.Emission != reflect.TypeFor[*event.Event]() || len(spec.EmissionSchema) == 0 || reflect.ValueOf(wire.Handler).Pointer() != reflect.ValueOf(handlePulseAppStream).Pointer() {
 				t.Fatal(spec, wire)
 			}
@@ -42,7 +42,7 @@ func TestPulseFourteenNativeOperationsAndStreamProjectionMetadata(t *testing.T) 
 		t.Fatal(seen, len(pulseSubscribeOperations))
 	}
 	for _, mode := range []string{"unary", "write", "tenant"} {
-		spec := opapi.Spec{Name: CmdPulseSubscribe, ReadOnly: true, Stream: opapi.StreamLive, EmissionSchema: json.RawMessage(`{"type":"object"}`)}
+		spec := opapi.Spec{Name: opapi.PulseSubscribe, ReadOnly: true, Stream: opapi.StreamLive, EmissionSchema: json.RawMessage(`{"type":"object"}`)}
 		switch mode {
 		case "unary":
 			spec.Stream = opapi.StreamNone
@@ -72,7 +72,7 @@ func TestPulseSubscribeNativeBoundedWireHasEventsThenEOFAndNoAudit(t *testing.T)
 	done := make(chan struct{})
 	go func() { defer close(done); s.handleConn(context.Background(), conn) }()
 	client.SetDeadline(time.Now().Add(3 * time.Second))
-	req := Request{ID: "bounded", Cmd: CmdPulseSubscribe, Token: "primary", Args: map[string]any{"pattern": "owned.*", "since": float64(0), "until": float64(ev.Seq + 1)}}
+	req := Request{ID: "bounded", Cmd: opapi.PulseSubscribe, Token: "primary", Args: map[string]any{"pattern": "owned.*", "since": float64(0), "until": float64(ev.Seq + 1)}}
 	raw, _ := json.Marshal(req)
 	if _, err := client.Write(append(raw, 10)); err != nil {
 		t.Fatal(err)
@@ -197,7 +197,7 @@ func TestPulseSubscribeNativeCanceledAdmissionDoesNotReplay(t *testing.T) {
 	done := make(chan struct{})
 	go func() { defer close(done); s.handleConn(ctx, conn) }()
 	client.SetDeadline(time.Now().Add(time.Second))
-	req := Request{ID: "canceled", Cmd: CmdPulseSubscribe, Token: "primary", Args: map[string]any{"since": float64(0), "until": float64(1)}}
+	req := Request{ID: "canceled", Cmd: opapi.PulseSubscribe, Token: "primary", Args: map[string]any{"since": float64(0), "until": float64(1)}}
 	raw, _ := json.Marshal(req)
 	if _, err := client.Write(append(raw, 10)); err != nil {
 		t.Fatal(err)

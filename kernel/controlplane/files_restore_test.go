@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	apptools "github.com/agezt/agezt/kernel/app/tools"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/platform/rollbackstore"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -44,7 +44,7 @@ func TestFileRestoreUsesDaemonCatalogAndIgnoresCallerSnapshot(t *testing.T) {
 	if err := rollbackstore.WriteAt(otherCatalog, rollbackstore.Catalog{Checkpoints: []rollbackstore.Checkpoint{other}}); err != nil {
 		t.Fatal(err)
 	}
-	result, err := client.Call(context.Background(), controlplane.CmdFileRestore, map[string]any{
+	result, err := client.Call(context.Background(), opapi.FileRestore, map[string]any{
 		"id": "same-id", "before": other.Before,
 	})
 	if err != nil || result["applied"] != true {
@@ -75,7 +75,7 @@ func TestFileRestoreUsesDaemonCatalogAndIgnoresCallerSnapshot(t *testing.T) {
 	if err := os.WriteFile(trustedTarget, []byte("after restore"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	result, err = client.Call(context.Background(), controlplane.CmdFileRestore, map[string]any{"id": "same-id"})
+	result, err = client.Call(context.Background(), opapi.FileRestore, map[string]any{"id": "same-id"})
 	if err != nil || result["applied"] != false || result["reason"] != "already applied" {
 		t.Fatalf("repeat=%v error=%v", result, err)
 	}

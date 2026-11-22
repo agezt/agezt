@@ -5,6 +5,7 @@ package controlplane
 import (
 	"encoding/json"
 	"github.com/agezt/agezt/kernel/app/binding"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"io"
 	"path/filepath"
 	"strings"
@@ -55,9 +56,9 @@ func TestExecutionProfilesReadTheCallersKernel(t *testing.T) {
 		return string(raw)
 	}
 	local := func(raw string) bool { return strings.Contains(raw, `"tools":["shell"]`) }
-	for _, cmd := range []string{CmdExecutionProfiles, CmdExecutionProfileShow} {
+	for _, cmd := range []string{opapi.ExecutionProfiles, opapi.ExecutionProfileShow} {
 		args := map[string]any{}
-		if cmd == CmdExecutionProfileShow {
+		if cmd == opapi.ExecutionProfileShow {
 			args["id"] = " local "
 		}
 		if !local(read("primary", cmd, args)) {
@@ -68,10 +69,10 @@ func TestExecutionProfilesReadTheCallersKernel(t *testing.T) {
 			t.Fatal(cmd, "a named tenant reads its own kernel")
 		}
 	}
-	if got := read(tenantToken, CmdExecutionProfileCheck, map[string]any{"tenant": "acme"}); !strings.Contains(got, `"routable_run_profiles":`) || !strings.Contains(got, `"checks":[{`) {
+	if got := read(tenantToken, opapi.ExecutionProfileCheck, map[string]any{"tenant": "acme"}); !strings.Contains(got, `"routable_run_profiles":`) || !strings.Contains(got, `"checks":[{`) {
 		t.Fatal(got)
 	}
-	for _, cmd := range []string{CmdExecutionProfiles, CmdExecutionProfileShow, CmdExecutionProfileCheck} {
+	for _, cmd := range []string{opapi.ExecutionProfiles, opapi.ExecutionProfileShow, opapi.ExecutionProfileCheck} {
 		if wire, exists := commandRegistry[cmd]; !exists || !wire.AppOwned || !wire.ReadOnly || !wire.TenantAllowed || !wire.TenantRouted || wire.Streaming != StreamNone {
 			t.Fatalf("%s native wire %+v", cmd, wire)
 		}

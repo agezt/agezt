@@ -17,7 +17,6 @@ import (
 	"github.com/agezt/agezt/kernel/contract/boardapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
-	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 	"os"
 	"strings"
 )
@@ -66,7 +65,7 @@ func autoRepairFailedPhase(cand autoRepairCandidate) string {
 	return "failed"
 }
 
-func (c *autoRepairCoordinator) dispatch(ctx context.Context, k *kernelruntime.Kernel, b *bus.Bus, src autoRepairSource, mailbox Mailbox, postNotify func(boardapi.Message, string), cand autoRepairCandidate) {
+func (c *autoRepairCoordinator) dispatch(ctx context.Context, ports Ports, src autoRepairSource, mailbox Mailbox, postNotify func(boardapi.Message, string), cand autoRepairCandidate) {
 	// Panic firewall (WF-001). dispatch is launched with a bare `go` from the
 	// coordinator loop, so nothing above can recover it — and it drives a full
 	// governed run: provider calls, tools, plugin subprocesses, MCP servers, then
@@ -83,8 +82,8 @@ func (c *autoRepairCoordinator) dispatch(ctx context.Context, k *kernelruntime.K
 			return
 		}
 		fmt.Fprintf(os.Stderr, "auto-repair for %q panicked: %v\n", cand.Slug, r)
-		if b != nil {
-			_, _ = b.Publish(event.Spec{
+		if ports.Bus != nil {
+			_, _ = ports.Bus.Publish(event.Spec{
 				Subject: autoRepairPulseSubject,
 				Kind:    event.KindSelfRepairPanic,
 				Actor:   "selfrepair",
@@ -101,12 +100,12 @@ func (c *autoRepairCoordinator) dispatch(ctx context.Context, k *kernelruntime.K
 	if cand.SelfRepairExhausted {
 		err := fmt.Errorf("self-repair attempts exhausted (%d/%d)", cand.SelfRepairAttempt, cand.SelfRepairMaxAttempts)
 		msg, mailboxErr := c.autoEscalate(mailbox, postNotify, cand, err)
-		c.autoWakeManager(ctx, k, b, src, mailbox, postNotify, cand, msg, mailboxErr)
+		c.autoWakeManager(ctx, ports, src, mailbox, postNotify, cand, msg, mailboxErr)
 		return
 	}
 	if cand.Mode == "routing_unstable" || cand.Mode == "routing_forced_failed" || cand.Mode == "routing_forced_exhausted" {
 		msg, mailboxErr := c.autoEscalate(mailbox, postNotify, cand, errors.New(cand.Reason))
-		c.autoWakeManager(ctx, k, b, src, mailbox, postNotify, cand, msg, mailboxErr)
+		c.autoWakeManager(ctx, ports, src, mailbox, postNotify, cand, msg, mailboxErr)
 		return
 	}
 	var (
@@ -124,7 +123,7 @@ func (c *autoRepairCoordinator) dispatch(ctx context.Context, k *kernelruntime.K
 		res, err = src.RepairAgent(cand.Slug, cand.Reason)
 	}
 	if err != nil {
-		publishAutoRepair(b, "", map[string]any{
+		publishAutoRepair(ports.Bus, "", map[string]any{
 			"phase":                             autoRepairFailedPhase(cand),
 			"agent":                             cand.Slug,
 			"mode":                              cand.Mode,
@@ -142,10 +141,10 @@ func (c *autoRepairCoordinator) dispatch(ctx context.Context, k *kernelruntime.K
 			"parent_incident_id":                strings.TrimSpace(cand.ParentHopID),
 		})
 		msg, mailboxErr := c.autoEscalate(mailbox, postNotify, cand, err)
-		c.autoWakeManager(ctx, k, b, src, mailbox, postNotify, cand, msg, mailboxErr)
+		c.autoWakeManager(ctx, ports, src, mailbox, postNotify, cand, msg, mailboxErr)
 		return
 	}
-	publishAutoRepair(b, res.Correlation, map[string]any{
+	publishAutoRepair(ports.Bus, res.Correlation, map[string]any{
 		"phase":                             autoRepairCompletedPhase(cand),
 		"agent":                             cand.Slug,
 		"mode":                              cand.Mode,

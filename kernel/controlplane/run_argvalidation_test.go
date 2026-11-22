@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
-	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/warden"
@@ -50,7 +50,7 @@ func TestRun_RejectsWrongTypedArgs(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := c.Stream(context.Background(), controlplane.CmdRun, tc.args, func(*event.Event) {})
+			_, err := c.Stream(context.Background(), opapi.Run, tc.args, func(*event.Event) {})
 			if err == nil {
 				t.Fatalf("expected usage error, got nil")
 			}
@@ -68,7 +68,7 @@ func TestRun_WellTypedArgsStillRun(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 
 	// dry_run:true → a plan, run not executed.
-	plan, err := c.Call(context.Background(), controlplane.CmdRun,
+	plan, err := c.Call(context.Background(), opapi.Run,
 		map[string]any{"intent": "x", "dry_run": true, "tools": []any{}})
 	if err != nil {
 		t.Fatalf("dry-run errored: %v", err)
@@ -80,7 +80,7 @@ func TestRun_WellTypedArgsStillRun(t *testing.T) {
 		t.Errorf("tools_mode = %v, want none (--no-tools)", plan["tools_mode"])
 	}
 
-	plan, err = c.Call(context.Background(), controlplane.CmdRun,
+	plan, err = c.Call(context.Background(), opapi.Run,
 		map[string]any{"intent": "x", "dry_run": true, "execution_profile": "local"})
 	if err != nil {
 		t.Fatalf("dry-run with execution profile errored: %v", err)
@@ -97,7 +97,7 @@ func TestRun_WellTypedArgsStillRun(t *testing.T) {
 		Warden:   dockerWarden,
 		Tools:    map[string]toolapi.Tool{"shell": shell.NewWithWarden(dockerWarden)},
 	})
-	plan, err = c2.Call(context.Background(), controlplane.CmdRun,
+	plan, err = c2.Call(context.Background(), opapi.Run,
 		map[string]any{"intent": "x", "dry_run": true, "execution_profile": "docker"})
 	if err != nil {
 		t.Fatalf("dry-run with docker execution profile errored: %v", err)
@@ -108,7 +108,7 @@ func TestRun_WellTypedArgsStillRun(t *testing.T) {
 
 	t.Setenv("AGEZT_EXEC_SSH", "1")
 	t.Setenv("AGEZT_EXEC_SSH_TARGET", "deploy@example.com")
-	plan, err = c.Call(context.Background(), controlplane.CmdRun,
+	plan, err = c.Call(context.Background(), opapi.Run,
 		map[string]any{"intent": "x", "dry_run": true, "execution_profile": "ssh"})
 	if err != nil {
 		t.Fatalf("dry-run with ssh execution profile errored: %v", err)
@@ -120,7 +120,7 @@ func TestRun_WellTypedArgsStillRun(t *testing.T) {
 	t.Setenv("AGEZT_EXEC_K8S", "1")
 	t.Setenv("AGEZT_EXEC_K8S_NAMESPACE", "agents")
 	t.Setenv("AGEZT_EXEC_K8S_POD", "runner-0")
-	plan, err = c.Call(context.Background(), controlplane.CmdRun,
+	plan, err = c.Call(context.Background(), opapi.Run,
 		map[string]any{"intent": "x", "dry_run": true, "execution_profile": "k8s"})
 	if err != nil {
 		t.Fatalf("dry-run with k8s execution profile errored: %v", err)
@@ -131,7 +131,7 @@ func TestRun_WellTypedArgsStillRun(t *testing.T) {
 
 	t.Setenv("AGEZT_EXEC_MODAL", "1")
 	t.Setenv("AGEZT_EXEC_MODAL_REF", "app.py::main")
-	plan, err = c.Call(context.Background(), controlplane.CmdRun,
+	plan, err = c.Call(context.Background(), opapi.Run,
 		map[string]any{"intent": "x", "dry_run": true, "execution_profile": "modal"})
 	if err != nil {
 		t.Fatalf("dry-run with modal execution profile errored: %v", err)
@@ -142,7 +142,7 @@ func TestRun_WellTypedArgsStillRun(t *testing.T) {
 
 	t.Setenv("AGEZT_EXEC_DAYTONA", "1")
 	t.Setenv("AGEZT_EXEC_DAYTONA_SANDBOX", "sandbox-1")
-	plan, err = c.Call(context.Background(), controlplane.CmdRun,
+	plan, err = c.Call(context.Background(), opapi.Run,
 		map[string]any{"intent": "x", "dry_run": true, "execution_profile": "daytona"})
 	if err != nil {
 		t.Fatalf("dry-run with daytona execution profile errored: %v", err)
@@ -155,7 +155,7 @@ func TestRun_WellTypedArgsStillRun(t *testing.T) {
 		Provider: mock.New(mock.FinalText("ok")),
 		Tools:    map[string]toolapi.Tool{"remote_run": remoteRunFooterTool{wantPeer: "nodeC"}},
 	})
-	plan, err = c3.Call(context.Background(), controlplane.CmdRun,
+	plan, err = c3.Call(context.Background(), opapi.Run,
 		map[string]any{"intent": "x", "dry_run": true, "execution_profile": "remote-agezt", "remote_peer": "nodeC"})
 	if err != nil {
 		t.Fatalf("dry-run with remote-agezt execution profile errored: %v", err)
@@ -169,7 +169,7 @@ func TestRun_WellTypedArgsStillRun(t *testing.T) {
 
 	remoteKinds := map[event.Kind]bool{}
 	var remoteCompleted map[string]any
-	res, err := c3.Stream(context.Background(), controlplane.CmdRun,
+	res, err := c3.Stream(context.Background(), opapi.Run,
 		map[string]any{"intent": "delegate this", "execution_profile": "remote-agezt", "remote_peer": "nodeC"}, func(e *event.Event) {
 			remoteKinds[e.Kind] = true
 			if e.Kind == event.KindTaskCompleted {
@@ -191,14 +191,14 @@ func TestRun_WellTypedArgsStillRun(t *testing.T) {
 	if remoteCompleted["remote_peer"] != "nodeC" || remoteCompleted["remote_correlation"] != "run-abc" || remoteCompleted["remote_model"] != "m" {
 		t.Errorf("remote-agezt completed metadata = %v, want peer/correlation/model", remoteCompleted)
 	}
-	_, err = c3.Stream(context.Background(), controlplane.CmdRun,
+	_, err = c3.Stream(context.Background(), opapi.Run,
 		map[string]any{"intent": "delegate this", "execution_profile": "remote-agezt", "assure": 2.0}, func(*event.Event) {})
 	if err == nil || !strings.Contains(err.Error(), "cannot combine with assure") {
 		t.Fatalf("remote-agezt assure err = %v, want clear rejection", err)
 	}
 
 	// Ordinary run still completes (mock is fresh — the dry-run spent nothing).
-	res, err = c.Stream(context.Background(), controlplane.CmdRun,
+	res, err = c.Stream(context.Background(), opapi.Run,
 		map[string]any{"intent": "hello"}, func(*event.Event) {})
 	if err != nil {
 		t.Fatalf("plain run errored: %v", err)
@@ -237,7 +237,7 @@ func TestRun_RejectsExecutionProfileBlockedByPolicy(t *testing.T) {
 	t.Setenv("AGEZT_EXEC_PROFILE_DENY", "local")
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 
-	_, err := c.Call(context.Background(), controlplane.CmdRun,
+	_, err := c.Call(context.Background(), opapi.Run,
 		map[string]any{"intent": "x", "dry_run": true, "execution_profile": "local"})
 	if err == nil {
 		t.Fatal("expected policy rejection, got nil")

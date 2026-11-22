@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	appsettings "github.com/agezt/agezt/kernel/app/settings"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/platform/schema"
 	core "github.com/agezt/agezt/kernel/settings"
@@ -75,15 +76,15 @@ func settingsCLIEndpoint(t *testing.T, reply settingsCLIReply) <-chan controlpla
 				public := " raw previous "
 				empty := ""
 				switch req.Cmd {
-				case controlplane.CmdConfigSchema:
+				case opapi.ConfigSchema:
 					value = appsettings.SchemaOutput{Sections: []core.Section{{ID: "owned", Name: "Owned", Source: "owned", Fields: []core.Field{{Env: "AGEZT_W45D_PUBLIC", Label: "Public", Type: core.TypeText, Apply: core.ApplyRestart}, {Env: "AGEZT_W45D_SECRET", Label: "Secret", Type: core.TypePassword, Secret: true, Apply: core.ApplyRestart}}}}, ReloadBoundaries: []core.ReloadBoundary{}}
-				case controlplane.CmdConfigValues:
+				case opapi.ConfigValues:
 					value = appsettings.ValuesOutput{Fields: []appsettings.ValueRow{{Env: "AGEZT_W45D_PUBLIC", Set: true, EnvPinned: true, Value: &public}, {Env: "AGEZT_W45D_SECRET", Secret: true, Set: true}, {Env: "AGEZT_W45D_UNSET", Secret: true}, {Env: "AGEZT_W45D_EMPTY", Value: &empty}}}
-				case controlplane.CmdConfigSet:
+				case opapi.ConfigSet:
 					value = appsettings.SetOutput{Env: targetName, Saved: true, Applied: reply.applied, EnvPinned: reply.pinned}
-				case controlplane.CmdConfigSchemaRegister:
+				case opapi.ConfigSchemaRegister:
 					value = appsettings.RegisterOutput{ID: "owned", Registered: true, Applied: "restart"}
-				case controlplane.CmdConfigSchemaUnregister:
+				case opapi.ConfigSchemaUnregister:
 					value = appsettings.UnregisterOutput{ID: targetID, Removed: reply.removed}
 				}
 				raw, _ := json.Marshal(value)
@@ -117,27 +118,27 @@ func TestCmdSettingsNativeWireRenderingAndCheckpoints(t *testing.T) {
 		code     int
 		contains string
 	}{
-		{"schema", []string{"schema"}, settingsCLIReply{}, []string{controlplane.CmdConfigSchema}, nil, 0, "[owned] Owned (registered)"},
-		{"schema-json", []string{"schema", "--json"}, settingsCLIReply{}, []string{controlplane.CmdConfigSchema}, nil, 0, `"reload_boundaries": []`},
-		{"list", []string{"ls"}, settingsCLIReply{}, []string{controlplane.CmdConfigValues}, nil, 0, "set (secret)"},
-		{"list-json", []string{"ls", "--json"}, settingsCLIReply{}, []string{controlplane.CmdConfigValues}, nil, 0, `"value": ""`},
-		{"get-public", []string{"get", "AGEZT_W45D_PUBLIC"}, settingsCLIReply{}, []string{controlplane.CmdConfigValues}, nil, 0, "AGEZT_W45D_PUBLIC= raw previous "},
-		{"get-secret", []string{"get", "AGEZT_W45D_SECRET"}, settingsCLIReply{}, []string{controlplane.CmdConfigValues}, nil, 0, "value not shown"},
-		{"get-unset", []string{"get", "AGEZT_W45D_UNSET"}, settingsCLIReply{}, []string{controlplane.CmdConfigValues}, nil, 0, "not set"},
-		{"get-missing", []string{"get", "missing"}, settingsCLIReply{}, []string{controlplane.CmdConfigValues}, nil, 1, "unknown setting"},
-		{"set-live", []string{"set", "AGEZT_W45D_PUBLIC", " raw ", "second"}, settingsCLIReply{applied: "live"}, []string{controlplane.CmdConfigValues, controlplane.CmdConfigSet}, map[string]any{"name": "AGEZT_W45D_PUBLIC", "value": " raw  second"}, 0, "applied live"},
-		{"set-pinned", []string{"set", "AGEZT_W45D_PUBLIC", "v"}, settingsCLIReply{pinned: true, applied: "restart"}, []string{controlplane.CmdConfigValues, controlplane.CmdConfigSet}, map[string]any{"name": "AGEZT_W45D_PUBLIC", "value": "v"}, 0, "pinned by the environment"},
-		{"set-clear", []string{"set", "AGEZT_W45D_PUBLIC"}, settingsCLIReply{applied: "restart"}, []string{controlplane.CmdConfigValues, controlplane.CmdConfigSet}, map[string]any{"name": "AGEZT_W45D_PUBLIC", "value": ""}, 0, "restart to apply"},
-		{"set-secret", []string{"set", "AGEZT_W45D_SECRET", "owned"}, settingsCLIReply{applied: "restart"}, []string{controlplane.CmdConfigValues, controlplane.CmdConfigSet}, map[string]any{"name": "AGEZT_W45D_SECRET", "value": "owned"}, 0, "restart to apply"},
-		{"register", []string{"schema", "register", "FILE"}, settingsCLIReply{}, []string{controlplane.CmdConfigSchemaRegister}, map[string]any{"section": map[string]any{"id": "owned", "name": "Owned", "fields": []any{map[string]any{"env": "AGEZT_W45D_REGISTERED", "type": "text"}}}}, 0, "registered schema section"},
-		{"register-error", []string{"schema", "register", "FILE"}, settingsCLIReply{fail: controlplane.CmdConfigSchemaRegister}, []string{controlplane.CmdConfigSchemaRegister}, map[string]any{"section": map[string]any{"id": "owned", "name": "Owned", "fields": []any{map[string]any{"env": "AGEZT_W45D_REGISTERED", "type": "text"}}}}, 1, "owned failure"},
-		{"unregister-force", []string{"schema", "unregister", " raw-id ", "--force"}, settingsCLIReply{removed: true}, []string{controlplane.CmdConfigSchemaUnregister}, map[string]any{"id": " raw-id ", "force": true}, 0, "unregistered"},
-		{"unregister-missing", []string{"schema", "unregister", "missing"}, settingsCLIReply{}, []string{controlplane.CmdConfigSchemaUnregister}, map[string]any{"id": "missing", "force": false}, 0, "was not registered"},
-		{"schema-error", []string{"schema"}, settingsCLIReply{fail: controlplane.CmdConfigSchema}, []string{controlplane.CmdConfigSchema}, nil, 1, "owned failure"},
-		{"values-error", []string{"ls"}, settingsCLIReply{fail: controlplane.CmdConfigValues}, []string{controlplane.CmdConfigValues}, nil, 1, "owned failure"},
-		{"checkpoint-error", []string{"set", "AGEZT_W45D_PUBLIC", "v"}, settingsCLIReply{fail: controlplane.CmdConfigValues}, []string{controlplane.CmdConfigValues}, nil, 1, "checkpoint: controlplane: owned failure"},
-		{"set-error", []string{"set", "AGEZT_W45D_PUBLIC", "v"}, settingsCLIReply{fail: controlplane.CmdConfigSet}, []string{controlplane.CmdConfigValues, controlplane.CmdConfigSet}, map[string]any{"name": "AGEZT_W45D_PUBLIC", "value": "v"}, 1, "owned failure"},
-		{"unregister-error", []string{"schema", "unregister", "owned"}, settingsCLIReply{fail: controlplane.CmdConfigSchemaUnregister}, []string{controlplane.CmdConfigSchemaUnregister}, map[string]any{"id": "owned", "force": false}, 1, "owned failure"},
+		{"schema", []string{"schema"}, settingsCLIReply{}, []string{opapi.ConfigSchema}, nil, 0, "[owned] Owned (registered)"},
+		{"schema-json", []string{"schema", "--json"}, settingsCLIReply{}, []string{opapi.ConfigSchema}, nil, 0, `"reload_boundaries": []`},
+		{"list", []string{"ls"}, settingsCLIReply{}, []string{opapi.ConfigValues}, nil, 0, "set (secret)"},
+		{"list-json", []string{"ls", "--json"}, settingsCLIReply{}, []string{opapi.ConfigValues}, nil, 0, `"value": ""`},
+		{"get-public", []string{"get", "AGEZT_W45D_PUBLIC"}, settingsCLIReply{}, []string{opapi.ConfigValues}, nil, 0, "AGEZT_W45D_PUBLIC= raw previous "},
+		{"get-secret", []string{"get", "AGEZT_W45D_SECRET"}, settingsCLIReply{}, []string{opapi.ConfigValues}, nil, 0, "value not shown"},
+		{"get-unset", []string{"get", "AGEZT_W45D_UNSET"}, settingsCLIReply{}, []string{opapi.ConfigValues}, nil, 0, "not set"},
+		{"get-missing", []string{"get", "missing"}, settingsCLIReply{}, []string{opapi.ConfigValues}, nil, 1, "unknown setting"},
+		{"set-live", []string{"set", "AGEZT_W45D_PUBLIC", " raw ", "second"}, settingsCLIReply{applied: "live"}, []string{opapi.ConfigValues, opapi.ConfigSet}, map[string]any{"name": "AGEZT_W45D_PUBLIC", "value": " raw  second"}, 0, "applied live"},
+		{"set-pinned", []string{"set", "AGEZT_W45D_PUBLIC", "v"}, settingsCLIReply{pinned: true, applied: "restart"}, []string{opapi.ConfigValues, opapi.ConfigSet}, map[string]any{"name": "AGEZT_W45D_PUBLIC", "value": "v"}, 0, "pinned by the environment"},
+		{"set-clear", []string{"set", "AGEZT_W45D_PUBLIC"}, settingsCLIReply{applied: "restart"}, []string{opapi.ConfigValues, opapi.ConfigSet}, map[string]any{"name": "AGEZT_W45D_PUBLIC", "value": ""}, 0, "restart to apply"},
+		{"set-secret", []string{"set", "AGEZT_W45D_SECRET", "owned"}, settingsCLIReply{applied: "restart"}, []string{opapi.ConfigValues, opapi.ConfigSet}, map[string]any{"name": "AGEZT_W45D_SECRET", "value": "owned"}, 0, "restart to apply"},
+		{"register", []string{"schema", "register", "FILE"}, settingsCLIReply{}, []string{opapi.ConfigSchemaRegister}, map[string]any{"section": map[string]any{"id": "owned", "name": "Owned", "fields": []any{map[string]any{"env": "AGEZT_W45D_REGISTERED", "type": "text"}}}}, 0, "registered schema section"},
+		{"register-error", []string{"schema", "register", "FILE"}, settingsCLIReply{fail: opapi.ConfigSchemaRegister}, []string{opapi.ConfigSchemaRegister}, map[string]any{"section": map[string]any{"id": "owned", "name": "Owned", "fields": []any{map[string]any{"env": "AGEZT_W45D_REGISTERED", "type": "text"}}}}, 1, "owned failure"},
+		{"unregister-force", []string{"schema", "unregister", " raw-id ", "--force"}, settingsCLIReply{removed: true}, []string{opapi.ConfigSchemaUnregister}, map[string]any{"id": " raw-id ", "force": true}, 0, "unregistered"},
+		{"unregister-missing", []string{"schema", "unregister", "missing"}, settingsCLIReply{}, []string{opapi.ConfigSchemaUnregister}, map[string]any{"id": "missing", "force": false}, 0, "was not registered"},
+		{"schema-error", []string{"schema"}, settingsCLIReply{fail: opapi.ConfigSchema}, []string{opapi.ConfigSchema}, nil, 1, "owned failure"},
+		{"values-error", []string{"ls"}, settingsCLIReply{fail: opapi.ConfigValues}, []string{opapi.ConfigValues}, nil, 1, "owned failure"},
+		{"checkpoint-error", []string{"set", "AGEZT_W45D_PUBLIC", "v"}, settingsCLIReply{fail: opapi.ConfigValues}, []string{opapi.ConfigValues}, nil, 1, "checkpoint: controlplane: owned failure"},
+		{"set-error", []string{"set", "AGEZT_W45D_PUBLIC", "v"}, settingsCLIReply{fail: opapi.ConfigSet}, []string{opapi.ConfigValues, opapi.ConfigSet}, map[string]any{"name": "AGEZT_W45D_PUBLIC", "value": "v"}, 1, "owned failure"},
+		{"unregister-error", []string{"schema", "unregister", "owned"}, settingsCLIReply{fail: opapi.ConfigSchemaUnregister}, []string{opapi.ConfigSchemaUnregister}, map[string]any{"id": "owned", "force": false}, 1, "owned failure"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -188,7 +189,7 @@ func TestCmdSettingsNativeWireRenderingAndCheckpoints(t *testing.T) {
 					t.Fatal("missing settings rows", out.String())
 				}
 			}
-			expected := append([]string{controlplane.CmdStatus}, tc.commands...)
+			expected := append([]string{opapi.Status}, tc.commands...)
 			for _, command := range expected {
 				select {
 				case req := <-requests:

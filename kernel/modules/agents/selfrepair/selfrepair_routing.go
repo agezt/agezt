@@ -15,8 +15,8 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/modules/agents/api"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
-	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 )
 
 type autoRepairRoutingRollback struct {
@@ -26,8 +26,8 @@ type autoRepairRoutingRollback struct {
 	Reason    string
 }
 
-func autoRepairRoutingRollbackPlan(k *kernelruntime.Kernel, p roster.Profile, row kernelruntime.RoutingPressureAgent, now time.Time) *autoRepairRoutingRollback {
-	if k == nil {
+func autoRepairRoutingRollbackPlan(ports Ports, p roster.Profile, row api.RoutingPressureAgent, now time.Time) *autoRepairRoutingRollback {
+	if ports.Journal == nil {
 		return nil
 	}
 	taskType := strings.TrimSpace(row.TaskType)
@@ -41,11 +41,11 @@ func autoRepairRoutingRollbackPlan(k *kernelruntime.Kernel, p roster.Profile, ro
 	if probation <= 0 {
 		return nil
 	}
-	latest := autoRepairLatestRoutingRewrite(k, p.Slug, taskType, now.Add(-probation).UnixMilli())
+	latest := autoRepairLatestRoutingRewrite(ports, p.Slug, taskType, now.Add(-probation).UnixMilli())
 	if latest == nil || len(latest.PreviousChain) == 0 || len(latest.NewChain) == 0 {
 		return nil
 	}
-	currentChain := autoRepairCurrentTaskModelChain(k, taskType)
+	currentChain := autoRepairCurrentTaskModelChain(ports, taskType)
 	if !autoRepairSameChain(currentChain, latest.NewChain) {
 		return nil
 	}
@@ -67,13 +67,13 @@ type autoRepairRoutingRewrite struct {
 	PreviousChain []string
 }
 
-func autoRepairLatestForceGeneration(k *kernelruntime.Kernel, slug, taskType string) int {
-	if k == nil {
+func autoRepairLatestForceGeneration(ports Ports, slug, taskType string) int {
+	if ports.Journal == nil {
 		return 0
 	}
 	latestTS := int64(0)
 	latestGen := 0
-	_ = k.Journal().Range(func(e *event.Event) error {
+	_ = ports.journalRange(func(e *event.Event) error {
 		if e.Kind != event.KindInfo || (e.Subject != "doctor.auto_repair" && e.Subject != "agent.resolve") {
 			return nil
 		}
@@ -98,9 +98,9 @@ func autoRepairLatestForceGeneration(k *kernelruntime.Kernel, slug, taskType str
 	return latestGen
 }
 
-func autoRepairLatestRoutingRewrite(k *kernelruntime.Kernel, slug, taskType string, cutoffMS int64) *autoRepairRoutingRewrite {
+func autoRepairLatestRoutingRewrite(ports Ports, slug, taskType string, cutoffMS int64) *autoRepairRoutingRewrite {
 	var latest *autoRepairRoutingRewrite
-	_ = k.Journal().Range(func(e *event.Event) error {
+	_ = ports.journalRange(func(e *event.Event) error {
 		if e.TSUnixMS < cutoffMS {
 			return nil
 		}
@@ -135,15 +135,15 @@ func autoRepairLatestRoutingRewrite(k *kernelruntime.Kernel, slug, taskType stri
 	return latest
 }
 
-func autoRepairCurrentTaskModelChain(k *kernelruntime.Kernel, taskType string) []string {
+func autoRepairCurrentTaskModelChain(ports Ports, taskType string) []string {
 	taskType = strings.TrimSpace(taskType)
-	if k == nil || taskType == "" {
+	if taskType == "" || ports.LiveProvider == nil {
 		return nil
 	}
 	type taskModelChainsSource interface {
 		TaskModelChainsView() map[string][]string
 	}
-	gov, ok := k.Provider().(taskModelChainsSource)
+	gov, ok := ports.liveProvider().(taskModelChainsSource)
 	if !ok {
 		return nil
 	}
@@ -168,7 +168,7 @@ func autoRepairSameChain(a, b []string) bool {
 	return len(a) > 0
 }
 
-func autoRepairRoutingRollbackReason(row kernelruntime.RoutingPressureAgent, chain []string) string {
+func autoRepairRoutingRollbackReason(row api.RoutingPressureAgent, chain []string) string {
 	base := autoRepairRoutingReason(row)
 	if len(chain) == 0 {
 		return base

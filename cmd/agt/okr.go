@@ -13,38 +13,22 @@ import (
 
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdOKR(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
 		return okrUsage(stderr)
 	}
-	switch args[0] {
-	case "list", "ls":
-		return cmdOKRList(args[1:], stdout, stderr)
-	case "show", "get":
-		return cmdOKRShow(args[1:], stdout, stderr)
-	case "create", "add":
-		return cmdOKRCreate(args[1:], stdout, stderr)
-	case "kr", "keyresult":
-		return cmdOKRKeyResult(args[1:], stdout, stderr)
-	case "link":
-		return cmdOKRLink(args[1:], stdout, stderr, controlplane.CmdOKRLink, "link")
-	case "unlink":
-		return cmdOKRLink(args[1:], stdout, stderr, controlplane.CmdOKRUnlink, "unlink")
-	case "archive":
-		return cmdOKRArchive(args[1:], stdout, stderr)
-	case "-h", "--help", "help":
-		return okrUsage(stdout)
-	default:
-		fmt.Fprintf(stderr, "%s okr: unknown subcommand %q\n", brand.CLI, args[0])
-		return okrUsage(stderr)
+	if sub, ok := cliOKR.lookup(args[0]); ok {
+		return sub.run(nil, args, stdout, stderr)
 	}
+	fmt.Fprintf(stderr, "%s okr: unknown subcommand %q\n", brand.CLI, args[0])
+	return okrUsage(stderr)
 }
 
 func okrUsage(w io.Writer) int {
-	fmt.Fprintf(w, "usage: %s okr <list|show|create|kr|link|unlink|archive>\n", brand.CLI)
+	fmt.Fprintf(w, "usage: %s okr %s\n", brand.CLI, cliOKR.synopsis())
 	fmt.Fprintf(w, "  list [--status S] [--tenant T] [--limit N] [--archived] [--json]\n")
 	fmt.Fprintf(w, "  show <id> [--json]\n")
 	fmt.Fprintf(w, "  create --title T [--desc D] [--owner O] [--tenant T] [--json]\n")
@@ -87,7 +71,7 @@ func cmdOKRList(args []string, stdout, stderr io.Writer) int {
 			return 2
 		}
 	}
-	res, code := callOKR(controlplane.CmdOKRList, callArgs, stderr)
+	res, code := callOKR(opapi.OKRList, callArgs, stderr)
 	if code != 0 {
 		return code
 	}
@@ -110,7 +94,7 @@ func cmdOKRShow(args []string, stdout, stderr io.Writer) int {
 	if !ok {
 		return 2
 	}
-	res, code := callOKR(controlplane.CmdOKRShow, map[string]any{"id": id}, stderr)
+	res, code := callOKR(opapi.OKRShow, map[string]any{"id": id}, stderr)
 	if code != 0 {
 		return code
 	}

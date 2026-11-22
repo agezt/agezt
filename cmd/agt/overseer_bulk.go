@@ -15,7 +15,7 @@ import (
 
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func overseerBulk(args []string, stdout, stderr io.Writer) int {
@@ -37,19 +37,19 @@ func overseerBulk(args []string, stdout, stderr io.Writer) int {
 	var payload map[string]any
 	switch action {
 	case "pause":
-		cpCmd = controlplane.CmdAgentSetEnabled
+		cpCmd = opapi.AgentSetEnabled
 		payload = map[string]any{"refs": slugs, "enabled": false}
 	case "unpause":
-		cpCmd = controlplane.CmdAgentSetEnabled
+		cpCmd = opapi.AgentSetEnabled
 		payload = map[string]any{"refs": slugs, "enabled": true}
 	case "retire":
-		cpCmd = controlplane.CmdAgentRetire
+		cpCmd = opapi.AgentRetire
 		payload = map[string]any{"refs": slugs}
 	case "revive":
-		cpCmd = controlplane.CmdAgentRevive
+		cpCmd = opapi.AgentRevive
 		payload = map[string]any{"refs": slugs}
 	case "delete", "rm":
-		cpCmd = controlplane.CmdAgentRemove
+		cpCmd = opapi.AgentRemove
 		payload = map[string]any{"refs": slugs}
 	default:
 		fmt.Fprintf(stderr, "%s overseer bulk: unknown action %q (pause|unpause|retire|revive|delete)\n", brand.CLI, action)

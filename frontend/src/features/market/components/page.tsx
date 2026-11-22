@@ -51,7 +51,7 @@ import { Segmented, ToggleChip } from "@/components/ui/segmented";
 const PACK_WINDOW = 60;
 
 // A marketplace catalogue row joined with install state (see kernel/market.Listing).
-interface Pack {
+type Pack = {
   name: string;
   version: string;
   description?: string;
@@ -67,14 +67,14 @@ interface Pack {
   builtin?: boolean;
   installed?: boolean;
   update_available?: boolean;
-}
+};
 
 // A configured remote marketplace source (see kernel/market.Source).
-interface MarketSource {
+type MarketSource = {
   name: string;
   url: string;
   pubkey?: string;
-}
+};
 
 type SortKey = "featured" | "popular" | "name";
 
@@ -193,7 +193,7 @@ export function Market() {
 
   async function load() {
     try {
-      const res = await getJSON<{ packs: Pack[] }>("/api/market");
+      const res = await getJSON("/api/market");
       setPacks(res.packs || []);
       setErr("");
     } catch (e) {
@@ -202,7 +202,7 @@ export function Market() {
   }
   async function loadSources() {
     try {
-      const res = await getJSON<{ sources: MarketSource[] }>("/api/market/sources");
+      const res = await getJSON("/api/market/sources");
       setSources(res.sources || []);
     } catch {
       /* sources are optional; ignore */
@@ -249,7 +249,7 @@ export function Market() {
   async function sync(name?: string) {
     setSyncing(true);
     try {
-      const res = await postJSON<{ packs?: number; partial_error?: string }>("/api/market/sync", { name: name || "" });
+      const res = await postJSON("/api/market/sync", { name: name || "" });
       ui.toast(`Synced ${res.packs ?? 0} pack(s)`, "success");
       if (res.partial_error) ui.toast(`Some sources failed: ${res.partial_error}`, "error");
       await load();

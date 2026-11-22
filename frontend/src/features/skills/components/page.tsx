@@ -6,7 +6,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { Sparkles, RefreshCw, ChevronRight, ChevronDown, Check, ShieldX, Undo2, Plus, Pencil, Search, Bot, Share2, AlertTriangle, X, FileText, Tags, History, type LucideIcon } from "lucide-react";
-import { getJSON, postAction, postJSON } from "@/app/api";
+import { getJSON, postAction, postJSON, type WritePath, type NativePath } from "@/app/api";
 import { cn, fmtTime, fmtAgo } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
@@ -18,36 +18,24 @@ import { ErrorText } from "@/components/JsonView";
 import { Badge } from "@/components/ui/badge";
 import { Disclosure } from "@/components/ui/disclosure";
 import { SectionPanel } from "@/components/ui/section-panel";
+import type { SkillListResponseSkillsItemMetrics } from "@/app/api/types.generated";
 
-interface Skill {
+type Skill = {
   id?: string;
   name?: string;
   description?: string;
   body?: string;
   status?: string;
-  version?: string | number;
+  version?: string;
   lineage?: string[];
   resources?: string[];
   source_event?: string;
-  // Owning roster agent (M932): a skill the agent learned itself, retrieved
-  // only when IT acts. Empty/absent = shared pool.
   agent?: string;
   triggers?: string[];
   tools_required?: string[];
   created_ms?: number;
-  metrics?: {
-    shadow_wins?: number;
-    shadow_evals?: number;
-    uses?: number;
-    wins?: number;
-    successes?: number;
-    failures?: number;
-    last_used_ms?: number;
-  };
-  // Present on the hygiene (idle) list (M858).
-  uses?: number;
-  last_used_ms?: number;
-}
+  metrics?: SkillListResponseSkillsItemMetrics;
+};
 
 interface SkillScanFinding {
   severity: "high" | "medium" | "low";
@@ -249,8 +237,8 @@ export function Skills() {
     setLoading(true);
     try {
       const [d, h] = await Promise.all([
-        getJSON<{ skills?: Skill[] }>("/api/skills"),
-        getJSON<{ idle?: Skill[] }>("/api/skills/hygiene").catch(() => ({ idle: [] }) as { idle?: Skill[] }),
+        getJSON("/api/skills"),
+        getJSON("/api/skills/hygiene").catch(() => ({ idle: [] }) as { idle?: Skill[] }),
       ]);
       setSkills(d.skills || []);
       setIdle(h.idle || []);
@@ -265,7 +253,7 @@ export function Skills() {
     reload();
   }, []);
 
-  async function act(id: string, path: string, opts?: { confirm?: ConfirmOptions; success?: string; params?: Record<string, string> }) {
+  async function act(id: string, path: WritePath | NativePath, opts?: { confirm?: ConfirmOptions; success?: string; params?: Record<string, string> }) {
     if (opts?.confirm && !(await ui.confirm(opts.confirm))) return;
     setBusy(id);
     try {
@@ -313,7 +301,7 @@ export function Skills() {
             {idle.map((s) => (
               <li key={s.id} className="flex items-center gap-2 text-xs">
                 <span className="min-w-0 flex-1 truncate font-medium text-foreground/85">{s.name}</span>
-                <span className="shrink-0 text-xs text-muted">{(s.uses ?? 0) === 0 ? "never used" : `${s.uses} uses`}</span>
+                <span className="shrink-0 text-xs text-muted">{(s.metrics?.uses ?? 0) === 0 ? "never used" : `${s.metrics?.uses} uses`}</span>
                 <button
                   onClick={() =>
                     act(s.id!, "/api/skill/quarantine", {
@@ -451,7 +439,7 @@ export function Skills() {
             const shown = query ? skills.filter((s) => skillMatches(s, query)) : skills;
             if (shown.length === 0) return <p className="px-1 py-2 text-xs text-muted">no skills match "{q.trim()}"</p>;
             const cards = shown.slice(0, win).map((s, i) => {
-            const m = s.metrics || {};
+            const m: Partial<SkillListResponseSkillsItemMetrics> = s.metrics || {};
             const isOpen = open === (s.id || String(i));
             const scan = scanSkill(s);
             const diff = diffSkillAgainstParent(s, skills);
@@ -586,7 +574,7 @@ export function Skills() {
                   {(m.uses || 0) > 0 ? (
                     <span>
                       used {m.uses}×{` `}
-                      {(m.successes ?? m.wins) != null ? ` · ${m.successes ?? m.wins} ok` : ""}
+                      {m.successes != null ? ` · ${m.successes} ok` : ""}
                       {m.last_used_ms ? ` · last ${fmtAgo(m.last_used_ms)}` : ""}
                     </span>
                   ) : (
@@ -927,7 +915,7 @@ export function AuthorSkillForm({
     if (agent.trim()) args.agent = agent.trim();
     setSubmitting(true);
     try {
-      const r = await postJSON<{ name?: string; status?: string }>("/api/skill/import", args);
+      const r = await postJSON("/api/skill/import", args);
       onCreated(r.name || name.trim(), r.status || "draft");
     } catch (e) {
       onError((e as Error).message);

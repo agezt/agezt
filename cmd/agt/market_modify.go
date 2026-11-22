@@ -13,7 +13,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdMarketInstall(args []string, stdout, stderr io.Writer) int {
@@ -50,7 +50,7 @@ func cmdMarketInstall(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	res, err := c.Stream(ctx, controlplane.CmdMarketInstall, map[string]any{
+	res, err := c.Stream(ctx, opapi.MarketInstall, map[string]any{
 		"name": name, "marketplace": marketplace, "version": version,
 	}, nil)
 	if err != nil {
@@ -106,7 +106,7 @@ func cmdMarketUninstall(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	res, err := c.Stream(ctx, controlplane.CmdMarketUninstall, map[string]any{"name": name}, nil)
+	res, err := c.Stream(ctx, opapi.MarketUninstall, map[string]any{"name": name}, nil)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s market uninstall: %v\n", brand.CLI, err)
 		return 1

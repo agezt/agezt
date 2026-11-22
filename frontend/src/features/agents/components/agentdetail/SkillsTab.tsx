@@ -1,3 +1,4 @@
+import type { WritePath, NativePath } from "@/app/api";
 import { useState } from "react";
 import { Sparkles, ArrowUpRight, Share2 } from "lucide-react";
 import { clip } from "@/app/utils";
@@ -6,7 +7,7 @@ import { Badge, statusVariant } from "@/components/ui/badge";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
 import { LoadMoreFooter } from "@/components/ui/load-more-footer";
-import { type SkillLite } from "@/features/agents/lib/agentdetail";
+import { type SkillLite } from "@/lib/agentdetail";
 
 // SKILL_ROW_WINDOW is how many private-skill rows render at once — the skills
 // prop is filtered per-agent upstream (/api/skills has no cursor); the window
@@ -22,7 +23,7 @@ export function SkillsTab({
   skills: SkillLite[] | null;
   busy: boolean;
   onAction: (
-    path: string,
+    path: WritePath | NativePath,
     params: Record<string, string>,
     success: string,
   ) => void;

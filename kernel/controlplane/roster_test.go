@@ -16,6 +16,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/configcenter"
 	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
@@ -35,7 +36,7 @@ func TestAgent_CRUDRoundTrip(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
 
-	add, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	add, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{
 			"slug":             "researcher",
 			"soul":             "You research deeply and cite sources.",
@@ -58,13 +59,13 @@ func TestAgent_CRUDRoundTrip(t *testing.T) {
 	}
 
 	// A duplicate slug is refused.
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "researcher"},
 	}); err == nil || !strings.Contains(err.Error(), "already exists") {
 		t.Fatalf("duplicate slug: err = %v, want already-exists", err)
 	}
 
-	list, err := c.Call(ctx, controlplane.CmdAgentList, nil)
+	list, err := c.Call(ctx, opapi.AgentList, nil)
 	if err != nil {
 		t.Fatalf("agent list: %v", err)
 	}
@@ -73,7 +74,7 @@ func TestAgent_CRUDRoundTrip(t *testing.T) {
 	}
 
 	// Edit by slug: the soul changes, the slug cannot.
-	edit, err := c.Call(ctx, controlplane.CmdAgentEdit, map[string]any{
+	edit, err := c.Call(ctx, opapi.AgentEdit, map[string]any{
 		"ref": "researcher",
 		"profile": map[string]any{
 			"slug": "hijacked", "name": "The Researcher", "soul": "v2 soul", "model": "mock-model",
@@ -90,14 +91,14 @@ func TestAgent_CRUDRoundTrip(t *testing.T) {
 	if cfg, _ := ep["config_overrides"].(map[string]any); cfg["AGEZT_X_MODE"] != "edited" {
 		t.Fatalf("config overrides missing from edit: %v", ep["config_overrides"])
 	}
-	if _, err := c.Call(ctx, controlplane.CmdAgentEdit, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentEdit, map[string]any{
 		"ref": "ghost", "profile": map[string]any{},
 	}); err == nil || !strings.Contains(err.Error(), "unknown agent") {
 		t.Fatalf("edit unknown: err = %v", err)
 	}
 
 	// Pause by slug; the webui string transport ("false") must also work.
-	pause, err := c.Call(ctx, controlplane.CmdAgentSetEnabled, map[string]any{"ref": "researcher", "enabled": "false"})
+	pause, err := c.Call(ctx, opapi.AgentSetEnabled, map[string]any{"ref": "researcher", "enabled": "false"})
 	if err != nil {
 		t.Fatalf("agent pause: %v", err)
 	}
@@ -105,7 +106,7 @@ func TestAgent_CRUDRoundTrip(t *testing.T) {
 		t.Fatalf("pause result wrong: %v", pause)
 	}
 
-	rm, err := c.Call(ctx, controlplane.CmdAgentRemove, map[string]any{"ref": "researcher"})
+	rm, err := c.Call(ctx, opapi.AgentRemove, map[string]any{"ref": "researcher"})
 	if err != nil {
 		t.Fatalf("agent remove: %v", err)
 	}
@@ -132,7 +133,7 @@ func TestAgentCapabilitiesPatch_PreservesIdentityAndTasks(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
 
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{
 			"slug": "lead",
 			"soul": "Lead the builders.",
@@ -140,7 +141,7 @@ func TestAgentCapabilitiesPatch_PreservesIdentityAndTasks(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("lead add: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{
 			"slug":            "builder",
 			"name":            "Builder",
@@ -167,7 +168,7 @@ func TestAgentCapabilitiesPatch_PreservesIdentityAndTasks(t *testing.T) {
 		t.Fatalf("agent add: %v", err)
 	}
 
-	res, err := c.Call(ctx, controlplane.CmdAgentCapabilities, map[string]any{
+	res, err := c.Call(ctx, opapi.AgentCapabilities, map[string]any{
 		"ref":           "builder",
 		"trust_ceiling": "L3",
 		"memory_scope":  "agents/builder",
@@ -242,7 +243,7 @@ func TestManagedSubAgent_NotDirectlyCallable(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
 
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{
 			"slug":            "lead",
 			"soul":            "Lead the work.",
@@ -252,7 +253,7 @@ func TestManagedSubAgent_NotDirectlyCallable(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("lead add: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{
 			"slug":            "worker",
 			"soul":            "Do focused worker tasks.",
@@ -278,7 +279,7 @@ func TestManagedSubAgent_NotDirectlyCallable(t *testing.T) {
 		t.Fatalf("worker add: %v", err)
 	}
 
-	list, err := c.Call(ctx, controlplane.CmdAgentList, nil)
+	list, err := c.Call(ctx, opapi.AgentList, nil)
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -306,12 +307,12 @@ func TestManagedSubAgent_NotDirectlyCallable(t *testing.T) {
 		t.Fatalf("worker self_repair not listed: %v", worker["self_repair"])
 	}
 
-	if _, err := c.Call(ctx, controlplane.CmdRun, map[string]any{
+	if _, err := c.Call(ctx, opapi.Run, map[string]any{
 		"intent": "x", "agent": "worker", "dry_run": true,
 	}); err == nil || !strings.Contains(err.Error(), "cannot be called directly") {
 		t.Fatalf("direct run err = %v, want cannot be called directly", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.ScheduleAdd, map[string]any{
 		"intent": "x", "interval_sec": 60, "agent": "worker",
 	}); err == nil || !strings.Contains(err.Error(), "cannot be scheduled directly") {
 		t.Fatalf("schedule worker err = %v, want cannot be scheduled directly", err)
@@ -322,7 +323,7 @@ func TestAgentHierarchyReferencesRequireLiveAgents(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
 
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{
 			"slug":            "ghost-worker",
 			"parent_agent":    "ghost",
@@ -332,20 +333,20 @@ func TestAgentHierarchyReferencesRequireLiveAgents(t *testing.T) {
 		t.Fatalf("ghost parent add err = %v", err)
 	}
 
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "lead", "soul": "Lead.", "model": "m"},
 	}); err != nil {
 		t.Fatalf("lead add: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "old-lead", "soul": "Retired lead.", "model": "m"},
 	}); err != nil {
 		t.Fatalf("old lead add: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdAgentRetire, map[string]any{"ref": "old-lead"}); err != nil {
+	if _, err := c.Call(ctx, opapi.AgentRetire, map[string]any{"ref": "old-lead"}); err != nil {
 		t.Fatalf("old lead retire: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{
 			"slug":            "old-worker",
 			"parent_agent":    "old-lead",
@@ -355,7 +356,7 @@ func TestAgentHierarchyReferencesRequireLiveAgents(t *testing.T) {
 		t.Fatalf("retired parent add err = %v", err)
 	}
 
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{
 			"slug":            "worker",
 			"parent_agent":    "lead",
@@ -364,7 +365,7 @@ func TestAgentHierarchyReferencesRequireLiveAgents(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("worker add: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdAgentEdit, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentEdit, map[string]any{
 		"ref": "worker",
 		"profile": map[string]any{
 			"slug":            "ignored",
@@ -378,13 +379,13 @@ func TestAgentHierarchyReferencesRequireLiveAgents(t *testing.T) {
 		t.Fatalf("worker parent mutated after failed edit: ok=%v profile=%+v", ok, worker)
 	}
 
-	if _, err := c.Call(ctx, controlplane.CmdAgentRemove, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentRemove, map[string]any{
 		"ref":     "lead",
 		"cascade": map[string]any{"subagents": true},
 	}); err != nil {
 		t.Fatalf("lead remove: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdAgentRevive, map[string]any{"ref": "worker"}); err == nil || !strings.Contains(err.Error(), `parent_agent "lead" does not exist`) {
+	if _, err := c.Call(ctx, opapi.AgentRevive, map[string]any{"ref": "worker"}); err == nil || !strings.Contains(err.Error(), `parent_agent "lead" does not exist`) {
 		t.Fatalf("orphan revive err = %v", err)
 	}
 }
@@ -393,12 +394,12 @@ func TestAgentRemove_SubagentCascadeRetiresAndPausesChildTriggers(t *testing.T) 
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
 
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "lead", "soul": "Lead."},
 	}); err != nil {
 		t.Fatalf("lead add: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "worker", "parent_agent": "lead", "direct_callable": false},
 	}); err != nil {
 		t.Fatalf("worker add: %v", err)
@@ -421,7 +422,7 @@ func TestAgentRemove_SubagentCascadeRetiresAndPausesChildTriggers(t *testing.T) 
 		t.Fatalf("worker schedule set agent ok=%v err=%v", ok, err)
 	}
 
-	rm, err := c.Call(ctx, controlplane.CmdAgentRemove, map[string]any{
+	rm, err := c.Call(ctx, opapi.AgentRemove, map[string]any{
 		"ref":     "lead",
 		"cascade": map[string]any{"subagents": true},
 	})
@@ -454,12 +455,12 @@ func TestAgentTaskUpdate_AddUpdateRemove(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
 
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "ops", "soul": "Run operations."},
 	}); err != nil {
 		t.Fatalf("agent add: %v", err)
 	}
-	add, err := c.Call(ctx, controlplane.CmdAgentTaskUpdate, map[string]any{
+	add, err := c.Call(ctx, opapi.AgentTaskUpdate, map[string]any{
 		"ref":    "ops",
 		"op":     "add",
 		"title":  "check queue",
@@ -475,7 +476,7 @@ func TestAgentTaskUpdate_AddUpdateRemove(t *testing.T) {
 		t.Fatalf("task add result wrong: %v", task)
 	}
 
-	upd, err := c.Call(ctx, controlplane.CmdAgentTaskUpdate, map[string]any{
+	upd, err := c.Call(ctx, opapi.AgentTaskUpdate, map[string]any{
 		"ref":    "ops",
 		"id":     id,
 		"status": "done",
@@ -493,7 +494,7 @@ func TestAgentTaskUpdate_AddUpdateRemove(t *testing.T) {
 		t.Fatalf("profile tasklist len = %d want 1", len(list))
 	}
 
-	rm, err := c.Call(ctx, controlplane.CmdAgentTaskUpdate, map[string]any{
+	rm, err := c.Call(ctx, opapi.AgentTaskUpdate, map[string]any{
 		"ref": "ops",
 		"op":  "remove",
 		"id":  id,
@@ -506,7 +507,7 @@ func TestAgentTaskUpdate_AddUpdateRemove(t *testing.T) {
 		t.Fatalf("tasklist after remove = %v want empty", list)
 	}
 
-	if _, err := c.Call(ctx, controlplane.CmdAgentTaskUpdate, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentTaskUpdate, map[string]any{
 		"ref": "ops", "id": "missing", "status": "done",
 	}); err == nil || !strings.Contains(err.Error(), "unknown agent task") {
 		t.Fatalf("missing task err = %v, want unknown agent task", err)
@@ -528,18 +529,18 @@ func TestAgentTaskUpdate_RejectsInvalidTaskMutations(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
 
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "ops", "soul": "Run operations."},
 	}); err != nil {
 		t.Fatalf("agent add: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdAgentTaskUpdate, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentTaskUpdate, map[string]any{
 		"ref": "ops",
 		"op":  "add",
 	}); err == nil || !strings.Contains(err.Error(), "args.title required") {
 		t.Fatalf("blank task add err = %v, want title required", err)
 	}
-	add, err := c.Call(ctx, controlplane.CmdAgentTaskUpdate, map[string]any{
+	add, err := c.Call(ctx, opapi.AgentTaskUpdate, map[string]any{
 		"ref":   "ops",
 		"op":    "add",
 		"title": "check queue",
@@ -579,7 +580,7 @@ func TestAgentTaskUpdate_RejectsInvalidTaskMutations(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if _, err := c.Call(ctx, controlplane.CmdAgentTaskUpdate, tc.args); err == nil || !strings.Contains(err.Error(), tc.want) {
+			if _, err := c.Call(ctx, opapi.AgentTaskUpdate, tc.args); err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("task update err = %v, want %q", err, tc.want)
 			}
 		})
@@ -605,7 +606,7 @@ func TestAgentList_IncludesDynamicHealthAndRepairStatus(t *testing.T) {
 	})
 	ctx := context.Background()
 
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{
 			"slug":             "builder",
 			"model":            "mock-model",
@@ -665,7 +666,7 @@ func TestAgentList_IncludesDynamicHealthAndRepairStatus(t *testing.T) {
 		t.Fatalf("help request: %v", err)
 	}
 
-	list, err := c.Call(ctx, controlplane.CmdAgentList, nil)
+	list, err := c.Call(ctx, opapi.AgentList, nil)
 	if err != nil {
 		t.Fatalf("agent list: %v", err)
 	}
@@ -721,12 +722,12 @@ func TestAgentRemove_CascadeDeletesPrivateOwnedResourcesOnly(t *testing.T) {
 	})
 	ctx := context.Background()
 
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "researcher", "memory_scope": "agent/researcher", "workdir": "researcher"},
 	}); err != nil {
 		t.Fatalf("agent add: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "research-worker", "kind": "subagent", "owner_agent": "researcher", "parent_agent": "researcher", "direct_callable": false, "workdir": "researcher/worker"},
 	}); err != nil {
 		t.Fatalf("subagent add: %v", err)
@@ -886,7 +887,7 @@ func TestAgentRemove_CascadeDeletesPrivateOwnedResourcesOnly(t *testing.T) {
 		t.Fatalf("board worker dm: %v", err)
 	}
 
-	impact, err := c.Call(ctx, controlplane.CmdAgentImpact, map[string]any{"ref": "researcher"})
+	impact, err := c.Call(ctx, opapi.AgentImpact, map[string]any{"ref": "researcher"})
 	if err != nil {
 		t.Fatalf("impact: %v", err)
 	}
@@ -934,7 +935,7 @@ func TestAgentRemove_CascadeDeletesPrivateOwnedResourcesOnly(t *testing.T) {
 	if intOf(impact["subagent_mailbox_message_count"]) != 2 {
 		t.Fatalf("subagent mailbox/audit impact count wrong: %v", impact)
 	}
-	ret, err := c.Call(ctx, controlplane.CmdAgentRetire, map[string]any{"ref": "researcher", "reason": "cleanup drill"})
+	ret, err := c.Call(ctx, opapi.AgentRetire, map[string]any{"ref": "researcher", "reason": "cleanup drill"})
 	if err != nil {
 		t.Fatalf("agent retire with impact: %v", err)
 	}
@@ -1009,7 +1010,7 @@ func TestAgentRemove_CascadeDeletesPrivateOwnedResourcesOnly(t *testing.T) {
 			t.Fatalf("sub-agent schedule should not be paused by parent retire: %+v", e)
 		}
 	}
-	rev, err := c.Call(ctx, controlplane.CmdAgentRevive, map[string]any{"ref": "researcher"})
+	rev, err := c.Call(ctx, opapi.AgentRevive, map[string]any{"ref": "researcher"})
 	if err != nil {
 		t.Fatalf("agent revive with paused triggers: %v", err)
 	}
@@ -1044,7 +1045,7 @@ func TestAgentRemove_CascadeDeletesPrivateOwnedResourcesOnly(t *testing.T) {
 			t.Fatalf("revive should not re-arm schedule: %+v", e)
 		}
 	}
-	resume, err := c.Call(ctx, controlplane.CmdAgentSetEnabled, map[string]any{"ref": "researcher", "enabled": true})
+	resume, err := c.Call(ctx, opapi.AgentSetEnabled, map[string]any{"ref": "researcher", "enabled": true})
 	if err != nil {
 		t.Fatalf("agent resume after revive: %v", err)
 	}
@@ -1062,7 +1063,7 @@ func TestAgentRemove_CascadeDeletesPrivateOwnedResourcesOnly(t *testing.T) {
 		}
 	}
 
-	if _, err := c.Call(ctx, controlplane.CmdAgentRemove, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentRemove, map[string]any{
 		"ref": "researcher",
 		"cascade": map[string]any{
 			"standing":        true,
@@ -1075,7 +1076,7 @@ func TestAgentRemove_CascadeDeletesPrivateOwnedResourcesOnly(t *testing.T) {
 		t.Fatal("agent remove without subagent cascade unexpectedly succeeded")
 	}
 
-	rm, err := c.Call(ctx, controlplane.CmdAgentRemove, map[string]any{
+	rm, err := c.Call(ctx, opapi.AgentRemove, map[string]any{
 		"ref": "researcher",
 		"cascade": map[string]any{
 			"standing":        true,
@@ -1221,7 +1222,7 @@ func TestAgentRemove_CascadeIncludesNestedSubagents(t *testing.T) {
 		{"slug": "worker", "kind": "subagent", "parent_agent": "lead", "owner_agent": "lead", "direct_callable": false, "workdir": "lead/worker"},
 		{"slug": "scout", "kind": "subagent", "parent_agent": "worker", "owner_agent": "worker", "direct_callable": false, "workdir": "lead/worker/scout"},
 	} {
-		if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{"profile": profile}); err != nil {
+		if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{"profile": profile}); err != nil {
 			t.Fatalf("agent add %v: %v", profile["slug"], err)
 		}
 	}
@@ -1270,7 +1271,7 @@ func TestAgentRemove_CascadeIncludesNestedSubagents(t *testing.T) {
 		t.Fatalf("scout config: %v", err)
 	}
 
-	impact, err := c.Call(ctx, controlplane.CmdAgentImpact, map[string]any{"ref": "lead"})
+	impact, err := c.Call(ctx, opapi.AgentImpact, map[string]any{"ref": "lead"})
 	if err != nil {
 		t.Fatalf("impact: %v", err)
 	}
@@ -1281,7 +1282,7 @@ func TestAgentRemove_CascadeIncludesNestedSubagents(t *testing.T) {
 		t.Fatalf("nested subagent impact counts wrong: %v", impact)
 	}
 
-	rm, err := c.Call(ctx, controlplane.CmdAgentRemove, map[string]any{
+	rm, err := c.Call(ctx, opapi.AgentRemove, map[string]any{
 		"ref": "lead",
 		"cascade": map[string]any{
 			"standing":  true,
@@ -1350,13 +1351,13 @@ func TestAgentRemove_RejectsSystemAgents(t *testing.T) {
 		t.Fatalf("seed system agent: %v", err)
 	}
 
-	if _, err := c.Call(ctx, controlplane.CmdAgentRemove, map[string]any{"ref": "guardian-health"}); err == nil || !strings.Contains(err.Error(), "system agent guardian-health cannot be removed") {
+	if _, err := c.Call(ctx, opapi.AgentRemove, map[string]any{"ref": "guardian-health"}); err == nil || !strings.Contains(err.Error(), "system agent guardian-health cannot be removed") {
 		t.Fatalf("system remove err = %v, want protected system-agent error", err)
 	}
 	if p, ok := k.Roster().Get("guardian-health"); !ok || !p.System {
 		t.Fatalf("system agent should remain after rejected remove: ok=%v profile=%+v", ok, p)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdAgentRetire, map[string]any{"ref": "guardian-health", "reason": "operator maintenance"}); err != nil {
+	if _, err := c.Call(ctx, opapi.AgentRetire, map[string]any{"ref": "guardian-health", "reason": "operator maintenance"}); err != nil {
 		t.Fatalf("system agent should still be retireable: %v", err)
 	}
 	if p, ok := k.Roster().Get("guardian-health"); !ok || !p.Retired {
@@ -1372,7 +1373,7 @@ func TestRun_AsAgent(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
 
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{
 			"slug":  "researcher",
 			"soul":  "You research deeply.",
@@ -1381,7 +1382,7 @@ func TestRun_AsAgent(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("agent add: %v", err)
 	}
-	list, err := c.Call(ctx, controlplane.CmdAgentList, nil)
+	list, err := c.Call(ctx, opapi.AgentList, nil)
 	if err != nil {
 		t.Fatalf("agent list: %v", err)
 	}
@@ -1391,7 +1392,7 @@ func TestRun_AsAgent(t *testing.T) {
 	}
 
 	// The profile fills the gaps: model + system come from the agent.
-	plan, err := c.Call(ctx, controlplane.CmdRun,
+	plan, err := c.Call(ctx, opapi.Run,
 		map[string]any{"intent": "x", "agent": "researcher", "dry_run": true})
 	if err != nil {
 		t.Fatalf("dry-run as agent: %v", err)
@@ -1404,7 +1405,7 @@ func TestRun_AsAgent(t *testing.T) {
 	}
 
 	// Explicit per-run flags still win over the profile.
-	plan2, err := c.Call(ctx, controlplane.CmdRun,
+	plan2, err := c.Call(ctx, opapi.Run,
 		map[string]any{"intent": "x", "agent": "researcher", "model": "explicit-model", "dry_run": true})
 	if err != nil {
 		t.Fatalf("dry-run with explicit model: %v", err)
@@ -1414,24 +1415,24 @@ func TestRun_AsAgent(t *testing.T) {
 	}
 
 	// Unknown agent → usage error, nothing runs.
-	if _, err := c.Call(ctx, controlplane.CmdRun,
+	if _, err := c.Call(ctx, opapi.Run,
 		map[string]any{"intent": "x", "agent": "ghost"}); err == nil ||
 		!strings.Contains(err.Error(), "unknown agent") {
 		t.Fatalf("unknown agent: err = %v", err)
 	}
 
 	// Paused agent → refused with a hint, nothing runs.
-	if _, err := c.Call(ctx, controlplane.CmdAgentSetEnabled,
+	if _, err := c.Call(ctx, opapi.AgentSetEnabled,
 		map[string]any{"ref": "researcher", "enabled": false}); err != nil {
 		t.Fatalf("pause: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdRun,
+	if _, err := c.Call(ctx, opapi.Run,
 		map[string]any{"intent": "x", "agent": "researcher"}); err == nil ||
 		!strings.Contains(err.Error(), "paused") {
 		t.Fatalf("paused agent: err = %v", err)
 	}
 
-	ret, err := c.Call(ctx, controlplane.CmdAgentRetire,
+	ret, err := c.Call(ctx, opapi.AgentRetire,
 		map[string]any{"ref": "researcher", "reason": "superseded by analyst"})
 	if err != nil {
 		t.Fatalf("retire: %v", err)
@@ -1439,12 +1440,12 @@ func TestRun_AsAgent(t *testing.T) {
 	if rp, _ := ret["profile"].(map[string]any); rp["retired_reason"] != "superseded by analyst" {
 		t.Fatalf("retire reason not returned: %v", rp)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdAgentSetEnabled,
+	if _, err := c.Call(ctx, opapi.AgentSetEnabled,
 		map[string]any{"ref": "researcher", "enabled": true}); err == nil ||
 		!strings.Contains(err.Error(), "retired") {
 		t.Fatalf("resume retired agent: err = %v, want retired", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdRun,
+	if _, err := c.Call(ctx, opapi.Run,
 		map[string]any{"intent": "x", "agent": "researcher"}); err == nil ||
 		!strings.Contains(err.Error(), "retired") {
 		t.Fatalf("retired agent: err = %v, want retired", err)
@@ -1457,14 +1458,14 @@ func TestAgentActivity_ShowsRuns(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("done")))
 	ctx := context.Background()
 
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "scout", "soul": "You scout.", "model": "m"},
 	}); err != nil {
 		t.Fatalf("agent add: %v", err)
 	}
 	// A real run (not dry) as the agent — journals task.received tagged agent=scout.
-	// CmdRun streams events before its terminal result, so drive it via Stream.
-	if _, err := c.Stream(ctx, controlplane.CmdRun,
+	// opapi.Run streams events before its terminal result, so drive it via Stream.
+	if _, err := c.Stream(ctx, opapi.Run,
 		map[string]any{"intent": "find the thing", "agent": "scout"},
 		func(*event.Event) {}); err != nil {
 		t.Fatalf("run as agent: %v", err)
@@ -1564,7 +1565,7 @@ func TestAgentActivity_ShowsRuns(t *testing.T) {
 		}
 	}
 
-	res, err := c.Call(ctx, controlplane.CmdAgentActivity, map[string]any{"ref": "scout"})
+	res, err := c.Call(ctx, opapi.AgentActivity, map[string]any{"ref": "scout"})
 	if err != nil {
 		t.Fatalf("agent activity: %v", err)
 	}
@@ -1629,12 +1630,12 @@ func TestAgentActivity_ShowsRuns(t *testing.T) {
 	}
 
 	// An unrelated agent has no activity from scout's run.
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "idle", "soul": "."},
 	}); err != nil {
 		t.Fatalf("add idle: %v", err)
 	}
-	res2, err := c.Call(ctx, controlplane.CmdAgentActivity, map[string]any{"ref": "idle"})
+	res2, err := c.Call(ctx, opapi.AgentActivity, map[string]any{"ref": "idle"})
 	if err != nil {
 		t.Fatalf("idle activity: %v", err)
 	}
@@ -1647,7 +1648,7 @@ func TestAgentActivity_ShowsAutoRepairEvents(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("done")))
 	ctx := context.Background()
 
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "builder", "self_repair": map[string]any{"enabled": true}},
 	}); err != nil {
 		t.Fatalf("agent add: %v", err)
@@ -1680,7 +1681,7 @@ func TestAgentActivity_ShowsAutoRepairEvents(t *testing.T) {
 		"applied":     []string{"model", "config_overrides"},
 	}, "corr-doctor-1")
 
-	res, err := c.Call(ctx, controlplane.CmdAgentActivity, map[string]any{"ref": "builder", "limit": 10})
+	res, err := c.Call(ctx, opapi.AgentActivity, map[string]any{"ref": "builder", "limit": 10})
 	if err != nil {
 		t.Fatalf("agent activity: %v", err)
 	}
@@ -1707,7 +1708,7 @@ func TestAgentActivity_ShowsAutoRepairEvents(t *testing.T) {
 func TestAgentRepairStatus_ShowsHistoryAndInflight(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("done")))
 	ctx := context.Background()
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{
 			"slug":         "builder",
 			"soul":         "You build.",
@@ -1765,7 +1766,7 @@ func TestAgentRepairStatus_ShowsHistoryAndInflight(t *testing.T) {
 		"reason":      "other agent",
 	}, "")
 
-	res, err := c.Call(ctx, controlplane.CmdAgentRepairStatus, map[string]any{"ref": "builder", "limit": 10})
+	res, err := c.Call(ctx, opapi.AgentRepairStatus, map[string]any{"ref": "builder", "limit": 10})
 	if err != nil {
 		t.Fatalf("agent repair status: %v", err)
 	}
@@ -1816,12 +1817,12 @@ func TestAgentRepairStatus_ShowsHistoryAndInflight(t *testing.T) {
 func TestAgentRepair_AcceptsAndJournalsLifecycle(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("repair complete")))
 	ctx := context.Background()
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "builder", "soul": "You build.", "model": "m"},
 	}); err != nil {
 		t.Fatalf("agent add: %v", err)
 	}
-	res, err := c.Call(ctx, controlplane.CmdAgentRepair, map[string]any{
+	res, err := c.Call(ctx, opapi.AgentRepair, map[string]any{
 		"ref":              "builder",
 		"reason":           "operator rerun",
 		"incident_id":      "inc-child-1",
@@ -1880,12 +1881,12 @@ func TestAgentRepair_AcceptsAndJournalsLifecycle(t *testing.T) {
 func TestAgentWake_AcceptsAndRuns(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("wake handled")))
 	ctx := context.Background()
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "lead", "soul": "You lead.", "model": "m"},
 	}); err != nil {
 		t.Fatalf("agent add: %v", err)
 	}
-	res, err := c.Call(ctx, controlplane.CmdAgentWake, map[string]any{
+	res, err := c.Call(ctx, opapi.AgentWake, map[string]any{
 		"ref":              "lead",
 		"reason":           "incident ownership required",
 		"incident_id":      "inc-child-2",
@@ -1951,7 +1952,7 @@ func TestAgentWake_AcceptsAndRuns(t *testing.T) {
 	if taskPayload["wake_source"] != "operator" || taskPayload["wake_reason"] != "incident ownership required" {
 		t.Fatalf("wake task provenance = %+v", taskPayload)
 	}
-	act, err := c.Call(ctx, controlplane.CmdAgentActivity, map[string]any{"ref": "lead", "limit": 10})
+	act, err := c.Call(ctx, opapi.AgentActivity, map[string]any{"ref": "lead", "limit": 10})
 	if err != nil {
 		t.Fatalf("agent activity: %v", err)
 	}
@@ -1974,7 +1975,7 @@ func TestAgentWake_AcceptsAndRuns(t *testing.T) {
 	if !foundContract {
 		t.Fatalf("lead activity missing autonomy contract summary: %+v", acts)
 	}
-	list, err := c.Call(ctx, controlplane.CmdAgentList, nil)
+	list, err := c.Call(ctx, opapi.AgentList, nil)
 	if err != nil {
 		t.Fatalf("agent list: %v", err)
 	}
@@ -1999,7 +2000,7 @@ func TestAgentWake_AcceptsAndRuns(t *testing.T) {
 func TestAgentWake_AdvancesCycleLifecycleOnce(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("cycle handled")))
 	ctx := context.Background()
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{
 			"slug":      "cycler",
 			"soul":      "You cycle.",
@@ -2009,7 +2010,7 @@ func TestAgentWake_AdvancesCycleLifecycleOnce(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("agent add: %v", err)
 	}
-	res, err := c.Call(ctx, controlplane.CmdAgentWake, map[string]any{"ref": "cycler", "reason": "cycle wake"})
+	res, err := c.Call(ctx, opapi.AgentWake, map[string]any{"ref": "cycler", "reason": "cycle wake"})
 	if err != nil {
 		t.Fatalf("agent wake: %v", err)
 	}
@@ -2038,7 +2039,7 @@ func TestAgentWake_FailedWakeDoesNotAdvanceLifecycle(t *testing.T) {
 	// Exhausted mock provider → the wake run errors, so lifecycle must not advance.
 	k, _, c, _ := startPair(t, mock.New())
 	ctx := context.Background()
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{
 			"slug":      "cycler",
 			"soul":      "You cycle.",
@@ -2048,7 +2049,7 @@ func TestAgentWake_FailedWakeDoesNotAdvanceLifecycle(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("agent add: %v", err)
 	}
-	res, err := c.Call(ctx, controlplane.CmdAgentWake, map[string]any{"ref": "cycler", "reason": "cycle wake"})
+	res, err := c.Call(ctx, opapi.AgentWake, map[string]any{"ref": "cycler", "reason": "cycle wake"})
 	if err != nil {
 		t.Fatalf("agent wake: %v", err)
 	}
@@ -2095,17 +2096,17 @@ func waitForWakePhase(t *testing.T, k *runtime.Kernel, corr, phase string) {
 func TestAgentWake_RejectsManagedSubAgent(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("unused")))
 	ctx := context.Background()
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "lead", "soul": "Lead."},
 	}); err != nil {
 		t.Fatalf("agent add lead: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "worker", "parent_agent": "lead", "direct_callable": false},
 	}); err != nil {
 		t.Fatalf("agent add worker: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdAgentWake, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentWake, map[string]any{
 		"ref":    "worker",
 		"reason": "manual operator wake",
 	}); err == nil || !strings.Contains(err.Error(), "managed sub-agent") || !strings.Contains(err.Error(), "cannot be called directly") || !strings.Contains(err.Error(), "wake lead") {
@@ -2116,7 +2117,7 @@ func TestAgentWake_RejectsManagedSubAgent(t *testing.T) {
 func TestAgentList_FoldsScheduleWakeAutonomyRunbook(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("unused")))
 	ctx := context.Background()
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "ops", "soul": "Ops agent.", "model": "m"},
 	}); err != nil {
 		t.Fatalf("agent add: %v", err)
@@ -2143,7 +2144,7 @@ func TestAgentList_FoldsScheduleWakeAutonomyRunbook(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("publish schedule fired: %v", err)
 	}
-	res, err := c.Call(ctx, controlplane.CmdAgentList, nil)
+	res, err := c.Call(ctx, opapi.AgentList, nil)
 	if err != nil {
 		t.Fatalf("agent list: %v", err)
 	}
@@ -2174,7 +2175,7 @@ func TestAgentList_FoldsScheduleWakeAutonomyRunbook(t *testing.T) {
 func TestAgentList_FoldsStandingWakeAutonomyRunbook(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("unused")))
 	ctx := context.Background()
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "ops", "soul": "Ops agent.", "model": "m"},
 	}); err != nil {
 		t.Fatalf("agent add: %v", err)
@@ -2201,7 +2202,7 @@ func TestAgentList_FoldsStandingWakeAutonomyRunbook(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("publish standing fired: %v", err)
 	}
-	res, err := c.Call(ctx, controlplane.CmdAgentList, nil)
+	res, err := c.Call(ctx, opapi.AgentList, nil)
 	if err != nil {
 		t.Fatalf("agent list: %v", err)
 	}
@@ -2234,7 +2235,7 @@ func TestAgentList_FoldsStandingWakeAutonomyRunbook(t *testing.T) {
 func TestAgentList_FoldsMailboxWakeAutonomyRunbook(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("unused")))
 	ctx := context.Background()
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "ops", "soul": "Ops agent.", "model": "m"},
 	}); err != nil {
 		t.Fatalf("agent add: %v", err)
@@ -2271,7 +2272,7 @@ func TestAgentList_FoldsMailboxWakeAutonomyRunbook(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("publish standing fired: %v", err)
 	}
-	res, err := c.Call(ctx, controlplane.CmdAgentList, nil)
+	res, err := c.Call(ctx, opapi.AgentList, nil)
 	if err != nil {
 		t.Fatalf("agent list: %v", err)
 	}
@@ -2305,7 +2306,7 @@ func TestAgentList_FoldsMailboxWakeAutonomyRunbook(t *testing.T) {
 func TestAgentList_FoldsDelegatedWakeAutonomyRunbook(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("unused")))
 	ctx := context.Background()
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "worker", "soul": "Worker agent.", "model": "m"},
 	}); err != nil {
 		t.Fatalf("agent add: %v", err)
@@ -2337,7 +2338,7 @@ func TestAgentList_FoldsDelegatedWakeAutonomyRunbook(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("publish subagent spawned: %v", err)
 	}
-	res, err := c.Call(ctx, controlplane.CmdAgentList, nil)
+	res, err := c.Call(ctx, opapi.AgentList, nil)
 	if err != nil {
 		t.Fatalf("agent list: %v", err)
 	}
@@ -2369,7 +2370,7 @@ func TestAgentList_FoldsDoctorWakeAutonomyRunbook(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("unused")))
 	ctx := context.Background()
 	// owner is the agent doctor WAKES to handle builder's incident.
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "owner", "soul": "Owner agent.", "model": "m"},
 	}); err != nil {
 		t.Fatalf("agent add owner: %v", err)
@@ -2399,7 +2400,7 @@ func TestAgentList_FoldsDoctorWakeAutonomyRunbook(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("publish doctor wake: %v", err)
 	}
-	res, err := c.Call(ctx, controlplane.CmdAgentList, nil)
+	res, err := c.Call(ctx, opapi.AgentList, nil)
 	if err != nil {
 		t.Fatalf("agent list: %v", err)
 	}
@@ -2431,7 +2432,7 @@ func TestAgentList_FoldsDoctorWakeAutonomyRunbook(t *testing.T) {
 func TestAgentList_ExposesMailboxWakeCausality(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("unused")))
 	ctx := context.Background()
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "ops", "soul": "Ops agent.", "model": "m"},
 	}); err != nil {
 		t.Fatalf("agent add: %v", err)
@@ -2452,7 +2453,7 @@ func TestAgentList_ExposesMailboxWakeCausality(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("publish standing fired: %v", err)
 	}
-	res, err := c.Call(ctx, controlplane.CmdAgentList, nil)
+	res, err := c.Call(ctx, opapi.AgentList, nil)
 	if err != nil {
 		t.Fatalf("agent list: %v", err)
 	}
@@ -2477,7 +2478,7 @@ func TestAgentList_ExposesMailboxWakeCausality(t *testing.T) {
 func TestAgentList_FoldsPolicyDenialsByRunCorrelation(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("unused")))
 	ctx := context.Background()
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "ops", "soul": "Ops agent.", "model": "m"},
 	}); err != nil {
 		t.Fatalf("agent add: %v", err)
@@ -2522,7 +2523,7 @@ func TestAgentList_FoldsPolicyDenialsByRunCorrelation(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("publish stranger deny: %v", err)
 	}
-	res, err := c.Call(ctx, controlplane.CmdAgentList, nil)
+	res, err := c.Call(ctx, opapi.AgentList, nil)
 	if err != nil {
 		t.Fatalf("agent list: %v", err)
 	}
@@ -2548,15 +2549,15 @@ func TestAgentList_FoldsPolicyDenialsByRunCorrelation(t *testing.T) {
 func TestAgentTombstone_ReturnsIdentityAndFootprint(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("unused")))
 	ctx := context.Background()
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "ops", "soul": "Ops agent.", "model": "m"},
 	}); err != nil {
 		t.Fatalf("agent add: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdAgentRetire, map[string]any{"ref": "ops", "reason": "obsolete"}); err != nil {
+	if _, err := c.Call(ctx, opapi.AgentRetire, map[string]any{"ref": "ops", "reason": "obsolete"}); err != nil {
 		t.Fatalf("agent retire: %v", err)
 	}
-	res, err := c.Call(ctx, controlplane.CmdAgentTombstone, map[string]any{"ref": "ops"})
+	res, err := c.Call(ctx, opapi.AgentTombstone, map[string]any{"ref": "ops"})
 	if err != nil {
 		t.Fatalf("agent tombstone: %v", err)
 	}
@@ -2571,14 +2572,14 @@ func TestAgentTombstone_ReturnsIdentityAndFootprint(t *testing.T) {
 		t.Fatalf("tombstone missing footprint: %+v", tomb)
 	}
 	// Read-only: the agent still exists in the graveyard after a tombstone read.
-	if _, err := c.Call(ctx, controlplane.CmdAgentTombstone, map[string]any{"ref": "ops"}); err != nil {
+	if _, err := c.Call(ctx, opapi.AgentTombstone, map[string]any{"ref": "ops"}); err != nil {
 		t.Fatalf("tombstone is read-only and repeatable, second call failed: %v", err)
 	}
 }
 
 func TestAgentTombstone_UnknownAgentErrors(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("unused")))
-	if _, err := c.Call(context.Background(), controlplane.CmdAgentTombstone, map[string]any{"ref": "ghost"}); err == nil {
+	if _, err := c.Call(context.Background(), opapi.AgentTombstone, map[string]any{"ref": "ghost"}); err == nil {
 		t.Fatal("tombstone for unknown agent should error")
 	}
 }
@@ -2587,16 +2588,16 @@ func TestAgentGraveyard_ListsOnlyRetired(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("unused")))
 	ctx := context.Background()
 	for _, slug := range []string{"live", "dead"} {
-		if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+		if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 			"profile": map[string]any{"slug": slug, "soul": "x", "model": "m"},
 		}); err != nil {
 			t.Fatalf("agent add %s: %v", slug, err)
 		}
 	}
-	if _, err := c.Call(ctx, controlplane.CmdAgentRetire, map[string]any{"ref": "dead", "reason": "obsolete"}); err != nil {
+	if _, err := c.Call(ctx, opapi.AgentRetire, map[string]any{"ref": "dead", "reason": "obsolete"}); err != nil {
 		t.Fatalf("retire: %v", err)
 	}
-	res, err := c.Call(ctx, controlplane.CmdAgentGraveyard, nil)
+	res, err := c.Call(ctx, opapi.AgentGraveyard, nil)
 	if err != nil {
 		t.Fatalf("graveyard: %v", err)
 	}
@@ -2609,7 +2610,7 @@ func TestAgentGraveyard_ListsOnlyRetired(t *testing.T) {
 		t.Fatalf("graveyard row = %+v", row)
 	}
 	// A far-future retention window excludes the just-retired agent (reports only).
-	res2, err := c.Call(ctx, controlplane.CmdAgentGraveyard, map[string]any{"older_than_days": 3650})
+	res2, err := c.Call(ctx, opapi.AgentGraveyard, map[string]any{"older_than_days": 3650})
 	if err != nil {
 		t.Fatalf("graveyard older_than: %v", err)
 	}
@@ -2621,12 +2622,12 @@ func TestAgentGraveyard_ListsOnlyRetired(t *testing.T) {
 func TestAgentKindSubagentNormalizesDirectCallPolicy(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("unused")))
 	ctx := context.Background()
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "lead", "soul": "Lead."},
 	}); err != nil {
 		t.Fatalf("agent add lead: %v", err)
 	}
-	add, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	add, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{
 			"slug":         "worker",
 			"kind":         "subagent",
@@ -2641,19 +2642,19 @@ func TestAgentKindSubagentNormalizesDirectCallPolicy(t *testing.T) {
 	if prof["kind"] != "subagent" || prof["managed"] != true || prof["direct_callable"] != false {
 		t.Fatalf("kind-only subagent did not normalize direct-call policy: %v", prof)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdAgentWake, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentWake, map[string]any{
 		"ref":    "worker",
 		"reason": "manual operator wake",
 	}); err == nil || !strings.Contains(err.Error(), "managed sub-agent") {
 		t.Fatalf("kind-only subagent wake err = %v, want managed sub-agent rejection", err)
 	}
 
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "assistant", "soul": "Assist directly."},
 	}); err != nil {
 		t.Fatalf("agent add assistant: %v", err)
 	}
-	edit, err := c.Call(ctx, controlplane.CmdAgentEdit, map[string]any{
+	edit, err := c.Call(ctx, opapi.AgentEdit, map[string]any{
 		"ref": "assistant",
 		"profile": map[string]any{
 			"kind":         "subagent",
@@ -2673,19 +2674,19 @@ func TestAgentKindSubagentNormalizesDirectCallPolicy(t *testing.T) {
 func TestAgentList_IncludesWakeStatus(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "ops", "soul": "You operate.", "model": "m"},
 	}); err != nil {
 		t.Fatalf("agent add: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.ScheduleAdd, map[string]any{
 		"intent":       "check disks",
 		"agent":        "ops",
 		"interval_sec": float64(3600),
 	}); err != nil {
 		t.Fatalf("schedule add: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdStandingAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.StandingAdd, map[string]any{
 		"order": map[string]any{
 			"name":     "ops events",
 			"agent":    "ops",
@@ -2695,7 +2696,7 @@ func TestAgentList_IncludesWakeStatus(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("standing add: %v", err)
 	}
-	res, err := c.Call(ctx, controlplane.CmdAgentList, nil)
+	res, err := c.Call(ctx, opapi.AgentList, nil)
 	if err != nil {
 		t.Fatalf("agent list: %v", err)
 	}
@@ -2729,7 +2730,7 @@ func TestAgentList_IncludesWakeStatus(t *testing.T) {
 func TestAgentList_IncludesLiveRunStatus(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "ops", "soul": "You operate.", "model": "m"},
 	}); err != nil {
 		t.Fatalf("agent add: %v", err)
@@ -2762,7 +2763,7 @@ func TestAgentList_IncludesLiveRunStatus(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("publish tool invoked: %v", err)
 	}
-	res, err := c.Call(ctx, controlplane.CmdAgentList, nil)
+	res, err := c.Call(ctx, opapi.AgentList, nil)
 	if err != nil {
 		t.Fatalf("agent list: %v", err)
 	}
@@ -2816,7 +2817,7 @@ func TestAgentList_IncludesLiveRunStatus(t *testing.T) {
 func TestAgentList_IncludesStandingWakeNameInLiveRunStatus(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "ops", "soul": "You operate.", "model": "m"},
 	}); err != nil {
 		t.Fatalf("agent add: %v", err)
@@ -2845,7 +2846,7 @@ func TestAgentList_IncludesStandingWakeNameInLiveRunStatus(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("publish task received: %v", err)
 	}
-	res, err := c.Call(ctx, controlplane.CmdAgentList, nil)
+	res, err := c.Call(ctx, opapi.AgentList, nil)
 	if err != nil {
 		t.Fatalf("agent list: %v", err)
 	}
@@ -2875,23 +2876,23 @@ func TestAgentList_IncludesStandingWakeNameInLiveRunStatus(t *testing.T) {
 func TestAgentList_IncludesSleepingAndPausedOperationalState(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "sleeper", "soul": "You wait.", "model": "m"},
 	}); err != nil {
 		t.Fatalf("agent add sleeper: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "paused", "soul": "You wait.", "model": "m"},
 	}); err != nil {
 		t.Fatalf("agent add paused: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdAgentSetEnabled, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentSetEnabled, map[string]any{
 		"ref":     "paused",
 		"enabled": false,
 	}); err != nil {
 		t.Fatalf("agent pause: %v", err)
 	}
-	res, err := c.Call(ctx, controlplane.CmdAgentList, nil)
+	res, err := c.Call(ctx, opapi.AgentList, nil)
 	if err != nil {
 		t.Fatalf("agent list: %v", err)
 	}
@@ -2924,12 +2925,12 @@ func testIntNumber(v any) int64 {
 func TestAgentResolve_PausesAndJournalsLifecycle(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "builder", "soul": "You build.", "model": "m"},
 	}); err != nil {
 		t.Fatalf("agent add: %v", err)
 	}
-	res, err := c.Call(ctx, controlplane.CmdAgentResolve, map[string]any{
+	res, err := c.Call(ctx, opapi.AgentResolve, map[string]any{
 		"ref":              "builder",
 		"resolution":       "paused",
 		"summary":          "pause exhausted routing incident",
@@ -2984,17 +2985,17 @@ func TestAgentResolve_DelegatesViaBoard(t *testing.T) {
 		return controlplane.Deps{Board: st}
 	})
 	ctx := context.Background()
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "builder", "soul": "You build.", "model": "m"},
 	}); err != nil {
 		t.Fatalf("agent add: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "infra-lead", "soul": "You own infra incidents.", "model": "m"},
 	}); err != nil {
 		t.Fatalf("infra-lead add: %v", err)
 	}
-	res, err := c.Call(ctx, controlplane.CmdAgentResolve, map[string]any{
+	res, err := c.Call(ctx, opapi.AgentResolve, map[string]any{
 		"ref":              "builder",
 		"resolution":       "delegated",
 		"delegate_to":      "infra-lead",
@@ -3017,12 +3018,12 @@ func TestAgentResolve_DelegatesViaBoard(t *testing.T) {
 func TestAgentResolve_DelegatedRejectsSelfAndCurrentOwner(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "lead", "soul": "You lead.", "model": "m"},
 	}); err != nil {
 		t.Fatalf("lead add: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{
 			"slug":         "builder",
 			"soul":         "You build.",
@@ -3032,45 +3033,45 @@ func TestAgentResolve_DelegatedRejectsSelfAndCurrentOwner(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("agent add: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdAgentResolve, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentResolve, map[string]any{
 		"ref":         "builder",
 		"resolution":  "delegated",
 		"delegate_to": "builder",
 	}); err == nil || !strings.Contains(err.Error(), "points back to the root agent") {
 		t.Fatalf("delegate to self err = %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdAgentResolve, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentResolve, map[string]any{
 		"ref":         "builder",
 		"resolution":  "delegated",
 		"delegate_to": "lead",
 	}); err == nil || !strings.Contains(err.Error(), "points back to the current owner") {
 		t.Fatalf("delegate to owner err = %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdAgentResolve, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentResolve, map[string]any{
 		"ref":         "builder",
 		"resolution":  "delegated",
 		"delegate_to": "ghost",
 	}); err == nil || !strings.Contains(err.Error(), "does not exist") {
 		t.Fatalf("delegate to unknown err = %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "graveyard-owner", "soul": "You are retired.", "model": "m"},
 	}); err != nil {
 		t.Fatalf("graveyard-owner add: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdAgentRetire, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentRetire, map[string]any{
 		"ref": "graveyard-owner",
 	}); err != nil {
 		t.Fatalf("graveyard-owner retire: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdAgentResolve, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentResolve, map[string]any{
 		"ref":         "builder",
 		"resolution":  "delegated",
 		"delegate_to": "graveyard-owner",
 	}); err == nil || !strings.Contains(err.Error(), "is retired") {
 		t.Fatalf("delegate to retired err = %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{
 			"slug":            "worker-owner",
 			"soul":            "You are managed.",
@@ -3081,7 +3082,7 @@ func TestAgentResolve_DelegatedRejectsSelfAndCurrentOwner(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("worker-owner add: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdAgentResolve, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentResolve, map[string]any{
 		"ref":         "builder",
 		"resolution":  "delegated",
 		"delegate_to": "worker-owner",
@@ -3096,12 +3097,12 @@ func TestAgentResolve_ForceChainUpdatesRoutingAndGeneration(t *testing.T) {
 	})
 	k, _, c, _ := startPair(t, prov)
 	ctx := context.Background()
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "builder", "soul": "You build.", "model": "m", "task_type": "code"},
 	}); err != nil {
 		t.Fatalf("agent add: %v", err)
 	}
-	res, err := c.Call(ctx, controlplane.CmdAgentResolve, map[string]any{
+	res, err := c.Call(ctx, opapi.AgentResolve, map[string]any{
 		"ref":              "builder",
 		"resolution":       "force_chain",
 		"task_type":        "code",
@@ -3146,7 +3147,7 @@ func TestAgentResolve_ForceChainRejectsExhaustedChain(t *testing.T) {
 	})
 	k, _, c, _ := startPair(t, prov)
 	ctx := context.Background()
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "builder", "soul": "You build.", "model": "m", "task_type": "code"},
 	}); err != nil {
 		t.Fatalf("agent add: %v", err)
@@ -3167,7 +3168,7 @@ func TestAgentResolve_ForceChainRejectsExhaustedChain(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("publish exhausted routing: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdAgentResolve, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentResolve, map[string]any{
 		"ref":              "builder",
 		"resolution":       "force_chain",
 		"task_type":        "code",
@@ -3225,13 +3226,13 @@ func TestAgentEscalations_ShowsOpenDoctorResponsibilities(t *testing.T) {
 	})
 	ctx := context.Background()
 	for _, slug := range []string{"builder", "lead"} {
-		if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+		if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 			"profile": map[string]any{"slug": slug, "soul": "You work."},
 		}); err != nil {
 			t.Fatalf("agent add %s: %v", slug, err)
 		}
 	}
-	sent, err := c.Call(ctx, controlplane.CmdBoardSend, map[string]any{
+	sent, err := c.Call(ctx, opapi.BoardSend, map[string]any{
 		"from": "guardian-doctor",
 		"to":   "lead",
 		"help": true,
@@ -3266,7 +3267,7 @@ func TestAgentEscalations_ShowsOpenDoctorResponsibilities(t *testing.T) {
 		t.Fatalf("publish escalation: %v", err)
 	}
 
-	res, err := c.Call(ctx, controlplane.CmdAgentEscalations, map[string]any{"ref": "lead", "limit": 10})
+	res, err := c.Call(ctx, opapi.AgentEscalations, map[string]any{"ref": "lead", "limit": 10})
 	if err != nil {
 		t.Fatalf("agent escalations: %v", err)
 	}
@@ -3291,7 +3292,7 @@ func TestAgentEscalations_ShowsOpenDoctorResponsibilities(t *testing.T) {
 		t.Fatalf("escalation incident ids = %+v", row)
 	}
 
-	act, err := c.Call(ctx, controlplane.CmdAgentActivity, map[string]any{"ref": "lead", "limit": 10})
+	act, err := c.Call(ctx, opapi.AgentActivity, map[string]any{"ref": "lead", "limit": 10})
 	if err != nil {
 		t.Fatalf("agent activity: %v", err)
 	}
@@ -3309,10 +3310,10 @@ func TestAgentEscalations_ShowsOpenDoctorResponsibilities(t *testing.T) {
 	}
 
 	// Acknowledge the help request and make sure the row downgrades from open → acked.
-	if _, err := c.Call(ctx, controlplane.CmdBoardAck, map[string]any{"id": msgID, "by": "lead"}); err != nil {
+	if _, err := c.Call(ctx, opapi.BoardAck, map[string]any{"id": msgID, "by": "lead"}); err != nil {
 		t.Fatalf("board ack: %v", err)
 	}
-	res2, err := c.Call(ctx, controlplane.CmdAgentEscalations, map[string]any{"ref": "lead", "limit": 10})
+	res2, err := c.Call(ctx, opapi.AgentEscalations, map[string]any{"ref": "lead", "limit": 10})
 	if err != nil {
 		t.Fatalf("agent escalations after ack: %v", err)
 	}
@@ -3323,7 +3324,7 @@ func TestAgentEscalations_ShowsOpenDoctorResponsibilities(t *testing.T) {
 	}
 
 	// A threaded reply closes the escalation, but it should remain visible as answered history.
-	if _, err := c.Call(ctx, controlplane.CmdBoardSend, map[string]any{
+	if _, err := c.Call(ctx, opapi.BoardSend, map[string]any{
 		"from":     "lead",
 		"reply_to": msgID,
 		"text":     "I inspected builder and handled it.",
@@ -3353,7 +3354,7 @@ func TestAgentEscalations_ShowsOpenDoctorResponsibilities(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("publish escalation answered: %v", err)
 	}
-	res3, err := c.Call(ctx, controlplane.CmdAgentEscalations, map[string]any{"ref": "lead", "limit": 10})
+	res3, err := c.Call(ctx, opapi.AgentEscalations, map[string]any{"ref": "lead", "limit": 10})
 	if err != nil {
 		t.Fatalf("agent escalations after reply: %v", err)
 	}
@@ -3369,12 +3370,12 @@ func TestAgentEscalations_ShowsOpenDoctorResponsibilities(t *testing.T) {
 		t.Fatalf("answered escalation incident ids = %+v", row3)
 	}
 
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "infra-lead", "soul": "You own infra escalations."},
 	}); err != nil {
 		t.Fatalf("agent add infra-lead: %v", err)
 	}
-	delegatedMsg, err := c.Call(ctx, controlplane.CmdBoardSend, map[string]any{
+	delegatedMsg, err := c.Call(ctx, opapi.BoardSend, map[string]any{
 		"from": "lead",
 		"to":   "infra-lead",
 		"text": "Escalated responsibility for agent builder.",
@@ -3410,7 +3411,7 @@ func TestAgentEscalations_ShowsOpenDoctorResponsibilities(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("publish delegation queued: %v", err)
 	}
-	infra, err := c.Call(ctx, controlplane.CmdAgentEscalations, map[string]any{"ref": "infra-lead", "limit": 10})
+	infra, err := c.Call(ctx, opapi.AgentEscalations, map[string]any{"ref": "infra-lead", "limit": 10})
 	if err != nil {
 		t.Fatalf("infra escalations: %v", err)
 	}
@@ -3430,12 +3431,12 @@ func TestAgentEscalations_ShowsOpenDoctorResponsibilities(t *testing.T) {
 	}
 
 	// Directed help should stay private; an unrelated agent sees nothing.
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "writer", "soul": "You write."},
 	}); err != nil {
 		t.Fatalf("agent add writer: %v", err)
 	}
-	other, err := c.Call(ctx, controlplane.CmdAgentEscalations, map[string]any{"ref": "writer"})
+	other, err := c.Call(ctx, opapi.AgentEscalations, map[string]any{"ref": "writer"})
 	if err != nil {
 		t.Fatalf("writer escalations: %v", err)
 	}
@@ -3481,7 +3482,7 @@ func TestAgentList_CursorPaginatesByCreatedMSSlugDesc(t *testing.T) {
 		store.SetNowForTest(func() time.Time {
 			return time.UnixMilli(ms)
 		})
-		if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+		if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 			"profile": map[string]any{"slug": s, "model": "mock-model", "task_type": "code"},
 		}); err != nil {
 			t.Fatalf("agent add %s: %v", s, err)
@@ -3489,7 +3490,7 @@ func TestAgentList_CursorPaginatesByCreatedMSSlugDesc(t *testing.T) {
 	}
 
 	// Page 1 — limit 2, no cursor. Expect next_cursor present (more pages).
-	p1, err := c.Call(ctx, controlplane.CmdAgentList, map[string]any{"limit": 2})
+	p1, err := c.Call(ctx, opapi.AgentList, map[string]any{"limit": 2})
 	if err != nil {
 		t.Fatalf("agent list p1: %v", err)
 	}
@@ -3508,7 +3509,7 @@ func TestAgentList_CursorPaginatesByCreatedMSSlugDesc(t *testing.T) {
 	}
 
 	// Page 2 — limit 2 with cursor from page 1.
-	p2, err := c.Call(ctx, controlplane.CmdAgentList, map[string]any{
+	p2, err := c.Call(ctx, opapi.AgentList, map[string]any{
 		"limit":  2,
 		"cursor": p1["next_cursor"],
 	})
@@ -3538,7 +3539,7 @@ func TestAgentList_CursorPaginatesByCreatedMSSlugDesc(t *testing.T) {
 	}
 
 	// Page 3 — terminal. One agent left, no next_cursor.
-	p3, err := c.Call(ctx, controlplane.CmdAgentList, map[string]any{
+	p3, err := c.Call(ctx, opapi.AgentList, map[string]any{
 		"limit":  2,
 		"cursor": p2["next_cursor"],
 	})
@@ -3571,7 +3572,7 @@ func TestAgentList_DescendingOrderAcrossPages(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
 	for _, s := range []string{"alpha", "bravo", "charlie"} {
-		if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+		if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 			"profile": map[string]any{"slug": s, "model": "mock-model", "task_type": "code"},
 		}); err != nil {
 			t.Fatalf("agent add %s: %v", s, err)
@@ -3583,7 +3584,7 @@ func TestAgentList_DescendingOrderAcrossPages(t *testing.T) {
 	// to DESC. When all three share the same CreatedMS, the within-ms order
 	// is ID-based (not slug-based), so we check CreatedMS monotonicity
 	// rather than a specific slug sequence.
-	res, err := c.Call(ctx, controlplane.CmdAgentList, map[string]any{"limit": 3})
+	res, err := c.Call(ctx, opapi.AgentList, map[string]any{"limit": 3})
 	if err != nil {
 		t.Fatalf("agent list: %v", err)
 	}
@@ -3625,14 +3626,14 @@ func TestAgentList_UnparseableCursorFallsBackToFirstPage(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
 	for _, s := range []string{"alpha", "bravo"} {
-		if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+		if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 			"profile": map[string]any{"slug": s, "model": "mock-model", "task_type": "code"},
 		}); err != nil {
 			t.Fatalf("agent add: %v", err)
 		}
 	}
 	// Garbage cursor — server should treat as no cursor, return first page.
-	res, err := c.Call(ctx, controlplane.CmdAgentList, map[string]any{
+	res, err := c.Call(ctx, opapi.AgentList, map[string]any{
 		"limit":  10,
 		"cursor": "not-a-cursor",
 	})
@@ -3649,14 +3650,14 @@ func TestAgentList_LimitZeroReturnsAll(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
 	for _, s := range []string{"alpha", "bravo", "charlie"} {
-		if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+		if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 			"profile": map[string]any{"slug": s, "model": "mock-model", "task_type": "code"},
 		}); err != nil {
 			t.Fatalf("agent add: %v", err)
 		}
 	}
 	// limit=0 (or absent) — return everything; no next_cursor.
-	res, err := c.Call(ctx, controlplane.CmdAgentList, map[string]any{"limit": 0})
+	res, err := c.Call(ctx, opapi.AgentList, map[string]any{"limit": 0})
 	if err != nil {
 		t.Fatalf("agent list: %v", err)
 	}
@@ -3707,7 +3708,7 @@ func TestAgentActivity_CursorPaginatesBySeqDesc(t *testing.T) {
 	k, srv, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
 
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "audited", "model": "mock-model", "task_type": "code"},
 	}); err != nil {
 		t.Fatalf("agent add: %v", err)
@@ -3716,7 +3717,7 @@ func TestAgentActivity_CursorPaginatesBySeqDesc(t *testing.T) {
 	_ = srv
 
 	// Page 1 — limit 2, no cursor.
-	p1, err := c.Call(ctx, controlplane.CmdAgentActivity, map[string]any{
+	p1, err := c.Call(ctx, opapi.AgentActivity, map[string]any{
 		"ref": "audited", "limit": 2,
 	})
 	if err != nil {
@@ -3734,7 +3735,7 @@ func TestAgentActivity_CursorPaginatesBySeqDesc(t *testing.T) {
 	}
 
 	// Page 2 — limit 2 with cursor from page 1.
-	p2, err := c.Call(ctx, controlplane.CmdAgentActivity, map[string]any{
+	p2, err := c.Call(ctx, opapi.AgentActivity, map[string]any{
 		"ref": "audited", "limit": 2, "cursor": p1["next_cursor"],
 	})
 	if err != nil {
@@ -3761,7 +3762,7 @@ func TestAgentActivity_CursorPaginatesBySeqDesc(t *testing.T) {
 	}
 
 	// Page 3 — terminal; no next_cursor.
-	p3, err := c.Call(ctx, controlplane.CmdAgentActivity, map[string]any{
+	p3, err := c.Call(ctx, opapi.AgentActivity, map[string]any{
 		"ref": "audited", "limit": 2, "cursor": p2["next_cursor"],
 	})
 	if err != nil {
@@ -3779,13 +3780,13 @@ func TestAgentActivity_CursorPaginatesBySeqDesc(t *testing.T) {
 func TestAgentActivity_UnparseableCursorFallsBackToFirstPage(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "audited", "model": "mock-model", "task_type": "code"},
 	}); err != nil {
 		t.Fatalf("agent add: %v", err)
 	}
 	publishActivityEvents(t, k, "audited", 2)
-	res, err := c.Call(ctx, controlplane.CmdAgentActivity, map[string]any{
+	res, err := c.Call(ctx, opapi.AgentActivity, map[string]any{
 		"ref": "audited", "limit": 10, "cursor": "garbage",
 	})
 	if err != nil {
@@ -3800,7 +3801,7 @@ func TestAgentActivity_UnparseableCursorFallsBackToFirstPage(t *testing.T) {
 func TestAgentRepairStatus_CursorPaginatesBySeqDesc(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("repair complete")))
 	ctx := context.Background()
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "audited", "model": "mock-model", "task_type": "code"},
 	}); err != nil {
 		t.Fatalf("agent add: %v", err)
@@ -3823,7 +3824,7 @@ func TestAgentRepairStatus_CursorPaginatesBySeqDesc(t *testing.T) {
 		}
 	}
 
-	p1, err := c.Call(ctx, controlplane.CmdAgentRepairStatus, map[string]any{
+	p1, err := c.Call(ctx, opapi.AgentRepairStatus, map[string]any{
 		"ref": "audited", "limit": 2,
 	})
 	if err != nil {
@@ -3837,7 +3838,7 @@ func TestAgentRepairStatus_CursorPaginatesBySeqDesc(t *testing.T) {
 		t.Fatal("page 1 should have next_cursor")
 	}
 
-	p2, err := c.Call(ctx, controlplane.CmdAgentRepairStatus, map[string]any{
+	p2, err := c.Call(ctx, opapi.AgentRepairStatus, map[string]any{
 		"ref": "audited", "limit": 2, "cursor": p1["next_cursor"],
 	})
 	if err != nil {
@@ -3865,7 +3866,7 @@ func TestAgentRepairStatus_CursorPaginatesBySeqDesc(t *testing.T) {
 	}
 
 	// Page 3 — terminal.
-	p3, err := c.Call(ctx, controlplane.CmdAgentRepairStatus, map[string]any{
+	p3, err := c.Call(ctx, opapi.AgentRepairStatus, map[string]any{
 		"ref": "audited", "limit": 2, "cursor": p2["next_cursor"],
 	})
 	if err != nil {

@@ -7,6 +7,7 @@ package controlplane
 //             and must not route the tenant it names.
 
 import (
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"net"
 )
 
@@ -18,7 +19,7 @@ import (
 // tenant it names.
 func registerCoreCommands() {
 	register(
-		commandSpec{Cmd: CmdWhoami, ReadOnly: true, TenantAllowed: true, Handler: func(dc *DispatchCtx) { dc.S.handleWhoami(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: opapi.Whoami, ReadOnly: true, TenantAllowed: true, Handler: func(dc *DispatchCtx) { dc.S.handleWhoami(dc.Conn, dc.Req) }},
 	)
 }
 

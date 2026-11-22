@@ -14,6 +14,7 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/app"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	core "github.com/agezt/agezt/kernel/contract/updateapi"
 )
 
@@ -51,7 +52,7 @@ func handleUpdateSnapshot(s *Server, conn net.Conn, req Request) {
 }
 
 func TestUpdateNativeContextAndRestartFollowTerminalWrite(t *testing.T) {
-	for _, cmd := range []string{CmdUpdateCheck, CmdUpdateApply} {
+	for _, cmd := range []string{opapi.UpdateCheck, opapi.UpdateApply} {
 		for _, cause := range []error{nil, errors.New("owned update error")} {
 			t.Run(cmd+"/"+func() string {
 				if cause == nil {
@@ -82,10 +83,10 @@ func TestUpdateNativeContextAndRestartFollowTerminalWrite(t *testing.T) {
 					t.Fatal("EXPECTED: updater context alive through write; ACTUAL: canceled")
 				}
 				deadline, has := backend.call.Deadline()
-				if cmd == CmdUpdateCheck && (!has || time.Until(deadline) < 59*time.Second || time.Until(deadline) > 60*time.Second) || cmd == CmdUpdateApply && has {
+				if cmd == opapi.UpdateCheck && (!has || time.Until(deadline) < 59*time.Second || time.Until(deadline) > 60*time.Second) || cmd == opapi.UpdateApply && has {
 					t.Fatal("context deadline", deadline, has)
 				}
-				if cmd == CmdUpdateApply && cause == nil {
+				if cmd == opapi.UpdateApply && cause == nil {
 					raw, err := os.ReadFile(filepath.Join(s.baseDir, "update.sentinel"))
 					if err != nil {
 						t.Fatal("sentinel must precede response", err)
@@ -113,7 +114,7 @@ func TestUpdateNativeContextAndRestartFollowTerminalWrite(t *testing.T) {
 				if !errors.Is(backend.call.Err(), context.Canceled) {
 					t.Fatal("context leaked after terminal", backend.call.Err())
 				}
-				if cmd == CmdUpdateApply && cause == nil {
+				if cmd == opapi.UpdateApply && cause == nil {
 					select {
 					case <-s.shutdownCh:
 						if time.Since(returned) < 90*time.Millisecond {
@@ -146,7 +147,7 @@ func TestUpdateNativeWriteFailureVersusPanicRestart(t *testing.T) {
 					t.Error(value)
 				}
 			}()
-			handleUpdateLifetime(s, failedSendWriteConn{Conn: b, panicWrite: panics}, CmdUpdateApply)
+			handleUpdateLifetime(s, failedSendWriteConn{Conn: b, panicWrite: panics}, opapi.UpdateApply)
 		}()
 		a.Close()
 		b.Close()
@@ -170,7 +171,7 @@ func TestUpdateNativeWriteFailureVersusPanicRestart(t *testing.T) {
 }
 
 func TestUpdateNativeSenderPanicCancelsImmediately(t *testing.T) {
-	for _, cmd := range []string{CmdUpdateCheck, CmdUpdateApply} {
+	for _, cmd := range []string{opapi.UpdateCheck, opapi.UpdateApply} {
 		backend := &ownedUpdateBackend{panicCall: true}
 		s := &Server{updateSvc: backend, shutdownCh: make(chan struct{})}
 		a, b := net.Pipe()
@@ -222,7 +223,7 @@ func TestUpdateNativeSuccessfulRestartWaitsForWriteReturn(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		handleUpdateLifetime(s, pausedOAuthStatusConn{Conn: b, entered: entered, release: release}, CmdUpdateApply)
+		handleUpdateLifetime(s, pausedOAuthStatusConn{Conn: b, entered: entered, release: release}, opapi.UpdateApply)
 	}()
 	select {
 	case <-entered:
@@ -256,7 +257,7 @@ func TestUpdateNativeNilSetterReportsDisabledBeforeCodec(t *testing.T) {
 	// the port where the value is still concrete.
 	var backend core.Backend
 	s.updateSvc = backend
-	for _, cmd := range []string{CmdUpdateCheck, CmdUpdateApply} {
+	for _, cmd := range []string{opapi.UpdateCheck, opapi.UpdateApply} {
 		a, b := net.Pipe()
 		a.SetDeadline(time.Now().Add(time.Second))
 		done := make(chan struct{})
@@ -275,7 +276,7 @@ func TestUpdateNativeNilSetterReportsDisabledBeforeCodec(t *testing.T) {
 		}
 		var reply Response
 		json.Unmarshal(line, &reply)
-		if cmd == CmdUpdateCheck {
+		if cmd == opapi.UpdateCheck {
 			if reply.Type != RespResult || reply.Result["status"] != "update is disabled" || reply.Result["current"] != brand.Version || reply.Result["up_to_date"] != true || reply.Result["update"] != nil || len(reply.Result) != 4 {
 				t.Fatal(reply)
 			}

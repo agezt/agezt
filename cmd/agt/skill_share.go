@@ -18,7 +18,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 // cmdSkillReassign handles `skill share <id>` (promote a private skill to the
@@ -63,10 +63,10 @@ func cmdSkillReassign(args []string, share bool, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s skill %s: id required\n", brand.CLI, label)
 		return 2
 	}
-	cmd := controlplane.CmdSkillReassign
+	cmd := opapi.SkillReassign
 	callArgs := map[string]any{"id": id, "agent": agent}
 	if share {
-		cmd = controlplane.CmdSkillShare
+		cmd = opapi.SkillShare
 		callArgs = map[string]any{"id": id}
 	}
 	c := dialpkg.New(stderr)

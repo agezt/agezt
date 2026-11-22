@@ -119,10 +119,10 @@ describe("useFileTree hook", () => {
 
 describe("HTTPError typed error", () => {
   it("preserves status, url, and message", () => {
-    const e = new HTTPError(403, "/api/foo", "Forbidden");
+    const e = new HTTPError(403, "/api/status", "Forbidden");
     expect(e).toBeInstanceOf(Error);
     expect(e.status).toBe(403);
-    expect(e.url).toBe("/api/foo");
+    expect(e.url).toBe("/api/status");
     expect(e.message).toBe("Forbidden");
     expect(e.name).toBe("HTTPError");
   });

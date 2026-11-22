@@ -18,7 +18,7 @@ import {
   Copy,
   Download,
 } from "lucide-react";
-import { getJSON, postAction, postJSON } from "@/app/api";
+import { getJSON, postAction, postJSON, type WritePath, type NativePath } from "@/app/api";
 import { Badge, statusVariant } from "@/components/ui/badge";
 import { KeyValue, Muted, ErrorText } from "@/components/JsonView";
 import { ToolOutput } from "@/components/DataView";
@@ -27,14 +27,14 @@ import { cn } from "@/app/utils";
 import { fmtTime, clip } from "@/app/utils";
 import { money } from "@/app/format";
 import { useUI } from "@/components/ui/feedback";
-import { deriveDetail, num, mergeEvents, type ToolCall } from "@/features/runs/lib/rundetail";
+import { deriveDetail, num, mergeEvents, type ToolCall } from "@/lib/rundetail";
 import { useEvents, type AgentEvent } from "@/app/events";
-import { IncidentBadges } from "@/features/incidents/components/IncidentBadges";
+import { IncidentBadges } from "@/components/IncidentBadges";
 import {
   incidentBadgeItem,
   incidentEventSummary,
   isIncidentFamilyEvent,
-} from "@/features/incidents/lib/incidentevents";
+} from "@/lib/incidentevents";
 
 interface RunPhaseStep {
   key: string;
@@ -556,7 +556,7 @@ export function SteerControls({ correlationId, arc }: { correlationId: string; a
   // cockpit stays a pure, prop-driven component).
   const [confirmingCancel, setConfirmingCancel] = useState(false);
 
-  async function act(path: string, params?: Record<string, string>) {
+  async function act(path: WritePath | NativePath, params?: Record<string, string>) {
     setBusy(true);
     setErr(null);
     try {
@@ -696,7 +696,7 @@ export function RunRollbackDrawer({ correlationId }: { correlationId: string }) 
     setLoading(true);
     setErr(null);
     try {
-      const data = await getJSON<{ checkpoints?: RollbackCheckpoint[] }>("/api/rollback/checkpoints", {
+      const data = await getJSON("/api/rollback/checkpoints", {
         run_id: correlationId,
       });
       setCheckpoints(data.checkpoints || []);
@@ -831,7 +831,7 @@ export function RunDetailLoader({
   useEffect(() => {
     if (fetched.current || !correlationId) return;
     fetched.current = true;
-    getJSON<{ events?: AgentEvent[] }>("/api/journal", { correlation_id: correlationId, limit: "500" })
+    getJSON("/api/journal", { correlation_id: correlationId, limit: "500" })
       .then((dat) => setArc((prev) => mergeEvents(prev || [], dat.events || [])))
       .catch((e) => setErr((e as Error).message));
   }, [correlationId]);

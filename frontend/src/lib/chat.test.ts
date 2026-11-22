@@ -17,7 +17,7 @@ import {
 } from "@/lib/chat";
 
 function contractFixture<T>(name: string): T {
-  return JSON.parse(readFileSync(`../contract/fixtures/${name}`, "utf8")) as T;
+  return JSON.parse(readFileSync(`./fixtures/${name}`, "utf8")) as T;
 }
 
 // A realistic streaming arc: provider streams tokens, calls one governed tool,

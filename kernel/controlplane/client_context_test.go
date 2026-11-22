@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"net"
 	"testing"
 	"time"
@@ -37,7 +38,7 @@ func TestClientCallCancellationClosesBlockedConnection(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 75*time.Millisecond)
 	defer cancel()
 	started := time.Now()
-	_, err = client.Call(ctx, CmdStatus, nil)
+	_, err = client.Call(ctx, opapi.Status, nil)
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("Call error = %v, want deadline exceeded", err)
 	}

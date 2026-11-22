@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"github.com/agezt/agezt/kernel/app/binding"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"os"
 	"path/filepath"
 	"strings"
@@ -226,7 +227,7 @@ func TestCmdRollbackApplyRestoresSkillStatus(t *testing.T) {
 	if err := writeRollbackCatalogAt(path, rollbackCatalog{Checkpoints: []rollbackCheckpoint{cp}}); err != nil {
 		t.Fatalf("write checkpoint: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdSkillPromote, map[string]any{"id": sk.ID}); err != nil {
+	if _, err := c.Call(ctx, opapi.SkillPromote, map[string]any{"id": sk.ID}); err != nil {
 		t.Fatalf("promote: %v", err)
 	}
 	if got, _, _ := k.Forge().Get(sk.ID); got.Status != skill.StatusShadow {
@@ -251,7 +252,7 @@ func TestCmdRollbackApplyRestoresSkillStatus(t *testing.T) {
 	if len(cat.Checkpoints) != 1 || cat.Checkpoints[0].AppliedMS == 0 {
 		t.Fatalf("checkpoint should be marked applied: %+v", cat.Checkpoints)
 	}
-	hist, err := c.Call(ctx, controlplane.CmdSkillHistory, map[string]any{"id": sk.ID})
+	hist, err := c.Call(ctx, opapi.SkillHistory, map[string]any{"id": sk.ID})
 	if err != nil {
 		t.Fatalf("history: %v", err)
 	}
@@ -312,7 +313,7 @@ func TestWorkflowSaveCheckpointAndRollbackRestore(t *testing.T) {
 	if len(cat.Checkpoints) != 1 || cat.Checkpoints[0].Kind != rollbackCheckpointKindFlow {
 		t.Fatalf("expected one workflow checkpoint, got %+v", cat.Checkpoints)
 	}
-	res, err := c.Call(ctx, controlplane.CmdWorkflowShow, map[string]any{"ref": "rollback-flow"})
+	res, err := c.Call(ctx, opapi.WorkflowShow, map[string]any{"ref": "rollback-flow"})
 	if err != nil {
 		t.Fatalf("show v2: %v", err)
 	}
@@ -326,7 +327,7 @@ func TestWorkflowSaveCheckpointAndRollbackRestore(t *testing.T) {
 	if code := cmdRollback([]string{"apply", cat.Checkpoints[0].ID}, &out, &errOut); code != 0 {
 		t.Fatalf("rollback workflow exit=%d stderr=%s", code, errOut.String())
 	}
-	res, err = c.Call(ctx, controlplane.CmdWorkflowShow, map[string]any{"ref": "rollback-flow"})
+	res, err = c.Call(ctx, opapi.WorkflowShow, map[string]any{"ref": "rollback-flow"})
 	if err != nil {
 		t.Fatalf("show restored: %v", err)
 	}
@@ -406,7 +407,7 @@ func configValueForTest(t *testing.T, c *controlplane.Client, env string) string
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdConfigValues, nil)
+	res, err := c.Call(ctx, opapi.ConfigValues, nil)
 	if err != nil {
 		t.Fatalf("config values: %v", err)
 	}

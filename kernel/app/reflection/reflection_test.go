@@ -99,15 +99,15 @@ func TestOperations(t *testing.T) {
 		read          bool
 		input, output reflect.Type
 	}{
-		{"reflect_run", false, reflect.TypeFor[RunRequest](), reflect.TypeFor[RunOutput]()},
-		{"reflect_show", true, reflect.TypeFor[ShowRequest](), reflect.TypeFor[ShowOutput]()},
+		{opapi.ReflectRun, false, reflect.TypeFor[RunRequest](), reflect.TypeFor[RunOutput]()},
+		{opapi.ReflectShow, true, reflect.TypeFor[ShowRequest](), reflect.TypeFor[ShowOutput]()},
 	} {
 		s := ops[i].Spec()
 		out, err := schema.FromType(want.output, false)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if s.Name != want.name || s.ReadOnly != want.read || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Stream != opapi.StreamNone || !s.AllowUnknownInput || s.HTTP.Method != "" || s.HTTP.Path != "" || s.Input != want.input || s.Output != want.output || string(s.OutputSchema) != string(out) {
+		if s.Name != want.name || s.ReadOnly != want.read || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Stream != opapi.StreamNone || !s.AllowUnknownInput || s.Input != want.input || s.Output != want.output || string(s.OutputSchema) != string(out) {
 			t.Fatalf("%s spec: %+v", want.name, s)
 		}
 		if err := schema.ValidateJSON(s.InputSchema, json.RawMessage(`{"tenant":"t","x":1}`)); err != nil {

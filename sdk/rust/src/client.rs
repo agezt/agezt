@@ -4,81 +4,23 @@ use std::io::BufRead;
 use std::time::Duration;
 
 use crate::errors::{Error, Result};
+use crate::generated::{
+    paths, ApiError, Health, Mail, MailAck, MailDraft, MailboxInbox, MailboxMessages,
+    MailboxReplies, MailboxSent, MailboxTopics, Models, RunArc, RunRequest, RunResult,
+};
 use crate::http::{self, BodyReader, Target};
 use crate::json::Value;
-
-/// Daemon health summary (`GET /api/v1/health`).
-#[derive(Debug, Clone)]
-pub struct Health {
-    pub status: String,
-    pub version: String,
-    pub default_model: String,
-    pub model_count: i64,
-}
-
-/// Available models (`GET /api/v1/models`).
-#[derive(Debug, Clone)]
-pub struct Models {
-    pub default: String,
-    pub models: Vec<String>,
-}
-
-/// A completed (non-streaming) run (`POST /api/v1/runs`).
-#[derive(Debug, Clone)]
-pub struct RunResult {
-    pub correlation_id: String,
-    pub model: String,
-    pub status: String,
-    pub answer: String,
-}
 
 /// One Server-Sent Event from a streaming run. `event` is one of `start`,
 /// `token`, `done`, `error`; `data` is the decoded JSON payload (e.g.
 /// `{"text": "…"}` for a `token`).
+///
+/// This one is the SDK's own: a stream frame is not a contract row, so it has
+/// no generated counterpart.
 #[derive(Debug, Clone)]
 pub struct StreamEvent {
     pub event: String,
     pub data: Value,
-}
-
-/// The journaled event arc of a past run (`GET /api/v1/runs/{id}`).
-#[derive(Debug, Clone)]
-pub struct RunArc {
-    pub correlation_id: String,
-    pub count: i64,
-    pub events: Vec<Value>,
-}
-
-/// One message on the daemon's shared mailbox (the inter-agent message board,
-/// M937). Agents and SDK apps leave messages for each other by name (`to`),
-/// broadcast to every inbox (`to == "*"`), or post under a `topic`; `reply_to`
-/// threads an answer back to the message it answers.
-#[derive(Debug, Clone, Default)]
-pub struct Mail {
-    pub id: String,
-    pub topic: String,
-    pub text: String,
-    pub from: String,
-    pub to: String,
-    pub reply_to: String,
-    pub help: bool,
-    pub ts_unix_ms: i64,
-}
-
-/// A message to send with [`Client::mailbox_send`]. `text` is required.
-/// Addressing: `to` names a recipient agent/app (`topic` defaults to `dm`);
-/// `to == "*"` broadcasts to every inbox; `to` empty with a `topic` is a plain
-/// post; `reply_to` answers a message (it goes back to the original sender);
-/// `help == true` raises an assistance request. A directed message wakes a
-/// standing order watching `board.dm.<name>`.
-#[derive(Debug, Clone, Default)]
-pub struct MailDraft {
-    pub from: String,
-    pub to: String,
-    pub topic: String,
-    pub reply_to: String,
-    pub text: String,
-    pub help: bool,
 }
 
 /// A client for a running Agezt daemon's REST API.
@@ -137,31 +79,14 @@ impl Client {
 
     /// The daemon's liveness + version summary.
     pub fn health(&self) -> Result<Health> {
-        let v = self.get_json("/api/v1/health")?;
-        Ok(Health {
-            status: str_field(&v, "status"),
-            version: str_field(&v, "version"),
-            default_model: str_field(&v, "default_model"),
-            model_count: v.get("model_count").and_then(Value::as_i64).unwrap_or(0),
-        })
+        let v = self.get_json(paths::HEALTH)?;
+        Ok(Health::from_value(&v))
     }
 
     /// The default model id and the full set of available model ids.
     pub fn models(&self) -> Result<Models> {
-        let v = self.get_json("/api/v1/models")?;
-        let models = v
-            .get("models")
-            .and_then(Value::as_array)
-            .map(|a| {
-                a.iter()
-                    .filter_map(|e| e.as_str().map(String::from))
-                    .collect()
-            })
-            .unwrap_or_default();
-        Ok(Models {
-            default: str_field(&v, "default"),
-            models,
-        })
+        let v = self.get_json(paths::MODELS)?;
+        Ok(Models::from_value(&v))
     }
 
     /// Execute an intent and return the final answer (blocking). `model`
@@ -170,13 +95,8 @@ impl Client {
     /// Returns [`Error::Api`] if the run fails or the request is rejected.
     pub fn run(&self, intent: &str, model: Option<&str>) -> Result<RunResult> {
         let body = run_body(intent, model, false);
-        let v = self.post_json("/api/v1/runs", &body)?;
-        Ok(RunResult {
-            correlation_id: str_field(&v, "correlation_id"),
-            model: str_field(&v, "model"),
-            status: str_field(&v, "status"),
-            answer: str_field(&v, "answer"),
-        })
+        let v = self.post_json(paths::RUN, &body)?;
+        Ok(RunResult::from_value(&v))
     }
 
     /// Execute an intent, returning an iterator of [`StreamEvent`]s
@@ -186,7 +106,7 @@ impl Client {
         let body = run_body(intent, model, true);
         let resp = self.send(
             "POST",
-            "/api/v1/runs",
+            paths::RUN,
             Some(body.as_bytes()),
             "text/event-stream",
         )?;
@@ -201,18 +121,9 @@ impl Client {
 
     /// The journaled event arc of a past run.
     pub fn get_run(&self, correlation_id: &str) -> Result<RunArc> {
-        let path = format!("/api/v1/runs/{}", percent_encode(correlation_id));
+        let path = paths::RUN_ARC.replace("{id}", &percent_encode(correlation_id));
         let v = self.get_json(&path)?;
-        let events = v
-            .get("events")
-            .and_then(Value::as_array)
-            .map(<[Value]>::to_vec)
-            .unwrap_or_default();
-        Ok(RunArc {
-            correlation_id: str_field(&v, "correlation_id"),
-            count: v.get("count").and_then(Value::as_i64).unwrap_or(0),
-            events,
-        })
+        Ok(RunArc::from_value(&v))
     }
 
     // --- mailbox (the shared inter-agent message board, M937) --------------
@@ -220,24 +131,9 @@ impl Client {
     /// Leave a message on the shared mailbox. See [`MailDraft`] for the
     /// addressing rules.
     pub fn mailbox_send(&self, draft: &MailDraft) -> Result<Mail> {
-        let mut m = std::collections::BTreeMap::new();
-        m.insert("text".to_string(), Value::Str(draft.text.clone()));
-        for (key, val) in [
-            ("from", &draft.from),
-            ("to", &draft.to),
-            ("topic", &draft.topic),
-            ("reply_to", &draft.reply_to),
-        ] {
-            if !val.is_empty() {
-                m.insert(key.to_string(), Value::Str(val.clone()));
-            }
-        }
-        if draft.help {
-            m.insert("help".to_string(), Value::Bool(true));
-        }
-        let body = Value::Object(m).to_json();
-        let v = self.post_json("/api/v1/mailbox/messages", &body)?;
-        Ok(mail_from(v.get("message").unwrap_or(&Value::Null)))
+        let body = draft.to_value().to_json();
+        let v = self.post_json(paths::MAILBOX_MESSAGES, &body)?;
+        Ok(MailboxSent::from_value(&v).message)
     }
 
     /// Send an announcement to EVERY inbox except the sender's.
@@ -254,7 +150,7 @@ impl Client {
     /// broadcasts it didn't send. Answered/acked messages are dropped unless
     /// `include_read`. `limit == 0` uses the daemon default (50).
     pub fn mailbox_inbox(&self, name: &str, include_read: bool, limit: u32) -> Result<Vec<Mail>> {
-        let mut path = format!("/api/v1/mailbox/inbox?name={}", percent_encode(name));
+        let mut path = format!("{}?name={}", paths::MAILBOX_INBOX, percent_encode(name));
         if include_read {
             path.push_str("&all=true");
         }
@@ -262,40 +158,33 @@ impl Client {
             path.push_str(&format!("&limit={limit}"));
         }
         let v = self.get_json(&path)?;
-        Ok(mails_from(v.get("waiting")))
+        Ok(MailboxInbox::from_value(&v).waiting)
     }
 
     /// Mark a message read for one reader (it leaves that reader's inbox
     /// without a reply). Per-reader and idempotent.
     pub fn mailbox_ack(&self, message_id: &str, by: &str) -> Result<()> {
-        let mut m = std::collections::BTreeMap::new();
-        m.insert("by".to_string(), Value::Str(by.to_string()));
-        let path = format!(
-            "/api/v1/mailbox/messages/{}/ack",
-            percent_encode(message_id)
-        );
-        self.post_json(&path, &Value::Object(m).to_json())?;
+        let body = MailAck { by: by.to_string() }.to_value().to_json();
+        let path = paths::MAILBOX_ACK.replace("{id}", &percent_encode(message_id));
+        self.post_json(&path, &body)?;
         Ok(())
     }
 
     /// The answers to a sent message, oldest first (conversation order).
     /// `limit == 0` uses the daemon default (50).
     pub fn mailbox_replies(&self, message_id: &str, limit: u32) -> Result<Vec<Mail>> {
-        let mut path = format!(
-            "/api/v1/mailbox/messages/{}/replies",
-            percent_encode(message_id)
-        );
+        let mut path = paths::MAILBOX_REPLIES.replace("{id}", &percent_encode(message_id));
         if limit > 0 {
             path.push_str(&format!("?limit={limit}"));
         }
         let v = self.get_json(&path)?;
-        Ok(mails_from(v.get("replies")))
+        Ok(MailboxReplies::from_value(&v).replies)
     }
 
     /// Recent mailbox messages, newest first, optionally filtered to one
     /// topic. `limit == 0` uses the daemon default (50).
     pub fn mailbox_messages(&self, topic: &str, limit: u32) -> Result<Vec<Mail>> {
-        let mut path = String::from("/api/v1/mailbox/messages");
+        let mut path = String::from(paths::MAILBOX_MESSAGES);
         let mut sep = '?';
         if !topic.is_empty() {
             path.push_str(&format!("{sep}topic={}", percent_encode(topic)));
@@ -305,7 +194,7 @@ impl Client {
             path.push_str(&format!("{sep}limit={limit}"));
         }
         let v = self.get_json(&path)?;
-        Ok(mails_from(v.get("messages")))
+        Ok(MailboxMessages::from_value(&v).messages)
     }
 
     /// Stream new mail the moment it lands — the push counterpart of polling
@@ -316,7 +205,7 @@ impl Client {
     /// the iterator is obtained are guaranteed delivered. Iterates until the
     /// connection closes; raise the client timeout for long quiet watches.
     pub fn mailbox_watch(&self, name: &str, topic: &str) -> Result<MailWatch> {
-        let mut path = String::from("/api/v1/mailbox/watch");
+        let mut path = String::from(paths::MAILBOX_WATCH);
         let mut sep = '?';
         if !name.is_empty() {
             path.push_str(&format!("{sep}name={}", percent_encode(name)));
@@ -339,14 +228,8 @@ impl Client {
 
     /// The mailbox's topics with their message counts.
     pub fn mailbox_topics(&self) -> Result<std::collections::BTreeMap<String, i64>> {
-        let v = self.get_json("/api/v1/mailbox/topics")?;
-        let mut out = std::collections::BTreeMap::new();
-        if let Some(Value::Object(m)) = v.get("topics") {
-            for (k, val) in m {
-                out.insert(k.clone(), val.as_i64().unwrap_or(0));
-            }
-        }
-        Ok(out)
+        let v = self.get_json(paths::MAILBOX_TOPICS)?;
+        Ok(MailboxTopics::from_value(&v).topics)
     }
 
     // --- internals --------------------------------------------------------
@@ -459,7 +342,7 @@ impl Iterator for MailWatch {
         loop {
             match self.inner.next()? {
                 Err(e) => return Some(Err(e)),
-                Ok(ev) if ev.event == "mail" => return Some(Ok(mail_from(&ev.data))),
+                Ok(ev) if ev.event == "mail" => return Some(Ok(Mail::from_value(&ev.data))),
                 Ok(_) => {} // ready / unknown frames
             }
         }
@@ -477,40 +360,12 @@ fn make_event(event: String, data_lines: &[String]) -> StreamEvent {
 }
 
 fn run_body(intent: &str, model: Option<&str>, stream: bool) -> String {
-    let mut m = std::collections::BTreeMap::new();
-    m.insert("intent".to_string(), Value::Str(intent.to_string()));
-    if let Some(model) = model {
-        m.insert("model".to_string(), Value::Str(model.to_string()));
-    }
-    if stream {
-        m.insert("stream".to_string(), Value::Bool(true));
-    }
-    Value::Object(m).to_json()
-}
-
-fn str_field(v: &Value, key: &str) -> String {
-    v.str(key).unwrap_or("").to_string()
-}
-
-/// Map one mailbox message view to a [`Mail`].
-fn mail_from(v: &Value) -> Mail {
-    Mail {
-        id: str_field(v, "id"),
-        topic: str_field(v, "topic"),
-        text: str_field(v, "text"),
-        from: str_field(v, "from"),
-        to: str_field(v, "to"),
-        reply_to: str_field(v, "reply_to"),
-        help: v.get("help").and_then(Value::as_bool).unwrap_or(false),
-        ts_unix_ms: v.get("ts_unix_ms").and_then(Value::as_i64).unwrap_or(0),
-    }
-}
-
-/// Map a JSON array of message views to typed [`Mail`]s (absent → empty).
-fn mails_from(v: Option<&Value>) -> Vec<Mail> {
-    v.and_then(Value::as_array)
-        .map(|a| a.iter().map(mail_from).collect())
-        .unwrap_or_default()
+    let request = RunRequest {
+        intent: intent.to_string(),
+        model: model.unwrap_or("").to_string(),
+        stream,
+    };
+    request.to_value().to_json()
 }
 
 /// Map a non-2xx response body to an [`Error::Api`]. Understands both
@@ -521,8 +376,9 @@ fn api_error(status: u16, body: &str) -> Error {
     if let Ok(v) = Value::parse(body) {
         match v.get("error") {
             Some(err @ Value::Object(_)) => {
-                kind = err.str("type").unwrap_or("").to_string();
-                message = err.str("message").unwrap_or("").to_string();
+                let e = ApiError::from_value(err);
+                kind = e.kind;
+                message = e.message;
             }
             Some(Value::Str(s)) => {
                 // failed-run body: {"status": "failed", "error": "…"}

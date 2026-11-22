@@ -4,7 +4,7 @@ package controlplane_test
 
 import (
 	"context"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"reflect"
 	"strings"
@@ -22,7 +22,7 @@ func TestSchedulePrimaryOperationsSocketTenantDenialPreservesCadence(t *testing.
 	}
 	before := k.Schedules().List()
 	client := tenantClient(t, dir, token)
-	for _, cmd := range []string{controlplane.CmdScheduleAdd, controlplane.CmdScheduleList, controlplane.CmdScheduleSystemTasks, controlplane.CmdScheduleRemove, controlplane.CmdScheduleRun, controlplane.CmdScheduleEnable, controlplane.CmdScheduleEdit, controlplane.CmdScheduleTest} {
+	for _, cmd := range []string{opapi.ScheduleAdd, opapi.ScheduleList, opapi.ScheduleSystemTasks, opapi.ScheduleRemove, opapi.ScheduleRun, opapi.ScheduleEnable, opapi.ScheduleEdit, opapi.ScheduleTest} {
 		if _, err := client.Call(context.Background(), cmd, map[string]any{"tenant": "acme", "id": entry.ID, "intent": "new", "interval_sec": float64(60), "enabled": false}); err == nil || (!strings.Contains(err.Error(), "forbidden") && !strings.Contains(err.Error(), "unauthorized")) {
 			t.Fatal(cmd, err)
 		}

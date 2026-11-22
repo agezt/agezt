@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 // handleArtifactRaw streams a stored artifact's raw bytes (M822) so an <img src>
-// or a download link can render it. It proxies CmdArtifactGet (which re-verifies
+// or a download link can render it. It proxies opapi.ArtifactGet (which re-verifies
 // the bytes against the content ref) and serves them with a SANITIZED
 // Content-Type — the stored mime is attacker-influenceable (it came off a channel
 // message), so only a safe allowlist is honored; everything else is served as
@@ -27,7 +27,7 @@ func (s *Server) handleArtifactRaw(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 	defer cancel()
-	res, err := s.client.Call(ctx, controlplane.CmdArtifactGet, map[string]any{"ref": ref})
+	res, err := s.client.Call(ctx, opapi.ArtifactGet, map[string]any{"ref": ref})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return

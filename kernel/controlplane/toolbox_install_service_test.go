@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/extensions/toolbox"
 	"net"
@@ -27,7 +28,7 @@ func TestToolboxInstallNativeUnknownNamesKeepProgressSummaryAndJournalOrder(t *t
 	done := make(chan struct{})
 	go func() { defer close(done); s.handleConn(context.Background(), conn) }()
 	client.SetDeadline(time.Now().Add(3 * time.Second))
-	raw, _ := json.Marshal(Request{ID: "owned", Cmd: CmdToolboxInstall, Token: "primary", Args: map[string]any{"names": []any{name, name}}})
+	raw, _ := json.Marshal(Request{ID: "owned", Cmd: opapi.ToolboxInstall, Token: "primary", Args: map[string]any{"names": []any{name, name}}})
 	if _, err := client.Write(append(raw, 10)); err != nil {
 		t.Fatal(err)
 	}

@@ -223,15 +223,14 @@ func TestOperations(t *testing.T) {
 	}
 	for i, w := range []struct {
 		name string
-		http opapi.HTTP
 		in   reflect.Type
 		out  reflect.Type
 	}{
-		{"runs_list", opapi.HTTP{Method: "GET", Path: "/api/runs"}, reflect.TypeFor[ListRequest](), reflect.TypeFor[ListOutput]()},
-		{"runs_stats", opapi.HTTP{}, reflect.TypeFor[StatsRequest](), reflect.TypeFor[StatsOutput]()},
+		{"runs_list", reflect.TypeFor[ListRequest](), reflect.TypeFor[ListOutput]()},
+		{"runs_stats", reflect.TypeFor[StatsRequest](), reflect.TypeFor[StatsOutput]()},
 	} {
 		spec := ops[i].Spec()
-		if spec.Name != w.name || !spec.ReadOnly || spec.Authz != opapi.OwnTenant || spec.Tenancy != opapi.CallerTenant || !spec.AllowUnknownInput || spec.HTTP != w.http || spec.Input != w.in || spec.Output != w.out {
+		if spec.Name != w.name || !spec.ReadOnly || spec.Authz != opapi.OwnTenant || spec.Tenancy != opapi.CallerTenant || !spec.AllowUnknownInput || spec.Input != w.in || spec.Output != w.out {
 			t.Fatal(spec)
 		}
 	}

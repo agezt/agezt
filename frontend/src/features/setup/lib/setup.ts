@@ -1,21 +1,21 @@
-export interface SetupModel {
+export type SetupModel = {
   id: string;
   name?: string;
-}
+};
 
-export interface SetupProvider {
+export type SetupProvider = {
   id: string;
   name?: string;
   env?: string[];
   credentialed?: boolean;
   model_count?: number;
   models?: SetupModel[];
-}
+};
 
-export interface SetupCatalog {
+export type SetupCatalog = {
   providers?: SetupProvider[];
   provider_count?: number;
-}
+};
 
 export interface SetupFallbackCandidate extends SetupModel {
   provider_id: string;

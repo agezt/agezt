@@ -11,7 +11,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 // cmdDisk implements `agt disk [--json]` (M131) — the journal's size on disk and
@@ -41,7 +41,7 @@ func cmdDisk(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdDiskStats, nil)
+	res, err := c.Call(ctx, opapi.DiskStats, nil)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s disk: %v\n", brand.CLI, err)
 		return 1

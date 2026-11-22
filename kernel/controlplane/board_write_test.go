@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/modules/board/board"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -43,7 +44,7 @@ func TestBoardWrite_SendInboxAckReplies(t *testing.T) {
 	ctx := context.Background()
 
 	// DM an agent by name (topic defaults to "dm").
-	res, err := c.Call(ctx, controlplane.CmdBoardSend, map[string]any{
+	res, err := c.Call(ctx, opapi.BoardSend, map[string]any{
 		"from": "myapp", "to": "researcher", "text": "deploy target?"})
 	if err != nil {
 		t.Fatalf("board_send: %v", err)
@@ -55,7 +56,7 @@ func TestBoardWrite_SendInboxAckReplies(t *testing.T) {
 	}
 
 	// The recipient's inbox shows it.
-	res, err = c.Call(ctx, controlplane.CmdBoardInbox, map[string]any{"to": "researcher"})
+	res, err = c.Call(ctx, opapi.BoardInbox, map[string]any{"to": "researcher"})
 	if err != nil {
 		t.Fatalf("board_inbox: %v", err)
 	}
@@ -64,7 +65,7 @@ func TestBoardWrite_SendInboxAckReplies(t *testing.T) {
 	}
 
 	// Reply threads back to the sender without naming to/topic.
-	res, err = c.Call(ctx, controlplane.CmdBoardSend, map[string]any{
+	res, err = c.Call(ctx, opapi.BoardSend, map[string]any{
 		"from": "researcher", "reply_to": id, "text": "prod-eu"})
 	if err != nil {
 		t.Fatalf("reply send: %v", err)
@@ -72,7 +73,7 @@ func TestBoardWrite_SendInboxAckReplies(t *testing.T) {
 	if rep := res["sent"].(map[string]any); rep["to"] != "myapp" || rep["reply_to"] != id {
 		t.Fatalf("reply view wrong: %+v", rep)
 	}
-	res, err = c.Call(ctx, controlplane.CmdBoardReplies, map[string]any{"id": id})
+	res, err = c.Call(ctx, opapi.BoardReplies, map[string]any{"id": id})
 	if err != nil {
 		t.Fatalf("board_replies: %v", err)
 	}
@@ -80,23 +81,23 @@ func TestBoardWrite_SendInboxAckReplies(t *testing.T) {
 		t.Fatalf("replies count = %v, want 1", res["count"])
 	}
 	// Answered → leaves the unanswered inbox.
-	res, _ = c.Call(ctx, controlplane.CmdBoardInbox, map[string]any{"to": "researcher"})
+	res, _ = c.Call(ctx, opapi.BoardInbox, map[string]any{"to": "researcher"})
 	if res["count"].(float64) != 0 {
 		t.Fatalf("answered DM should leave the inbox: %v", res["count"])
 	}
 
 	// Broadcast lands in every inbox except the sender's; ack clears it for
 	// the acker only.
-	res, err = c.Call(ctx, controlplane.CmdBoardSend, map[string]any{
+	res, err = c.Call(ctx, opapi.BoardSend, map[string]any{
 		"from": "myapp", "to": "*", "text": "heads-up"})
 	if err != nil {
 		t.Fatalf("broadcast: %v", err)
 	}
 	bcID := res["sent"].(map[string]any)["id"].(string)
-	if _, err := c.Call(ctx, controlplane.CmdBoardAck, map[string]any{"id": bcID, "by": "researcher"}); err != nil {
+	if _, err := c.Call(ctx, opapi.BoardAck, map[string]any{"id": bcID, "by": "researcher"}); err != nil {
 		t.Fatalf("board_ack: %v", err)
 	}
-	res, err = c.Call(ctx, controlplane.CmdBoardGet, map[string]any{"id": bcID})
+	res, err = c.Call(ctx, opapi.BoardGet, map[string]any{"id": bcID})
 	if err != nil {
 		t.Fatalf("board_get acked broadcast: %v", err)
 	}
@@ -104,21 +105,21 @@ func TestBoardWrite_SendInboxAckReplies(t *testing.T) {
 	if len(acked) != 1 || acked[0] != "researcher" {
 		t.Fatalf("acked_by view wrong: %+v", res["message"])
 	}
-	res, _ = c.Call(ctx, controlplane.CmdBoardInbox, map[string]any{"to": "researcher"})
+	res, _ = c.Call(ctx, opapi.BoardInbox, map[string]any{"to": "researcher"})
 	if res["count"].(float64) != 0 {
 		t.Fatalf("acked broadcast should leave researcher's inbox: %v", res["count"])
 	}
-	res, _ = c.Call(ctx, controlplane.CmdBoardInbox, map[string]any{"to": "writer"})
+	res, _ = c.Call(ctx, opapi.BoardInbox, map[string]any{"to": "writer"})
 	if res["count"].(float64) != 1 {
 		t.Fatalf("broadcast must still wait for writer: %v", res["count"])
 	}
 
 	// Topic post is readable via the existing board_read.
-	if _, err := c.Call(ctx, controlplane.CmdBoardSend, map[string]any{
+	if _, err := c.Call(ctx, opapi.BoardSend, map[string]any{
 		"from": "myapp", "topic": "status", "text": "shipped", "correlation_id": "sdk-42"}); err != nil {
 		t.Fatalf("topic post: %v", err)
 	}
-	res, err = c.Call(ctx, controlplane.CmdBoardRead, map[string]any{"topic": "status"})
+	res, err = c.Call(ctx, opapi.BoardRead, map[string]any{"topic": "status"})
 	if err != nil {
 		t.Fatalf("board_read: %v", err)
 	}
@@ -138,18 +139,18 @@ func TestBoardWrite_SendInboxAckReplies(t *testing.T) {
 	}
 
 	// board_get fetches one message by id (M938) — the watcher's body lookup.
-	res, err = c.Call(ctx, controlplane.CmdBoardGet, map[string]any{"id": id})
+	res, err = c.Call(ctx, opapi.BoardGet, map[string]any{"id": id})
 	if err != nil {
 		t.Fatalf("board_get: %v", err)
 	}
 	if got := res["message"].(map[string]any); got["id"] != id || got["text"] != "deploy target?" {
 		t.Fatalf("board_get view wrong: %+v", got)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdBoardGet, map[string]any{}); err == nil ||
+	if _, err := c.Call(ctx, opapi.BoardGet, map[string]any{}); err == nil ||
 		!strings.Contains(err.Error(), "id") {
 		t.Fatalf("board_get without id: err = %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdBoardGet, map[string]any{"id": "nope"}); err == nil ||
+	if _, err := c.Call(ctx, opapi.BoardGet, map[string]any{"id": "nope"}); err == nil ||
 		!strings.Contains(err.Error(), "no message") {
 		t.Fatalf("board_get unknown id: err = %v", err)
 	}
@@ -165,11 +166,11 @@ func TestBoardWrite_Validation(t *testing.T) {
 	// that could not be opened must not look like a board with no messages.
 	_, _, unwired, _ := startPairWithoutBoard(t)
 	ctx := context.Background()
-	if _, err := unwired.Call(ctx, controlplane.CmdBoardSend, map[string]any{"topic": "x", "text": "y"}); err == nil ||
+	if _, err := unwired.Call(ctx, opapi.BoardSend, map[string]any{"topic": "x", "text": "y"}); err == nil ||
 		!strings.Contains(err.Error(), "not available") {
 		t.Fatalf("unwired send: err = %v, want board-unavailable", err)
 	}
-	if _, err := unwired.Call(ctx, controlplane.CmdBoardInbox, map[string]any{"to": "a"}); err == nil ||
+	if _, err := unwired.Call(ctx, opapi.BoardInbox, map[string]any{"to": "a"}); err == nil ||
 		!strings.Contains(err.Error(), "not available") {
 		t.Fatalf("unwired inbox: err = %v, want board-unavailable", err)
 	}
@@ -184,31 +185,31 @@ func TestBoardWrite_Validation(t *testing.T) {
 		return controlplane.Deps{Board: st}
 	})
 
-	if _, err := wired.Call(ctx, controlplane.CmdBoardSend, map[string]any{"topic": "x"}); err == nil ||
+	if _, err := wired.Call(ctx, opapi.BoardSend, map[string]any{"topic": "x"}); err == nil ||
 		!strings.Contains(err.Error(), "text") {
 		t.Fatalf("missing text: err = %v", err)
 	}
-	if _, err := wired.Call(ctx, controlplane.CmdBoardSend, map[string]any{"text": "x"}); err == nil ||
+	if _, err := wired.Call(ctx, opapi.BoardSend, map[string]any{"text": "x"}); err == nil ||
 		!strings.Contains(err.Error(), "topic") {
 		t.Fatalf("missing topic and to: err = %v", err)
 	}
-	if _, err := wired.Call(ctx, controlplane.CmdBoardSend, map[string]any{"text": "x", "reply_to": "nope"}); err == nil ||
+	if _, err := wired.Call(ctx, opapi.BoardSend, map[string]any{"text": "x", "reply_to": "nope"}); err == nil ||
 		!strings.Contains(err.Error(), "no message") {
 		t.Fatalf("reply to unknown id: err = %v", err)
 	}
-	if _, err := wired.Call(ctx, controlplane.CmdBoardAck, map[string]any{"id": "only-id"}); err == nil ||
+	if _, err := wired.Call(ctx, opapi.BoardAck, map[string]any{"id": "only-id"}); err == nil ||
 		!strings.Contains(err.Error(), "by") {
 		t.Fatalf("ack without by: err = %v", err)
 	}
-	if _, err := wired.Call(ctx, controlplane.CmdBoardAck, map[string]any{"id": "nope", "by": "a"}); err == nil ||
+	if _, err := wired.Call(ctx, opapi.BoardAck, map[string]any{"id": "nope", "by": "a"}); err == nil ||
 		!strings.Contains(err.Error(), "no message") {
 		t.Fatalf("ack unknown id: err = %v", err)
 	}
-	if _, err := wired.Call(ctx, controlplane.CmdBoardInbox, map[string]any{}); err == nil ||
+	if _, err := wired.Call(ctx, opapi.BoardInbox, map[string]any{}); err == nil ||
 		!strings.Contains(err.Error(), "to") {
 		t.Fatalf("inbox without to: err = %v", err)
 	}
-	if _, err := wired.Call(ctx, controlplane.CmdBoardReplies, map[string]any{}); err == nil ||
+	if _, err := wired.Call(ctx, opapi.BoardReplies, map[string]any{}); err == nil ||
 		!strings.Contains(err.Error(), "id") {
 		t.Fatalf("replies without id: err = %v", err)
 	}
@@ -226,14 +227,14 @@ func TestBoardRead_CursorPaginatesByTSMSDesc(t *testing.T) {
 
 	// Five distinct posts on a single topic.
 	for i := 0; i < 5; i++ {
-		if _, err := c.Call(ctx, controlplane.CmdBoardSend, map[string]any{
+		if _, err := c.Call(ctx, opapi.BoardSend, map[string]any{
 			"from": "u", "topic": "paging-test", "text": "msg-" + strconv.Itoa(i),
 		}); err != nil {
 			t.Fatalf("send %d: %v", i, err)
 		}
 	}
 
-	p1, err := c.Call(ctx, controlplane.CmdBoardRead, map[string]any{
+	p1, err := c.Call(ctx, opapi.BoardRead, map[string]any{
 		"topic": "paging-test", "limit": 2,
 	})
 	if err != nil {
@@ -250,7 +251,7 @@ func TestBoardRead_CursorPaginatesByTSMSDesc(t *testing.T) {
 		t.Fatalf("page 1 total wrong: %v", p1["total"])
 	}
 
-	p2, err := c.Call(ctx, controlplane.CmdBoardRead, map[string]any{
+	p2, err := c.Call(ctx, opapi.BoardRead, map[string]any{
 		"topic": "paging-test", "limit": 2, "cursor": p1["next_cursor"],
 	})
 	if err != nil {
@@ -276,7 +277,7 @@ func TestBoardRead_CursorPaginatesByTSMSDesc(t *testing.T) {
 		}
 	}
 
-	p3, err := c.Call(ctx, controlplane.CmdBoardRead, map[string]any{
+	p3, err := c.Call(ctx, opapi.BoardRead, map[string]any{
 		"topic": "paging-test", "limit": 2, "cursor": p2["next_cursor"],
 	})
 	if err != nil {
@@ -301,13 +302,13 @@ func TestBoardRead_UnparseableCursorFallsBackToFirstPage(t *testing.T) {
 	})
 	ctx := context.Background()
 	for i := 0; i < 2; i++ {
-		if _, err := c.Call(ctx, controlplane.CmdBoardSend, map[string]any{
+		if _, err := c.Call(ctx, opapi.BoardSend, map[string]any{
 			"from": "u", "topic": "paging-test", "text": "msg-" + strconv.Itoa(i),
 		}); err != nil {
 			t.Fatalf("send: %v", err)
 		}
 	}
-	res, err := c.Call(ctx, controlplane.CmdBoardRead, map[string]any{
+	res, err := c.Call(ctx, opapi.BoardRead, map[string]any{
 		"topic": "paging-test", "limit": 10, "cursor": "garbage",
 	})
 	if err != nil {

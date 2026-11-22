@@ -203,7 +203,7 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 	if err != nil {
 		return nil, err
 	}
-	op, err := app.NewOperation(opapi.Spec{Name: "node_registry", ReadOnly: true, OutputSchema: out, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, HTTP: opapi.HTTP{Method: "GET", Path: "/api/nodes"}}, func(ctx context.Context, in RegistryRequest) (RegistryOutput, error) {
+	op, err := app.NewOperation(opapi.Spec{Name: opapi.NodeRegistry, ReadOnly: true, OutputSchema: out, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true}, func(ctx context.Context, in RegistryRequest) (RegistryOutput, error) {
 		return provider(ctx).Registry(ctx, in)
 	})
 	if err != nil {

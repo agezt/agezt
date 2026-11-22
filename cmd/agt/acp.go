@@ -14,7 +14,7 @@ import (
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/acp"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 )
 
@@ -134,7 +134,7 @@ func cmdACPAgents(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdACPAgents, nil)
+	res, err := c.Call(ctx, opapi.ACPAgents, nil)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s acp agents: %v\n", brand.CLI, err)
 		return 1
@@ -200,7 +200,7 @@ func (r controlPlaneRunner) Prompt(ctx context.Context, cwd, intent string, onCh
 	if r.tenant != "" {
 		runArgs["tenant"] = r.tenant
 	}
-	res, err := r.c.Stream(ctx, controlplane.CmdRun, runArgs, func(ev *event.Event) {
+	res, err := r.c.Stream(ctx, opapi.Run, runArgs, func(ev *event.Event) {
 		// Relay answer tokens as message chunks and reasoning deltas (M322) as
 		// thought chunks; the ACP server maps each to the matching sessionUpdate.
 		var kind acp.ChunkKind

@@ -109,7 +109,7 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 	var ops []app.Operation
 	bindings := []func() error{
 		func() error {
-			return bind(&ops, opapi.Spec{Name: "artifact_get", ReadOnly: true, InputSchema: getRequestSchema}, func(ctx context.Context, in GetRequestInput) (GetOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.ArtifactGet, ReadOnly: true, InputSchema: getRequestSchema}, func(ctx context.Context, in GetRequestInput) (GetOutput, error) {
 				ref, err := requiredText(in.Ref, "ref")
 				if err != nil {
 					return GetOutput{}, err
@@ -118,7 +118,7 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: "artifact_list", ReadOnly: true, InputSchema: listRequestSchema}, func(ctx context.Context, in ListRequestInput) (ListOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.ArtifactList, ReadOnly: true, InputSchema: listRequestSchema}, func(ctx context.Context, in ListRequestInput) (ListOutput, error) {
 				service := provider(ctx)
 				if service.index == nil {
 					return ListOutput{}, errors.New("artifact index unavailable")
@@ -139,7 +139,7 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: "artifact_delete", InputSchema: deleteRequestSchema}, func(ctx context.Context, in DeleteRequestInput) (DeleteOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.ArtifactDelete, InputSchema: deleteRequestSchema}, func(ctx context.Context, in DeleteRequestInput) (DeleteOutput, error) {
 				id, err := requiredText(in.ID, "id")
 				if err != nil {
 					return DeleteOutput{}, err
@@ -148,7 +148,7 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: "artifact_collect", InputSchema: collectRequestSchema}, func(ctx context.Context, in CollectRequestInput) (CollectOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.ArtifactCollect, InputSchema: collectRequestSchema}, func(ctx context.Context, in CollectRequestInput) (CollectOutput, error) {
 				service := provider(ctx)
 				if service.index == nil {
 					return CollectOutput{}, errors.New("artifact index unavailable")

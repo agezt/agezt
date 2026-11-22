@@ -44,7 +44,7 @@ func TestToolboxInstallNativeAuditFailureBlocksRequestedAndAttempts(t *testing.T
 	if err := k.Journal().Close(); err != nil {
 		t.Fatal(err)
 	}
-	frames := callAppHost(t, s, Request{ID: "owned", Cmd: CmdToolboxInstall, Token: "primary", Args: map[string]any{"names": toolboxUnknownBatch(t)}})
+	frames := callAppHost(t, s, Request{ID: "owned", Cmd: opapi.ToolboxInstall, Token: "primary", Args: map[string]any{"names": toolboxUnknownBatch(t)}})
 	if len(frames) != 1 || frames[0].Type != RespError || !strings.Contains(frames[0].Error, "journal") || p.CallCount() != 0 {
 		t.Fatalf("EXPECTED:audit failure emits only error ACTUAL:frames=%d terminal=%s", len(frames), frames[len(frames)-1].Type)
 	}
@@ -54,7 +54,7 @@ func TestToolboxInstallNativeCanceledAdmissionHasNoLifecycleOrAudit(t *testing.T
 	head, hash := k.Journal().Head()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	req := Request{ID: "owned", Cmd: CmdToolboxInstall, Token: "primary", Args: map[string]any{"names": toolboxUnknownBatch(t)}}
+	req := Request{ID: "owned", Cmd: opapi.ToolboxInstall, Token: "primary", Args: map[string]any{"names": toolboxUnknownBatch(t)}}
 	conn := newToolboxRecordingConn(req)
 	s.handleConn(ctx, conn)
 	after, afterHash := k.Journal().Head()
@@ -105,7 +105,7 @@ func (*toolboxRecordingConn) SetWriteDeadline(time.Time) error { return nil }
 func TestToolboxInstallNativeBrokenStreamStopsLaterAttempts(t *testing.T) {
 	k, s, _, p := toolboxAppFixture(t)
 	head, _ := k.Journal().Head()
-	conn := newToolboxRecordingConn(Request{ID: "owned", Cmd: CmdToolboxInstall, Token: "primary", Args: map[string]any{"names": toolboxUnknownBatch(t)}})
+	conn := newToolboxRecordingConn(Request{ID: "owned", Cmd: opapi.ToolboxInstall, Token: "primary", Args: map[string]any{"names": toolboxUnknownBatch(t)}})
 	conn.failure = errors.New("owned stream write failure")
 	s.handleConn(context.Background(), conn)
 	rows, err := k.Journal().Tail(100)
@@ -135,7 +135,7 @@ func TestToolboxInstallNativeBrokenStreamStopsLaterAttempts(t *testing.T) {
 func TestToolboxInstallNativeDomainEventsShareOperationIdentity(t *testing.T) {
 	k, s, _, _ := toolboxAppFixture(t)
 	head, _ := k.Journal().Head()
-	frames := callAppHost(t, s, Request{ID: "owned", Cmd: CmdToolboxInstall, Token: "primary", Args: map[string]any{"names": toolboxUnknownBatch(t), "correlation_id": "poison", "tenant": "spoof"}})
+	frames := callAppHost(t, s, Request{ID: "owned", Cmd: opapi.ToolboxInstall, Token: "primary", Args: map[string]any{"names": toolboxUnknownBatch(t), "correlation_id": "poison", "tenant": "spoof"}})
 	if len(frames) != 4 || frames[3].Type != RespResult {
 		t.Fatal(frames)
 	}
@@ -171,7 +171,7 @@ func TestToolboxInstallNativeDomainEventsShareOperationIdentity(t *testing.T) {
 }
 
 func TestToolboxNativeThreeOperationsPolicyStreamAndTypes(t *testing.T) {
-	want := map[string]bool{CmdToolboxDetect: true, CmdToolboxOutdated: true, CmdToolboxInstall: false}
+	want := map[string]bool{opapi.ToolboxDetect: true, opapi.ToolboxOutdated: true, opapi.ToolboxInstall: false}
 	seen := map[string]bool{}
 	for _, op := range registeredAppOperations() {
 		spec := op.Spec()
@@ -199,7 +199,7 @@ func TestToolboxNativeThreeOperationsPolicyStreamAndTypes(t *testing.T) {
 
 func TestToolboxInstallNativePostAdmissionPublicationErrorStopsProgress(t *testing.T) {
 	k, s, _, _ := toolboxAppFixture(t)
-	conn := newToolboxRecordingConn(Request{ID: "owned", Cmd: CmdToolboxInstall, Token: "primary", Args: map[string]any{"names": toolboxUnknownBatch(t)}})
+	conn := newToolboxRecordingConn(Request{ID: "owned", Cmd: opapi.ToolboxInstall, Token: "primary", Args: map[string]any{"names": toolboxUnknownBatch(t)}})
 	conn.afterWrite = func() {
 		if conn.writes == 1 {
 			if err := k.Journal().Close(); err != nil {

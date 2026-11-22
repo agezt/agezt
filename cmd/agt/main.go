@@ -27,7 +27,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/contract/assureapi"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 )
 
@@ -48,15 +48,9 @@ func run(args []string, stdout, stderr io.Writer) int {
 	if len(args) >= 2 && (args[1] == "-h" || args[1] == "--help") && helpHas(args[0]) {
 		return cmdHelp(args[:1], stdout, stderr)
 	}
-	switch args[0] {
-	case "-v", "--version", "version":
-		fmt.Fprintf(stdout, "%s %s (protocol v%d)\n", brand.CLI, brand.Version, brand.ProtocolVersion)
-		return 0
-	case "-h", "--help", "help":
-		return cmdHelp(args[1:], stdout, stderr)
-	default:
-		return ExecuteCommand(args[0], args[1:], stdout, stderr)
-	}
+	// The registry answers every top-level name, "version" and "help"
+	// included: the root dispatch does not keep a list of its own.
+	return ExecuteCommand(args[0], args[1:], stdout, stderr)
 }
 
 // dial and dialBase were 3-line shims that delegated to
@@ -406,7 +400,7 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 	// --quiet (M156): suppress the live token stream + per-event lines + the
 	// usage/correlation footer, printing ONLY the final answer — so scripts can
 	// `agt run -q --file spec.md > answer.txt` and get clean output.
-	result, err := c.Stream(ctx, controlplane.CmdRun, runArgs, func(ev *event.Event) {
+	result, err := c.Stream(ctx, opapi.Run, runArgs, func(ev *event.Event) {
 		if quiet {
 			return
 		}

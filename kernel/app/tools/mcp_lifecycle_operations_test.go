@@ -44,7 +44,7 @@ func TestMCPLifecycleTypedMetadataAndMandatoryAudit(t *testing.T) {
 	a := &forgeAuditProbe{}
 	factory := 0
 	d, ops := mcpLifecycleDispatcher(t, p, a, &factory, opapi.Operator)
-	names := []string{"mcp_add", "mcp_attach", "mcp_detach", "mcp_set_enabled", "mcp_remove"}
+	names := []string{opapi.MCPAdd, "mcp_attach", "mcp_detach", "mcp_set_enabled", "mcp_remove"}
 	inputs := []reflect.Type{reflect.TypeFor[MCPAddRequest](), reflect.TypeFor[MCPRefRequest](), reflect.TypeFor[MCPRefRequest](), reflect.TypeFor[MCPSetEnabledRequest](), reflect.TypeFor[MCPRefRequest]()}
 	outputs := []reflect.Type{reflect.TypeFor[MCPServerOutput](), reflect.TypeFor[MCPAttachOutput](), reflect.TypeFor[MCPDetachOutput](), reflect.TypeFor[MCPServerOutput](), reflect.TypeFor[MCPRemoveOutput]()}
 	if len(ops) != 5 {
@@ -71,7 +71,7 @@ func TestMCPLifecycleTypedMetadataAndMandatoryAudit(t *testing.T) {
 }
 func TestMCPLifecycleTypedAdmissionBlocksEveryFactory(t *testing.T) {
 	for _, mode := range []string{"audit", "tenant", "canceled", "after-begin"} {
-		for _, name := range []string{"mcp_add", "mcp_attach", "mcp_detach", "mcp_set_enabled", "mcp_remove"} {
+		for _, name := range []string{opapi.MCPAdd, "mcp_attach", "mcp_detach", "mcp_set_enabled", "mcp_remove"} {
 			t.Run(mode+"/"+name, func(t *testing.T) {
 				p := &mcpLifecyclePort{}
 				a := &forgeAuditProbe{}
@@ -115,7 +115,7 @@ func TestMCPLifecycleTypedAdmissionBlocksEveryFactory(t *testing.T) {
 }
 func TestMCPLifecycleTypedCodecsRetainNativeErrorsAndEnableRules(t *testing.T) {
 	cases := []struct{ name, raw, want string }{{"mcp_add", `{}`, "args.server required"}, {"mcp_add", `{"server":false}`, "args.server: json: cannot unmarshal bool into Go value of type mcpapi.Server"}, {"mcp_add", `{"server":[]}`, "args.server: json: cannot unmarshal array into Go value of type mcpapi.Server"}, {"mcp_add", `{"server":{"args":1}}`, "args.server: json: cannot unmarshal number into Go struct field Server.args of type []string"}}
-	for _, name := range []string{"mcp_attach", "mcp_detach", "mcp_set_enabled", "mcp_remove"} {
+	for _, name := range []string{opapi.MCPAttach, "mcp_detach", "mcp_set_enabled", "mcp_remove"} {
 		for _, raw := range []string{`{}`, `{"ref":""}`, `{"ref":" \t "}`} {
 			cases = append(cases, struct{ name, raw, want string }{name, raw, "args.ref required"})
 		}
@@ -282,7 +282,7 @@ func TestMCPLifecycleOwnedCorrelationWinsExplicitFallback(t *testing.T) {
 }
 
 func TestMCPLifecycleAuditSettlementFailureDoesNotUndoWriter(t *testing.T) {
-	for _, name := range []string{"mcp_add", "mcp_attach", "mcp_detach", "mcp_set_enabled", "mcp_remove"} {
+	for _, name := range []string{opapi.MCPAdd, "mcp_attach", "mcp_detach", "mcp_set_enabled", "mcp_remove"} {
 		p := &mcpLifecyclePort{}
 		failure := errors.New("owned settlement failure")
 		a := &forgeAuditProbe{endErr: failure}

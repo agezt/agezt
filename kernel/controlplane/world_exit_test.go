@@ -11,7 +11,7 @@ import (
 
 func TestWorldNativeExitCompleteTypedRegistry(t *testing.T) {
 	type expected struct{ readOnly, tenant bool }
-	want := map[string]expected{CmdWorldAdd: {}, CmdWorldEdit: {}, CmdWorldRelate: {}, CmdWorldForget: {}, CmdWorldGet: {readOnly: true}, CmdWorldList: {readOnly: true}, CmdWorldResolve: {readOnly: true}, CmdWorldNeighbors: {readOnly: true}, CmdWorldLog: {readOnly: true, tenant: true}}
+	want := map[string]expected{opapi.WorldAdd: {}, opapi.WorldEdit: {}, opapi.WorldRelate: {}, opapi.WorldForget: {}, opapi.WorldGet: {readOnly: true}, opapi.WorldList: {readOnly: true}, opapi.WorldResolve: {readOnly: true}, opapi.WorldNeighbors: {readOnly: true}, opapi.WorldLog: {readOnly: true, tenant: true}}
 	seen := map[string]bool{}
 	for _, operation := range registeredAppOperations() {
 		spec := operation.Spec()

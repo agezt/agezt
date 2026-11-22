@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/agezt/agezt/kernel/app/binding"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/settings"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -33,7 +34,7 @@ func TestSettingsTypedNativeSchemaPreservesLegacyStructMemberOrder(t *testing.T)
 	a.SetDeadline(time.Now().Add(3 * time.Second))
 	done := make(chan struct{})
 	go func() { defer close(done); s.handleConn(context.Background(), b) }()
-	raw, _ := json.Marshal(Request{ID: "owned", Cmd: CmdConfigSchema, Token: "primary"})
+	raw, _ := json.Marshal(Request{ID: "owned", Cmd: opapi.ConfigSchema, Token: "primary"})
 	a.Write(append(raw, 10))
 	line, err := bufio.NewReader(a).ReadBytes(10)
 	if err != nil {

@@ -53,7 +53,7 @@ func standingAppFixture(t *testing.T) (*runtime.Kernel, *Server, string, *mock.P
 	return k, s, order.ID, provider, &fire
 }
 func TestStandingNativeMetadataComesFromSevenTypedAppSpecs(t *testing.T) {
-	want := map[string]bool{CmdStandingList: true, CmdStandingWhy: true, CmdStandingAdd: false, CmdStandingEdit: false, CmdStandingSetEnabled: false, CmdStandingRemove: false, CmdStandingFire: false}
+	want := map[string]bool{opapi.StandingList: true, opapi.StandingWhy: true, opapi.StandingAdd: false, opapi.StandingEdit: false, opapi.StandingSetEnabled: false, opapi.StandingRemove: false, opapi.StandingFire: false}
 	seen := map[string]bool{}
 	for _, operation := range registeredAppOperations() {
 		spec := operation.Spec()
@@ -72,7 +72,7 @@ func TestStandingNativeMetadataComesFromSevenTypedAppSpecs(t *testing.T) {
 	}
 }
 func TestStandingAppRequiresActualAuditBeforeAllFiveMutations(t *testing.T) {
-	for _, cmd := range []string{CmdStandingAdd, CmdStandingEdit, CmdStandingSetEnabled, CmdStandingRemove, CmdStandingFire} {
+	for _, cmd := range []string{opapi.StandingAdd, opapi.StandingEdit, opapi.StandingSetEnabled, opapi.StandingRemove, opapi.StandingFire} {
 		t.Run(cmd, func(t *testing.T) {
 			k, s, id, provider, fireSlot := standingAppFixture(t)
 			fires := 0
@@ -91,7 +91,7 @@ func TestStandingAppRequiresActualAuditBeforeAllFiveMutations(t *testing.T) {
 }
 func TestStandingAppReadsUnauditedAndFireUsesLatestInjectedCallback(t *testing.T) {
 	k, s, id, provider, fireSlot := standingAppFixture(t)
-	for _, cmd := range []string{CmdStandingList, CmdStandingWhy} {
+	for _, cmd := range []string{opapi.StandingList, opapi.StandingWhy} {
 		responses := callAppHost(t, s, Request{ID: cmd, Cmd: cmd, Token: "primary", Args: map[string]any{"id": id, "unused": true}})
 		if len(responses) != 1 || responses[0].Type != RespResult {
 			t.Fatal(cmd, responses)
@@ -109,13 +109,13 @@ func TestStandingAppReadsUnauditedAndFireUsesLatestInjectedCallback(t *testing.T
 	if audit != 0 {
 		t.Fatal(audit)
 	}
-	first := callAppHost(t, s, Request{ID: "unavailable", Cmd: CmdStandingFire, Token: "primary", Args: map[string]any{"id": id}})
+	first := callAppHost(t, s, Request{ID: "unavailable", Cmd: opapi.StandingFire, Token: "primary", Args: map[string]any{"id": id}})
 	if len(first) != 1 || first[0].Type != RespError || !strings.Contains(first[0].Error, "not available") {
 		t.Fatal(first)
 	}
 	calls := []string{}
 	*fireSlot = func(ref string) bool { calls = append(calls, ref); return false }
-	out := callAppHost(t, s, Request{ID: "declined", Cmd: CmdStandingFire, Token: "primary", Args: map[string]any{"id": id}})
+	out := callAppHost(t, s, Request{ID: "declined", Cmd: opapi.StandingFire, Token: "primary", Args: map[string]any{"id": id}})
 	if len(out) != 1 || out[0].Type != RespResult || !reflect.DeepEqual(out[0].Result, map[string]any{"fired": false, "id": id}) || !reflect.DeepEqual(calls, []string{id}) || provider.CallCount() != 0 {
 		t.Fatal(out, calls, provider.CallCount())
 	}
@@ -154,14 +154,14 @@ func TestStandingAppReadsUnauditedAndFireUsesLatestInjectedCallback(t *testing.T
 func TestStandingAppPresenceValidationAndOutputSchemas(t *testing.T) {
 	_, s, id, _, fireSlot := standingAppFixture(t)
 	for _, value := range []any{"true", "1", float64(1), nil, true, false} {
-		out := callAppHost(t, s, Request{ID: "enable", Cmd: CmdStandingSetEnabled, Token: "primary", Args: map[string]any{"id": id, "enabled": value}})
+		out := callAppHost(t, s, Request{ID: "enable", Cmd: opapi.StandingSetEnabled, Token: "primary", Args: map[string]any{"id": id, "enabled": value}})
 		want, _ := value.(bool)
 		if len(out) != 1 || out[0].Type != RespResult || out[0].Result["order"].(map[string]any)["enabled"] != want {
 			t.Fatal(value, out)
 		}
 	}
 	for _, args := range []map[string]any{{"id": "missing", "agent": "unknown", "assure": "wrong"}, {"id": "missing", "name": nil, "agent": "unknown"}} {
-		out := callAppHost(t, s, Request{ID: "edit", Cmd: CmdStandingEdit, Token: "primary", Args: args})
+		out := callAppHost(t, s, Request{ID: "edit", Cmd: opapi.StandingEdit, Token: "primary", Args: args})
 		if len(out) != 1 || out[0].Type != RespError || (!strings.Contains(out[0].Error, "args.assure must be a number") && !strings.Contains(out[0].Error, "args.name must be a string")) {
 			t.Fatal(args, out)
 		}
@@ -169,16 +169,16 @@ func TestStandingAppPresenceValidationAndOutputSchemas(t *testing.T) {
 	for _, operation := range standingOperations {
 		spec := operation.Spec()
 		args := map[string]any{"id": "missing"}
-		if spec.Name == CmdStandingList {
+		if spec.Name == opapi.StandingList {
 			args["id"] = id
 		}
-		if spec.Name == CmdStandingFire {
+		if spec.Name == opapi.StandingFire {
 			*fireSlot = func(string) bool { return true }
 		}
-		if spec.Name == CmdStandingAdd {
+		if spec.Name == opapi.StandingAdd {
 			args["order"] = map[string]any{"name": "added", "triggers": []any{map[string]any{"type": "event", "subject": "fixture"}}}
 		}
-		if spec.Name == CmdStandingSetEnabled {
+		if spec.Name == opapi.StandingSetEnabled {
 			args["id"] = id
 		}
 		out := callAppHost(t, s, Request{ID: spec.Name, Cmd: spec.Name, Token: "primary", Args: args})
@@ -189,13 +189,13 @@ func TestStandingAppPresenceValidationAndOutputSchemas(t *testing.T) {
 		if err := schema.ValidateJSON(spec.OutputSchema, raw); err != nil {
 			t.Fatal(spec.Name, err)
 		}
-		if spec.Name == CmdStandingWhy && out[0].Result["events"] != nil {
+		if spec.Name == opapi.StandingWhy && out[0].Result["events"] != nil {
 			t.Fatal(out)
 		}
-		if spec.Name == CmdStandingEdit && !reflect.DeepEqual(out[0].Result, map[string]any{"updated": false}) {
+		if spec.Name == opapi.StandingEdit && !reflect.DeepEqual(out[0].Result, map[string]any{"updated": false}) {
 			t.Fatal(out)
 		}
-		if spec.Name == CmdStandingFire {
+		if spec.Name == opapi.StandingFire {
 			var node map[string]any
 			_ = json.Unmarshal(spec.OutputSchema, &node)
 			required := node["required"].([]any)
@@ -207,7 +207,7 @@ func TestStandingAppPresenceValidationAndOutputSchemas(t *testing.T) {
 }
 func TestStandingAppAuditKeepsRuntimeLifecycleIdentity(t *testing.T) {
 	k, s, id, _, _ := standingAppFixture(t)
-	out := callAppHost(t, s, Request{ID: "edit", Cmd: CmdStandingEdit, Token: "primary", Args: map[string]any{"id": id, "name": "edited", "correlation_id": "spoof"}})
+	out := callAppHost(t, s, Request{ID: "edit", Cmd: opapi.StandingEdit, Token: "primary", Args: map[string]any{"id": id, "name": "edited", "correlation_id": "spoof"}})
 	if len(out) != 1 || out[0].Type != RespResult {
 		t.Fatal(out)
 	}

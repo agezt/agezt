@@ -6,7 +6,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -30,7 +30,7 @@ func TestCacheStats_Aggregates(t *testing.T) {
 		},
 	})
 
-	res, err := c.Call(context.Background(), controlplane.CmdCacheStats, nil)
+	res, err := c.Call(context.Background(), opapi.CacheStats, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

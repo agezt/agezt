@@ -1,10 +1,11 @@
+import type { ExecutionProfilesResponseProfilesItemSecretPolicy } from "@/app/api/types.generated";
 // types.ts — execution-profiles type definitions (extracted from ExecutionProfiles.tsx). Day 23 god file split.
 //
 // Only exported type/interface declarations live here. Internal types
 // stay in page.tsx because they aren't consumed outside the
 // package's barrel. Public surface (page.tsx re-exports) unchanged.
 
-export interface ExecutionProfile {
+export type ExecutionProfile = {
   id?: string;
   name?: string;
   summary?: string;
@@ -20,21 +21,14 @@ export interface ExecutionProfile {
   network?: string;
   environment?: string;
   secrets?: string;
-  secret_policy?: {
-    mode?: string;
-    scope?: string;
-    values_forwarded?: boolean;
-    metadata_forwarded?: boolean;
-    valid?: boolean;
-    detail?: string;
-  };
+  secret_policy?: ExecutionProfilesResponseProfilesItemSecretPolicy;
   limits?: string[];
   browser_access?: string;
   cleanup?: string;
   policy_capability?: string;
   notes?: string[];
-}
-export interface ExecutionProfileInventory {
+};
+export type ExecutionProfileInventory = {
   host_os?: string;
   host_arch?: string;
   profiles?: ExecutionProfile[];
@@ -42,11 +36,11 @@ export interface ExecutionProfileInventory {
   routed_count?: number;
   supported_count?: number;
   degraded_count?: number;
-}
-export interface ExecutionProfileCheck {
+};
+export type ExecutionProfileCheck = {
   id?: string;
   profile_id?: string;
-  status?: "ok" | "warning" | "fail" | string;
+  status?: string;
   title?: string;
   detail?: string;
   next?: string;
@@ -54,8 +48,8 @@ export interface ExecutionProfileCheck {
   degraded?: boolean;
   backend_available?: boolean;
   backend?: string;
-}
-export interface ExecutionProfileHealthReport {
+};
+export type ExecutionProfileHealthReport = {
   host_os?: string;
   host_arch?: string;
   checks?: ExecutionProfileCheck[];
@@ -64,13 +58,13 @@ export interface ExecutionProfileHealthReport {
   warning_count?: number;
   fail_count?: number;
   routable_run_profiles?: string[];
-}
-export interface ConfigValueEntry {
+};
+export type ConfigValueEntry = {
   env?: string;
   value?: string;
   set?: boolean;
   env_pinned?: boolean;
-}
+};
 export interface ExecutionProfilePolicyValues {
   allow: string;
   deny: string;

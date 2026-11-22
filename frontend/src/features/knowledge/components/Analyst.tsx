@@ -55,9 +55,9 @@ export function Analyst() {
     setLoading(true);
     setError(null);
     try {
-      const r = await getJSON<{ events?: JournalEvent[] }>(
-        `/api/journal?limit=${limit}`,
-      );
+      const r = await getJSON("/api/journal", {
+        limit: String(limit),
+      });
       setEvents(r.events || []);
     } catch (e) {
       setError((e as Error).message);

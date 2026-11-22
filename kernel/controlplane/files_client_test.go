@@ -11,6 +11,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/app/files"
 	apptools "github.com/agezt/agezt/kernel/app/tools"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -25,10 +26,10 @@ func TestFileErrorCodeSurvivesEveryClientMode(t *testing.T) {
 	ctx := context.Background()
 	args := map[string]any{"path": "nested", "parents": true}
 	for name, call := range map[string]func() error{
-		"Call":              func() error { _, err := client.Call(ctx, controlplane.CmdFileMkdir, args); return err },
-		"CallRaw":           func() error { _, err := client.CallRaw(ctx, controlplane.CmdFileMkdir, args); return err },
-		"Stream":            func() error { _, err := client.Stream(ctx, controlplane.CmdFileMkdir, args, nil); return err },
-		"StreamUntilCancel": func() error { return client.StreamUntilCancel(ctx, controlplane.CmdFileMkdir, args, nil) },
+		"Call":              func() error { _, err := client.Call(ctx, opapi.FileMkdir, args); return err },
+		"CallRaw":           func() error { _, err := client.CallRaw(ctx, opapi.FileMkdir, args); return err },
+		"Stream":            func() error { _, err := client.Stream(ctx, opapi.FileMkdir, args, nil); return err },
+		"StreamUntilCancel": func() error { return client.StreamUntilCancel(ctx, opapi.FileMkdir, args, nil) },
 	} {
 		t.Run(name, func(t *testing.T) {
 			err := call()

@@ -64,7 +64,7 @@ func TestBuildAgentAuthority_MergesProfileAndPolicy(t *testing.T) {
 }
 
 func TestBuildAgentAuthority_EmptyEdict(t *testing.T) {
-	// A daemon without CmdEdictShow should degrade gracefully — profile fields
+	// A daemon without opapi.EdictShow should degrade gracefully — profile fields
 	// still render, policy overlay is empty.
 	profile := map[string]any{"slug": "minimal", "trust_ceiling": "L1"}
 	v := buildAgentAuthority(profile, map[string]any{})

@@ -31,7 +31,7 @@ func Operations(provider func(context.Context) *Feed) ([]app.Operation, error) {
 	if provider == nil {
 		return nil, errors.New("autonomy feed provider required")
 	}
-	operation, err := app.NewOperation(opapi.Spec{Name: "autonomy_feed", ReadOnly: true, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: feedRequestSchema}, func(ctx context.Context, in FeedRequest) (FeedOutput, error) {
+	operation, err := app.NewOperation(opapi.Spec{Name: opapi.AutonomyFeed, ReadOnly: true, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: feedRequestSchema}, func(ctx context.Context, in FeedRequest) (FeedOutput, error) {
 		return provider(ctx).List(ctx, FeedInput{Limit: nativeFeedLimit(in.Limit)})
 	})
 	if err != nil {

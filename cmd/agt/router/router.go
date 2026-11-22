@@ -16,18 +16,15 @@ import (
 // plus the writer pair for stdout/stderr. Run must return the
 // process exit code (0 = success, 2 = usage error, etc).
 //
-// Help is optional; when nil, a one-line description is printed
-// for `-h` / `--help` lookups. HelpLong is for `agt help <cmd>`.
-// HelpHandler is the optional per-command -h/--help responder;
-// when nil the router falls back to Description (the standard
-// "Usage: cmd <args>" line).
+// The command carries no help text: the CLI's help table (the
+// top-level vocabulary in cmd/agt/commands_top.go) is the single
+// place a command's summary and usage live, and the router does not
+// read it. Description, HelpLong and HelpHandler used to sit here
+// as a second, unwritten copy of that table.
 type Command struct {
-	Name        string
-	Aliases     []string
-	Description string
-	HelpLong    string
-	HelpHandler func(args []string, stdout, stderr io.Writer) int
-	Run         func(args []string, stdout, stderr io.Writer) int
+	Name    string
+	Aliases []string
+	Run     func(args []string, stdout, stderr io.Writer) int
 }
 
 // Registry holds the live set of commands. It is not safe for

@@ -13,7 +13,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 // cmdRateLimit dispatches `agt ratelimit <subcommand>` (M106) — visibility into
@@ -23,15 +23,11 @@ func cmdRateLimit(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s ratelimit: subcommand required (log|stats)\n", brand.CLI)
 		return 2
 	}
-	switch args[0] {
-	case "log":
-		return cmdRateLimitLog(args[1:], stdout, stderr)
-	case "stats":
-		return cmdRateLimitStats(args[1:], stdout, stderr)
-	default:
-		fmt.Fprintf(stderr, "%s ratelimit: unknown subcommand %q (log|stats)\n", brand.CLI, args[0])
-		return 2
+	if sub, ok := cliRateLimit.lookup(args[0]); ok {
+		return sub.run(nil, args, stdout, stderr)
 	}
+	fmt.Fprintf(stderr, "%s ratelimit: unknown subcommand %q (log|stats)\n", brand.CLI, args[0])
+	return 2
 }
 
 func cmdRateLimitLog(args []string, stdout, stderr io.Writer) int {
@@ -90,7 +86,7 @@ func cmdRateLimitLog(args []string, stdout, stderr io.Writer) int {
 	if sinceMS > 0 {
 		callArgs["since_ms"] = sinceMS
 	}
-	res, err := c.Call(ctx, controlplane.CmdRateLimitLog, withTenant(tenant, callArgs))
+	res, err := c.Call(ctx, opapi.RateLimitLog, withTenant(tenant, callArgs))
 	if err != nil {
 		fmt.Fprintf(stderr, "%s ratelimit log: %v\n", brand.CLI, err)
 		return 1
@@ -170,7 +166,7 @@ func cmdRateLimitStats(args []string, stdout, stderr io.Writer) int {
 	if sinceMS > 0 {
 		callArgs["since_ms"] = sinceMS
 	}
-	res, err := c.Call(ctx, controlplane.CmdRateLimitStats, withTenant(tenant, callArgs))
+	res, err := c.Call(ctx, opapi.RateLimitStats, withTenant(tenant, callArgs))
 	if err != nil {
 		fmt.Fprintf(stderr, "%s ratelimit stats: %v\n", brand.CLI, err)
 		return 1

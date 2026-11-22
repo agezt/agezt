@@ -15,7 +15,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdScheduleEnable(args []string, stdout, stderr io.Writer, enabled bool) int {
@@ -48,7 +48,7 @@ func cmdScheduleEnable(args []string, stdout, stderr io.Writer, enabled bool) in
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdScheduleEnable, map[string]any{"id": id, "enabled": enabled})
+	res, err := c.Call(ctx, opapi.ScheduleEnable, map[string]any{"id": id, "enabled": enabled})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s schedule %s: %v\n", brand.CLI, verb, err)
 		return 1
@@ -83,7 +83,7 @@ func cmdScheduleList(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdScheduleList, nil)
+	res, err := c.Call(ctx, opapi.ScheduleList, nil)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s schedule list: %v\n", brand.CLI, err)
 		return 1

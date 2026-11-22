@@ -11,7 +11,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/boardapi"
 )
 
-// boardReadMaxLimit bounds CmdBoardRead.
+// boardReadMaxLimit bounds opapi.BoardRead.
 const boardReadMaxLimit = 500
 
 // errBoardUnavailable is the answer for a daemon with no board.

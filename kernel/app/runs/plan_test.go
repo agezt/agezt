@@ -184,7 +184,7 @@ func TestPlanRunOperations(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s.Name != "plan" || s.ReadOnly || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Stream != opapi.StreamEvents || !s.AllowUnknownInput || s.HTTP.Method != "POST" || s.HTTP.Path != "/api/plan/run" || s.Output != reflect.TypeFor[PlanRunOutput]() || string(s.OutputSchema) != string(out) {
+	if s.Name != "plan" || s.ReadOnly || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Stream != opapi.StreamEvents || !s.AllowUnknownInput || s.Output != reflect.TypeFor[PlanRunOutput]() || string(s.OutputSchema) != string(out) {
 		t.Fatalf("plan spec: %+v", s)
 	}
 	if len(s.EmissionSchema) == 0 {

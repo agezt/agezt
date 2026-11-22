@@ -14,12 +14,12 @@ func TestMCPNativeSixOperationsTypedPolicyAndTypes(t *testing.T) {
 		read          bool
 	}
 	expected := map[string]signature{
-		CmdMCPList:       {reflect.TypeFor[apptools.MCPListInput](), reflect.TypeFor[apptools.MCPListOutput](), true},
-		CmdMCPAdd:        {reflect.TypeFor[apptools.MCPAddRequest](), reflect.TypeFor[apptools.MCPServerOutput](), false},
-		CmdMCPAttach:     {reflect.TypeFor[apptools.MCPRefRequest](), reflect.TypeFor[apptools.MCPAttachOutput](), false},
-		CmdMCPDetach:     {reflect.TypeFor[apptools.MCPRefRequest](), reflect.TypeFor[apptools.MCPDetachOutput](), false},
-		CmdMCPSetEnabled: {reflect.TypeFor[apptools.MCPSetEnabledRequest](), reflect.TypeFor[apptools.MCPServerOutput](), false},
-		CmdMCPRemove:     {reflect.TypeFor[apptools.MCPRefRequest](), reflect.TypeFor[apptools.MCPRemoveOutput](), false},
+		opapi.MCPList:       {reflect.TypeFor[apptools.MCPListInput](), reflect.TypeFor[apptools.MCPListOutput](), true},
+		opapi.MCPAdd:        {reflect.TypeFor[apptools.MCPAddRequest](), reflect.TypeFor[apptools.MCPServerOutput](), false},
+		opapi.MCPAttach:     {reflect.TypeFor[apptools.MCPRefRequest](), reflect.TypeFor[apptools.MCPAttachOutput](), false},
+		opapi.MCPDetach:     {reflect.TypeFor[apptools.MCPRefRequest](), reflect.TypeFor[apptools.MCPDetachOutput](), false},
+		opapi.MCPSetEnabled: {reflect.TypeFor[apptools.MCPSetEnabledRequest](), reflect.TypeFor[apptools.MCPServerOutput](), false},
+		opapi.MCPRemove:     {reflect.TypeFor[apptools.MCPRefRequest](), reflect.TypeFor[apptools.MCPRemoveOutput](), false},
 	}
 	seen := map[string]int{}
 	for _, operation := range registeredAppOperations() {

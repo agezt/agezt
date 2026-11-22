@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -52,7 +52,7 @@ func TestToolLog_ListsAndJoinsInput(t *testing.T) {
 	toolInvoked(k, "call-2", "http", "GET /x")
 	toolResult(k, "call-2", "http", "boom", true)
 
-	res, err := c.Call(context.Background(), controlplane.CmdToolLog, nil)
+	res, err := c.Call(context.Background(), opapi.ToolLog, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -84,7 +84,7 @@ func TestToolLog_FiltersErrorsAndTool(t *testing.T) {
 	toolResult(k, "c", "shell", "boom", true)
 
 	// Errors only → b + c.
-	eres, err := c.Call(context.Background(), controlplane.CmdToolLog,
+	eres, err := c.Call(context.Background(), opapi.ToolLog,
 		map[string]any{"errors": true})
 	if err != nil {
 		t.Fatal(err)
@@ -101,7 +101,7 @@ func TestToolLog_FiltersErrorsAndTool(t *testing.T) {
 	}
 
 	// Tool filter → only shell calls (a + c).
-	tres, err := c.Call(context.Background(), controlplane.CmdToolLog,
+	tres, err := c.Call(context.Background(), opapi.ToolLog,
 		map[string]any{"tool": "shell"})
 	if err != nil {
 		t.Fatal(err)
@@ -127,7 +127,7 @@ func TestToolStats_Aggregates(t *testing.T) {
 	toolResult(k, "c", "http", "ok", false)
 	toolResult(k, "d", "http", "fail", true)
 
-	res, err := c.Call(context.Background(), controlplane.CmdToolStats, nil)
+	res, err := c.Call(context.Background(), opapi.ToolStats, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -150,7 +150,7 @@ func TestToolStats_Aggregates(t *testing.T) {
 	}
 
 	// Tool filter scopes the aggregate to one tool.
-	fres, err := c.Call(context.Background(), controlplane.CmdToolStats,
+	fres, err := c.Call(context.Background(), opapi.ToolStats,
 		map[string]any{"tool": "http"})
 	if err != nil {
 		t.Fatal(err)
@@ -167,7 +167,7 @@ func TestToolLog_SinceWindow(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	toolResult(k, "x", "shell", "ok", false)
 
-	res, err := c.Call(context.Background(), controlplane.CmdToolLog,
+	res, err := c.Call(context.Background(), opapi.ToolLog,
 		map[string]any{"since_ms": int64(3_600_000)}) // 1h includes it
 	if err != nil {
 		t.Fatal(err)
@@ -177,7 +177,7 @@ func TestToolLog_SinceWindow(t *testing.T) {
 	}
 
 	time.Sleep(5 * time.Millisecond)
-	res, err = c.Call(context.Background(), controlplane.CmdToolLog,
+	res, err = c.Call(context.Background(), opapi.ToolLog,
 		map[string]any{"since_ms": int64(1)}) // 1ms excludes it
 	if err != nil {
 		t.Fatal(err)
@@ -196,7 +196,7 @@ func TestToolLog_ReportsLatency(t *testing.T) {
 	time.Sleep(3 * time.Millisecond)
 	toolResult(k, "call-1", "shell", "done", false)
 
-	res, err := c.Call(context.Background(), controlplane.CmdToolLog, nil)
+	res, err := c.Call(context.Background(), opapi.ToolLog, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -214,7 +214,7 @@ func TestToolLog_ReportsLatency(t *testing.T) {
 	}
 
 	// stats carries a latency distribution block (M71).
-	sres, err := c.Call(context.Background(), controlplane.CmdToolStats, nil)
+	sres, err := c.Call(context.Background(), opapi.ToolStats, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -239,7 +239,7 @@ func TestToolLog_ReportsObservationSecurityMetadata(t *testing.T) {
 		"directive_matches":  []string{"ignore previous"},
 	})
 
-	res, err := c.Call(context.Background(), controlplane.CmdToolLog, nil)
+	res, err := c.Call(context.Background(), opapi.ToolLog, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -289,7 +289,7 @@ func TestToolLog_SlowFilter(t *testing.T) {
 	toolResult(k, "slow", "http", "ok", false)
 
 	// No floor → both, and learn each call's ACTUAL measured span.
-	all, err := c.Call(context.Background(), controlplane.CmdToolLog, nil)
+	all, err := c.Call(context.Background(), opapi.ToolLog, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -315,7 +315,7 @@ func TestToolLog_SlowFilter(t *testing.T) {
 	if floor <= dFast {
 		floor = dFast + 1
 	}
-	res, err := c.Call(context.Background(), controlplane.CmdToolLog,
+	res, err := c.Call(context.Background(), opapi.ToolLog,
 		map[string]any{"slow_ms": floor})
 	if err != nil {
 		t.Fatal(err)
@@ -339,7 +339,7 @@ func TestToolStats_PerToolLatency(t *testing.T) {
 	time.Sleep(15 * time.Millisecond)
 	toolResult(k, "s1", "shell", "ok", false)
 
-	res, err := c.Call(context.Background(), controlplane.CmdToolStats, nil)
+	res, err := c.Call(context.Background(), opapi.ToolStats, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -363,7 +363,7 @@ func TestToolStats_ErrorsByMessage(t *testing.T) {
 	toolResult(k, "c", "http", "denied by policy", true)
 	toolResult(k, "d", "shell", "ok", false) // success: not bucketed
 
-	res, err := c.Call(context.Background(), controlplane.CmdToolStats, nil)
+	res, err := c.Call(context.Background(), opapi.ToolStats, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

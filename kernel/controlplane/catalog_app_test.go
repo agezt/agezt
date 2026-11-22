@@ -30,13 +30,13 @@ func TestCatalogCommandMetadataComesFromAppSpecs(t *testing.T) {
 		if !wire.AppOwned || wire.ReadOnly != spec.ReadOnly || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary {
 			t.Fatalf("catalog metadata=%+v %+v", spec, wire)
 		}
-		if spec.Name == CmdCatalogSync && spec.Output != reflect.TypeFor[catalog.SyncOutput]() {
+		if spec.Name == opapi.CatalogSync && spec.Output != reflect.TypeFor[catalog.SyncOutput]() {
 			t.Fatal("sync output is opaque")
 		}
-		if spec.Name == CmdCatalogList && spec.Output != reflect.TypeFor[catalog.ListOutput]() {
+		if spec.Name == opapi.CatalogList && spec.Output != reflect.TypeFor[catalog.ListOutput]() {
 			t.Fatal("list output is opaque")
 		}
-		if spec.Name == CmdCatalogDiscover && spec.Output != reflect.TypeFor[catalog.DiscoverOutput]() {
+		if spec.Name == opapi.CatalogDiscover && spec.Output != reflect.TypeFor[catalog.DiscoverOutput]() {
 			t.Fatal("discover output is opaque")
 		}
 	}
@@ -72,10 +72,10 @@ func TestCatalogAppSocketAdmissionAuditAndWire(t *testing.T) {
 			t.Cleanup(func() { k.Close() })
 			s := NewServer(binding.ScopeFromKernel(k, dir))
 			s.token = "primary"
-			command := CmdCatalogSync
+			command := opapi.CatalogSync
 			args := map[string]any{"url": ts.URL, "ignored": "legacy-compatible", "tenant": "ignored-primary-scope"}
 			if mode == "discover" {
-				command = CmdCatalogDiscover
+				command = opapi.CatalogDiscover
 				args = map[string]any{"endpoint": ts.URL, "ignored": true}
 			}
 			if mode == "bad-input" {
@@ -150,7 +150,7 @@ func TestCatalogAppSocketAdmissionAuditAndWire(t *testing.T) {
 				t.Fatalf("catalog result=%v fetch/reload=%d/%d", last.Result, fetches.Load(), reloads.Load())
 			}
 			before, _ := k.Journal().Head()
-			listed := callAppHost(t, s, Request{ID: "list", Cmd: CmdCatalogList, Token: "primary", Args: map[string]any{"ignored": true}})
+			listed := callAppHost(t, s, Request{ID: "list", Cmd: opapi.CatalogList, Token: "primary", Args: map[string]any{"ignored": true}})
 			after, _ := k.Journal().Head()
 			if listed[0].Type != RespResult || listed[0].Result["provider_count"] != float64(1) || before != after {
 				t.Fatalf("list wire/audit=%v journal=%d->%d", listed, before, after)

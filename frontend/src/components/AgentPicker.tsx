@@ -32,7 +32,7 @@ export function AgentPicker({
 
   useEffect(() => {
     if (!open || agents !== null) return;
-    getJSON<{ profiles?: AgentOption[] }>("/api/agents")
+    getJSON("/api/agents")
       .then((d) => setAgents((d.profiles || []).filter(agentDirectCallable)))
       .catch(() => setAgents([]));
   }, [open, agents]);

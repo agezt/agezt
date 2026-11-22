@@ -110,7 +110,7 @@ func TestRosterGraveyardOperationSpecAndAdmission(t *testing.T) {
 		t.Fatal(ops, err)
 	}
 	s := ops[0].Spec()
-	if s.Name != "agent_graveyard" || !s.ReadOnly || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || !s.AllowUnknownInput || s.Input != reflect.TypeFor[GraveyardRequest]() || s.Output != reflect.TypeFor[GraveyardOutput]() || s.Stream != opapi.StreamNone || s.HTTP != (opapi.HTTP{}) {
+	if s.Name != "agent_graveyard" || !s.ReadOnly || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || !s.AllowUnknownInput || s.Input != reflect.TypeFor[GraveyardRequest]() || s.Output != reflect.TypeFor[GraveyardOutput]() || s.Stream != opapi.StreamNone {
 		t.Fatal(s)
 	}
 	if schema.ValidateJSON(s.OutputSchema, json.RawMessage(`{"graveyard":[{"age_days":"1","kind":"","name":"","retired_ms":0,"retired_reason":"","slug":"","system":false}],"count":1,"older_than_days":0}`)) == nil {

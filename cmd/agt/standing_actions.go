@@ -15,7 +15,7 @@ import (
 
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdStandingAdd(args []string, stdout, stderr io.Writer) int {
@@ -154,7 +154,7 @@ func cmdStandingAdd(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdStandingAdd, map[string]any{"order": order})
+	res, err := c.Call(ctx, opapi.StandingAdd, map[string]any{"order": order})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s standing add: %v\n", brand.CLI, err)
 		return 1
@@ -182,7 +182,7 @@ func cmdStandingSetEnabled(args []string, stdout, stderr io.Writer, enabled bool
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdStandingSetEnabled, map[string]any{"id": id, "enabled": enabled})
+	res, err := c.Call(ctx, opapi.StandingSetEnabled, map[string]any{"id": id, "enabled": enabled})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s standing %s: %v\n", brand.CLI, verb, err)
 		return 1
@@ -205,7 +205,7 @@ func cmdStandingRemove(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdStandingRemove, map[string]any{"id": id})
+	res, err := c.Call(ctx, opapi.StandingRemove, map[string]any{"id": id})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s standing remove: %v\n", brand.CLI, err)
 		return 1

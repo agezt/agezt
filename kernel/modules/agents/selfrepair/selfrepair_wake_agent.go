@@ -16,28 +16,27 @@ import (
 
 	"github.com/agezt/agezt/kernel/contract/boardapi"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
-	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 )
 
-func autoRepairWakeAgent(ctx context.Context, k *kernelruntime.Kernel, cand autoRepairCandidate, msg *boardapi.Message) (autoRepairWakeResult, error) {
-	if k == nil {
-		return autoRepairWakeResult{}, fmt.Errorf("auto-repair wake requires kernel")
+func autoRepairWakeAgent(ctx context.Context, ports Ports, cand autoRepairCandidate, msg *boardapi.Message) (autoRepairWakeResult, error) {
+	if ports.Runner == nil || ports.Correlation == nil || ports.BindProfile == nil {
+		return autoRepairWakeResult{}, fmt.Errorf("auto-repair wake requires the run engine, a correlation and the profile binding")
 	}
 	target := strings.TrimSpace(cand.EscalateTo)
 	if target == "" {
 		return autoRepairWakeResult{}, nil
 	}
-	p, ok := k.RosterGet(target)
+	p, ok := ports.profile(target)
 	if !ok {
 		return autoRepairWakeResult{Target: target, Skipped: "unknown target agent " + target}, nil
 	}
 	if reason := autoRepairWakeSkipReason(p); reason != "" {
 		return autoRepairWakeResult{Target: p.Slug, Skipped: reason}, nil
 	}
-	corr := k.NewCorrelation()
-	rctx := k.WithAgentProfile(ctx, p)
+	corr := ports.correlation()
+	rctx := ports.bindProfile(ctx, p)
 	if p.MaxCostMc > 0 {
-		rctx = k.WithMaxCost(rctx, p.MaxCostMc)
+		rctx = ports.capCost(rctx, p.MaxCostMc)
 	}
 	intent := autoRepairWakeIntent(cand, msg)
 	var (
@@ -45,9 +44,9 @@ func autoRepairWakeAgent(ctx context.Context, k *kernelruntime.Kernel, cand auto
 		answer string
 	)
 	if p.RetryPolicy != nil && p.RetryPolicy.MaxAttempts > 1 {
-		answer, err = k.RunnerService().RunWithRetry(rctx, corr, intent, *p.RetryPolicy)
+		answer, err = ports.Runner.RunWithRetry(rctx, corr, intent, *p.RetryPolicy)
 	} else {
-		answer, err = k.RunnerService().RunWith(rctx, corr, intent)
+		answer, err = ports.Runner.RunWith(rctx, corr, intent)
 	}
 	return autoRepairWakeResult{
 		Target:      p.Slug,

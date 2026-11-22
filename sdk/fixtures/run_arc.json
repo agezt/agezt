@@ -1,0 +1,1 @@
+{"correlation_id":"corr-golden","count":1,"events":[{"id":"evt-golden-1","seq":0,"ts_unix_ms":0,"prev_hash":"","subject":"run.corr-golden","actor":"","kind":"llm.token","payload":{"text":"golden token"}}]}

@@ -21,7 +21,7 @@ import (
 )
 
 func TestAuditNativeTypedRegistry(t *testing.T) {
-	for _, cmd := range []string{CmdNetguardLog, CmdRateLimitLog, CmdRateLimitStats, CmdWardenLog, CmdWardenStats} {
+	for _, cmd := range []string{opapi.NetguardLog, opapi.RateLimitLog, opapi.RateLimitStats, opapi.WardenLog, opapi.WardenStats} {
 		found := 0
 		for _, operation := range registeredAppOperations() {
 			spec := operation.Spec()
@@ -100,29 +100,29 @@ func TestAuditNativeReadsTheCallersKernel(t *testing.T) {
 		}
 		return rows[0].(map[string]any)["ip"]
 	}
-	if got := ip(call("primary", CmdNetguardLog, nil)); got != "10.0.0.1" {
+	if got := ip(call("primary", opapi.NetguardLog, nil)); got != "10.0.0.1" {
 		t.Fatal(got)
 	}
-	if got := ip(call("primary", CmdNetguardLog, map[string]any{"tenant": " acme "})); got != "169.254.169.254" {
+	if got := ip(call("primary", opapi.NetguardLog, map[string]any{"tenant": " acme "})); got != "169.254.169.254" {
 		t.Fatal(got)
 	}
-	if got := ip(call(tenantToken, CmdNetguardLog, map[string]any{"tenant": "acme"})); got != "169.254.169.254" {
+	if got := ip(call(tenantToken, opapi.NetguardLog, map[string]any{"tenant": "acme"})); got != "169.254.169.254" {
 		t.Fatal(got)
 	}
 	acme := map[string]any{"tenant": "acme"}
-	if stats := call(tenantToken, CmdRateLimitStats, acme); stats["throttled"] != float64(1) || stats["worst_used"] != float64(9) {
+	if stats := call(tenantToken, opapi.RateLimitStats, acme); stats["throttled"] != float64(1) || stats["worst_used"] != float64(9) {
 		t.Fatal(stats)
 	}
-	if stats := call("primary", CmdRateLimitStats, nil); stats["throttled"] != float64(0) {
+	if stats := call("primary", opapi.RateLimitStats, nil); stats["throttled"] != float64(0) {
 		t.Fatal(stats)
 	}
-	if log := call(tenantToken, CmdRateLimitLog, acme); log["count"] != float64(1) {
+	if log := call(tenantToken, opapi.RateLimitLog, acme); log["count"] != float64(1) {
 		t.Fatal(log)
 	}
-	if stats := call(tenantToken, CmdWardenStats, acme); stats["executions"] != float64(1) || stats["downgrade_rate"] != float64(1) {
+	if stats := call(tenantToken, opapi.WardenStats, acme); stats["executions"] != float64(1) || stats["downgrade_rate"] != float64(1) {
 		t.Fatal(stats)
 	}
-	if log := call(tenantToken, CmdWardenLog, map[string]any{"tenant": "acme", "issues": true}); log["count"] != float64(0) {
+	if log := call(tenantToken, opapi.WardenLog, map[string]any{"tenant": "acme", "issues": true}); log["count"] != float64(0) {
 		t.Fatal(log)
 	}
 }

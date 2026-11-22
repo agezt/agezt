@@ -16,7 +16,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdMarketAddSource(args []string, stdout, stderr io.Writer) int {
@@ -53,7 +53,7 @@ func cmdMarketAddSource(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdMarketAddSource, map[string]any{"url": rawURL, "name": name, "pubkey": pubkey})
+	res, err := c.Call(ctx, opapi.MarketAddSource, map[string]any{"url": rawURL, "name": name, "pubkey": pubkey})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s market add: %v\n", brand.CLI, err)
 		return 1
@@ -92,7 +92,7 @@ func cmdMarketRemoveSource(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdMarketRemoveSource, map[string]any{"name": name})
+	res, err := c.Call(ctx, opapi.MarketRemoveSource, map[string]any{"name": name})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s market remove: %v\n", brand.CLI, err)
 		return 1
@@ -131,7 +131,7 @@ func cmdMarketSync(args []string, stdout, stderr io.Writer) int {
 	// A sync hits the network for every configured source; give it room.
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdMarketSync, map[string]any{"name": name})
+	res, err := c.Call(ctx, opapi.MarketSync, map[string]any{"name": name})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s market sync: %v\n", brand.CLI, err)
 		return 1

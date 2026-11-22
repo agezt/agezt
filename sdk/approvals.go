@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 // Approval is a pending human-in-the-loop request: the agent asked to use a
@@ -33,7 +33,7 @@ type Approval struct {
 // PendingApprovals lists the human-in-the-loop requests currently awaiting a
 // decision. It does not start a run.
 func (c *Client) PendingApprovals(ctx context.Context) ([]Approval, error) {
-	res, err := c.cp.Call(ctx, controlplane.CmdApprovals, nil)
+	res, err := c.cp.Call(ctx, opapi.Approvals, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -53,13 +53,13 @@ func (c *Client) Deny(ctx context.Context, id, reason string) error {
 }
 
 func (c *Client) decide(ctx context.Context, id, decision, reason string) error {
-	_, err := c.cp.Call(ctx, controlplane.CmdDecide, map[string]any{
+	_, err := c.cp.Call(ctx, opapi.Decide, map[string]any{
 		"id": id, "decision": decision, "reason": reason,
 	})
 	return err
 }
 
-// parseApprovals maps the CmdApprovals result ({"pending":[…]}) to typed
+// parseApprovals maps the opapi.Approvals result ({"pending":[…]}) to typed
 // Approval values.
 func parseApprovals(res map[string]any) []Approval {
 	pending, _ := res["pending"].([]any)

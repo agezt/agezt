@@ -5,17 +5,18 @@ import { getJSON } from "@/app/api";
 import { money } from "@/app/format";
 import { cn } from "@/app/utils";
 import { AnimatedNumber } from "@/components/AnimatedNumber";
+import type { StatusResponseSchedules } from "@/app/api/types.generated";
 
-interface Status {
+type Status = {
   halted?: boolean;
   active_runs?: number;
   active_skills?: number;
   pending_approvals?: number;
-  schedules?: { total?: number; enabled?: number };
-}
-interface Budget {
+  schedules?: StatusResponseSchedules;
+};
+type Budget = {
   spent_mc?: number;
-}
+};
 
 // Vitals is the always-visible monitoring strip under the header: the system's
 // live pulse — in-flight runs, today's spend, active schedules and skills, and
@@ -30,8 +31,8 @@ export function Vitals({ onNavigate }: { onNavigate: (id: string) => void }) {
     async function tick() {
       try {
         const [s, b] = await Promise.all([
-          getJSON<Status>("/api/status"),
-          getJSON<Budget>("/api/budget").catch(() => ({}) as Budget),
+          getJSON("/api/status"),
+          getJSON("/api/budget").catch(() => ({}) as Budget),
         ]);
         if (live) {
           setSt(s);

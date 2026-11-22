@@ -14,16 +14,27 @@
  * ```
  */
 export { Client } from "./client.js";
+export type { ClientOptions, StreamEvent } from "./client.js";
+export { PATHS } from "./generated.js";
 export type {
-  ClientOptions,
+  ApiError,
+  Artifacts,
   Health,
   Mail,
+  MailAck,
+  MailAcked,
   MailDraft,
+  MailboxInbox,
+  MailboxMessages,
+  MailboxReplies,
+  MailboxSent,
+  MailboxTopics,
   Models,
-  RunResult,
+  ProbeStatus,
   RunArc,
-  StreamEvent,
-} from "./client.js";
+  RunRequest,
+  RunResult,
+} from "./generated.js";
 export { AgeztError, APIError, ConfigAccessError } from "./errors.js";
 
 // Agent SDK - for AI agent subprocess communication

@@ -18,7 +18,7 @@ func TestToolInventoryNativeMetadataComesFromTypedPrimaryRead(t *testing.T) {
 	seen := 0
 	for _, operation := range registeredAppOperations() {
 		spec := operation.Spec()
-		if spec.Name != CmdToolList {
+		if spec.Name != opapi.ToolList {
 			continue
 		}
 		wire, ok := commandRegistry[spec.Name]
@@ -34,7 +34,7 @@ func TestToolInventoryNativeMetadataComesFromTypedPrimaryRead(t *testing.T) {
 func TestToolInventoryAppNativeEmptyUnknownArgsAndUnauditedRead(t *testing.T) {
 	k, s, _, provider := pulseAppFixture(t)
 	head, hash := k.Journal().Head()
-	out := callAppHost(t, s, Request{ID: "inventory", Cmd: CmdToolList, Token: "primary", Args: map[string]any{"unused": true, "tenant": "spoof"}})
+	out := callAppHost(t, s, Request{ID: "inventory", Cmd: opapi.ToolList, Token: "primary", Args: map[string]any{"unused": true, "tenant": "spoof"}})
 	if len(out) != 1 || out[0].Type != RespResult || !reflect.DeepEqual(out[0].Result, map[string]any{"tools": []any{}, "count": float64(0)}) {
 		t.Fatal(out)
 	}
@@ -56,7 +56,7 @@ func TestToolInventoryAppNativeCanceledAdmissionDoesNotReturnInventory(t *testin
 	done := make(chan struct{})
 	go func() { defer close(done); s.handleConn(ctx, conn) }()
 	client.SetDeadline(time.Now().Add(time.Second))
-	raw, _ := json.Marshal(Request{ID: "canceled", Cmd: CmdToolList, Token: "primary"})
+	raw, _ := json.Marshal(Request{ID: "canceled", Cmd: opapi.ToolList, Token: "primary"})
 	if _, err := client.Write(append(raw, 10)); err != nil {
 		t.Fatal(err)
 	}

@@ -39,7 +39,7 @@ export interface Sched {
   target_error?: string;
 }
 
-export interface ScheduleFire {
+export type ScheduleFire = {
   correlation_id?: string;
   schedule_id?: string;
   fired_unix_ms?: number;
@@ -58,7 +58,7 @@ export interface ScheduleFire {
   status?: string;
   reason?: string;
   duration_ms?: number;
-}
+};
 
 export interface ScheduleAgent {
   slug: string;
@@ -78,12 +78,12 @@ export interface ScheduleWorkflow {
   enabled?: boolean;
 }
 
-export interface ScheduleTool {
+export type ScheduleTool = {
   name: string;
   description?: string;
-}
+};
 
-export interface ScheduleSystemTaskInfo {
+export type ScheduleSystemTaskInfo = {
   name: string;
   label?: string;
   description?: string;
@@ -93,7 +93,7 @@ export interface ScheduleSystemTaskInfo {
   effect_class?: string;
   effect?: string;
   recommended_interval_sec?: number;
-}
+};
 
 export const FALLBACK_SYSTEM_TASKS = ["catalog_sync", "artifact_collect", "memory_clean", "memory_tidy", "log_clean", "graveyard_scan"];
 export const FALLBACK_SYSTEM_TASK_INFO: ScheduleSystemTaskInfo[] = [

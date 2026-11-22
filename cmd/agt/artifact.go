@@ -13,7 +13,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/atomicfile"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 // cmdArtifact implements `agt artifact <subcommand>`. Today the one subcommand is
@@ -24,17 +24,11 @@ func cmdArtifact(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s artifact: subcommand required (get)\n", brand.CLI)
 		return 2
 	}
-	switch args[0] {
-	case "get":
-		return cmdArtifactGet(args[1:], stdout, stderr)
-	case "-h", "--help":
-		fmt.Fprintf(stdout, "usage: %s artifact get <ref> [--out <file>]\n", brand.CLI)
-		fmt.Fprintf(stdout, "fetch a content-addressed tool output offloaded from the journal (its raw_ref)\n")
-		return 0
-	default:
-		fmt.Fprintf(stderr, "%s artifact: unknown subcommand %q (want: get)\n", brand.CLI, args[0])
-		return 2
+	if sub, ok := cliArtifact.lookup(args[0]); ok {
+		return sub.run(nil, args, stdout, stderr)
 	}
+	fmt.Fprintf(stderr, "%s artifact: unknown subcommand %q (want: get)\n", brand.CLI, args[0])
+	return 2
 }
 
 // cmdArtifactGet implements `agt artifact get <ref> [--out <file>]`. Without
@@ -79,7 +73,7 @@ func cmdArtifactGet(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdArtifactGet, map[string]any{"ref": ref})
+	res, err := c.Call(ctx, opapi.ArtifactGet, map[string]any{"ref": ref})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s artifact get: %v\n", brand.CLI, err)
 		return 1

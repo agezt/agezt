@@ -26,10 +26,10 @@ func TestProviderCommandMetadataComesFromAppSpecs(t *testing.T) {
 	for _, operation := range providerOperations {
 		spec := operation.Spec()
 		wire := commandRegistry[spec.Name]
-		if !wire.AppOwned || wire.ReadOnly != (spec.Name == CmdProviderKeyList) || wire.ReadOnly != spec.ReadOnly || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput {
+		if !wire.AppOwned || wire.ReadOnly != (spec.Name == opapi.ProviderKeyList) || wire.ReadOnly != spec.ReadOnly || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput {
 			t.Fatalf("provider metadata=%+v %+v", spec, wire)
 		}
-		if spec.Name == CmdProviderKeyAdd && spec.Output != reflect.TypeFor[providers.KeyAddOutput]() {
+		if spec.Name == opapi.ProviderKeyAdd && spec.Output != reflect.TypeFor[providers.KeyAddOutput]() {
 			t.Fatal("key add output is opaque")
 		}
 	}
@@ -52,17 +52,17 @@ func TestProviderAppSocketKeyringAdmissionPrivacyAndReload(t *testing.T) {
 		}
 		return last
 	}
-	call(CmdProviderConnect, map[string]any{"id": "fixture", "api": "https://fixture.invalid", "model": "hint-only", "ignored": true})
+	call(opapi.ProviderConnect, map[string]any{"id": "fixture", "api": "https://fixture.invalid", "model": "hint-only", "ignored": true})
 	if len(k.Catalog().Providers["fixture"].Models) != 0 {
 		t.Fatal("connect synthesized model membership")
 	}
-	call(CmdProviderKeyAdd, map[string]any{"provider": "fixture", "env": "PROVIDER_FIXTURE_KEY", "label": "first", "value": secret, "tenant": "ignored"})
-	call(CmdProviderKeyAdd, map[string]any{"provider": "fixture", "env": "PROVIDER_FIXTURE_KEY", "label": "second", "value": secret + "-5678", "active": false})
+	call(opapi.ProviderKeyAdd, map[string]any{"provider": "fixture", "env": "PROVIDER_FIXTURE_KEY", "label": "first", "value": secret, "tenant": "ignored"})
+	call(opapi.ProviderKeyAdd, map[string]any{"provider": "fixture", "env": "PROVIDER_FIXTURE_KEY", "label": "second", "value": secret + "-5678", "active": false})
 	if reloads.Load() != 2 {
 		t.Fatalf("inactive add reloaded=%d", reloads.Load())
 	}
 	before, _ := k.Journal().Head()
-	listed := call(CmdProviderKeyList, map[string]any{"provider": "fixture", "env": "PROVIDER_FIXTURE_KEY", "active": "ignored", "value": 42})
+	listed := call(opapi.ProviderKeyList, map[string]any{"provider": "fixture", "env": "PROVIDER_FIXTURE_KEY", "active": "ignored", "value": 42})
 	after, _ := k.Journal().Head()
 	if before != after || len(listed.Result["keys"].([]any)) != 2 {
 		t.Fatalf("list changed journal/wire=%v %d->%d", listed, before, after)
@@ -74,14 +74,14 @@ func TestProviderAppSocketKeyringAdmissionPrivacyAndReload(t *testing.T) {
 	if strings.Contains(string(encoded), secret) {
 		t.Fatal("key value reached socket response")
 	}
-	other := call(CmdProviderKeyList, map[string]any{"provider": "other", "env": "PROVIDER_FIXTURE_KEY"})
+	other := call(opapi.ProviderKeyList, map[string]any{"provider": "other", "env": "PROVIDER_FIXTURE_KEY"})
 	if len(other.Result["keys"].([]any)) != 0 {
 		t.Fatal("keyring scope crossed provider")
 	}
-	call(CmdProviderKeyActivate, map[string]any{"provider": "fixture", "env": "PROVIDER_FIXTURE_KEY", "label": "second"})
-	call(CmdProviderKeyRemove, map[string]any{"provider": "fixture", "env": "PROVIDER_FIXTURE_KEY", "label": "first"})
-	call(CmdProviderKeyRemove, map[string]any{"provider": "fixture", "env": "PROVIDER_FIXTURE_KEY", "label": "second"})
-	call(CmdProviderReload, nil)
+	call(opapi.ProviderKeyActivate, map[string]any{"provider": "fixture", "env": "PROVIDER_FIXTURE_KEY", "label": "second"})
+	call(opapi.ProviderKeyRemove, map[string]any{"provider": "fixture", "env": "PROVIDER_FIXTURE_KEY", "label": "first"})
+	call(opapi.ProviderKeyRemove, map[string]any{"provider": "fixture", "env": "PROVIDER_FIXTURE_KEY", "label": "second"})
+	call(opapi.ProviderReload, nil)
 	if reloads.Load() != 5 {
 		t.Fatalf("provider lifecycle reloads=%d want=5", reloads.Load())
 	}
@@ -116,7 +116,7 @@ func TestProviderAppSocketKeyringAdmissionPrivacyAndReload(t *testing.T) {
 			}
 		}
 	}
-	if len(counts["op."+CmdProviderKeyAdd]) != 4 || len(counts["op."+CmdProviderKeyList]) != 0 {
+	if len(counts["op."+opapi.ProviderKeyAdd]) != 4 || len(counts["op."+opapi.ProviderKeyList]) != 0 {
 		t.Fatalf("provider audit counts=%v", counts)
 	}
 }
@@ -136,7 +136,7 @@ func TestProviderAppRejectsBeforeVaultAndReloadEffects(t *testing.T) {
 			} else {
 				_ = k.Journal().Close()
 			}
-			response := callAppHost(t, s, Request{ID: "rejected", Cmd: CmdProviderKeyAdd, Token: "primary", Args: args})[0]
+			response := callAppHost(t, s, Request{ID: "rejected", Cmd: opapi.ProviderKeyAdd, Token: "primary", Args: args})[0]
 			if response.Type != RespError || reloads.Load() != 0 {
 				t.Fatalf("rejected keyring request=%v reloads=%d", response, reloads.Load())
 			}

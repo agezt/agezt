@@ -81,17 +81,17 @@ func Operations(service func(context.Context) *Service) ([]app.Operation, error)
 	var operations []app.Operation
 	bindings := []func() error{
 		func() error {
-			return bind(&operations, opapi.Spec{Name: "taste_list", ReadOnly: true}, func(ctx context.Context, in ListRequestInput) (ListOutput, error) {
+			return bind(&operations, opapi.Spec{Name: opapi.TasteList, ReadOnly: true}, func(ctx context.Context, in ListRequestInput) (ListOutput, error) {
 				return service(ctx).List(ctx, ListInput{Scope: text(in.Scope), Tag: text(in.Tag), Limit: listLimit(in.Limit)})
 			})
 		},
 		func() error {
-			return bind(&operations, opapi.Spec{Name: "taste_create"}, func(ctx context.Context, in CreateRequestInput) (CreateOutput, error) {
+			return bind(&operations, opapi.Spec{Name: opapi.TasteCreate}, func(ctx context.Context, in CreateRequestInput) (CreateOutput, error) {
 				return service(ctx).Create(ctx, CreateInput{Title: text(in.Title), Body: text(in.Body), Scope: text(in.Scope), Tags: tags(in.Tags)})
 			})
 		},
 		func() error {
-			return bind(&operations, opapi.Spec{Name: "taste_delete"}, func(ctx context.Context, in DeleteRequestInput) (DeleteOutput, error) {
+			return bind(&operations, opapi.Spec{Name: opapi.TasteDelete}, func(ctx context.Context, in DeleteRequestInput) (DeleteOutput, error) {
 				return service(ctx).Delete(ctx, DeleteInput{ID: text(in.ID)})
 			})
 		},

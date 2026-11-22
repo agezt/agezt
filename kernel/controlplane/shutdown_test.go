@@ -7,20 +7,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
 // TestShutdown_ACKsAndClosesChannel verifies the two contracts the
 // daemon main loop relies on:
-//  1. CmdShutdown returns a clean OK to the client (so `agt
+//  1. opapi.Shutdown returns a clean OK to the client (so `agt
 //     shutdown` exits 0 instead of "broken pipe").
 //  2. Server.Shutdown() channel closes shortly afterwards, which is
 //     how main() learns it should exit.
 func TestShutdown_ACKsAndClosesChannel(t *testing.T) {
 	_, srv, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 
-	res, err := c.Call(context.Background(), controlplane.CmdShutdown, nil)
+	res, err := c.Call(context.Background(), opapi.Shutdown, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -41,14 +41,14 @@ func TestShutdown_ACKsAndClosesChannel(t *testing.T) {
 }
 
 // TestShutdown_IdempotentChannelClose covers the corner where a
-// second CmdShutdown arrives before the daemon has finished its
+// second opapi.Shutdown arrives before the daemon has finished its
 // exit sequence. sync.Once must prevent a "close of closed channel"
 // panic; the second call should still ACK normally.
 func TestShutdown_IdempotentChannelClose(t *testing.T) {
 	_, srv, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 
 	for i := 0; i < 3; i++ {
-		res, err := c.Call(context.Background(), controlplane.CmdShutdown, nil)
+		res, err := c.Call(context.Background(), opapi.Shutdown, nil)
 		if err != nil {
 			t.Fatalf("Call %d: %v", i, err)
 		}

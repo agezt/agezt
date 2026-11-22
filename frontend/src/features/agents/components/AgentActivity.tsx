@@ -9,20 +9,20 @@ import { ErrorText } from "@/components/JsonView";
 import { useEvents } from "@/app/events";
 import { agentActivityEventMatches, agentActivityOperationalState, agentActivityPulse, agentRunCorrelations, filterAgentLogEvents } from "@/features/agents/lib/agentactivity";
 import { RunDetailLoader } from "@/components/RunDetail";
-import { IncidentBadges } from "@/features/incidents/components/IncidentBadges";
+import { IncidentBadges } from "@/components/IncidentBadges";
 import {
   incidentBadgeItem,
   incidentEventSummary,
   isIncidentFamilyEvent,
-} from "@/features/incidents/lib/incidentevents";
+} from "@/lib/incidentevents";
 
-interface ActivityItem {
+type ActivityItem = {
   seq: number;
   kind: string;
   ts_unix_ms?: number;
   correlation_id?: string;
   summary: string;
-}
+};
 
 // RunLite is the subset of /api/runs we need to list an agent's own runs and
 // derive its spend/last-active summary. Mirrors ApiRun in Agents.tsx.
@@ -76,8 +76,8 @@ export function AgentActivity({
   useEffect(() => {
     let alive = true;
     Promise.all([
-      getJSON<{ activity?: ActivityItem[] }>("/api/agents/activity", { ref: slug, limit: "60" }),
-      getJSON<{ runs?: RunLite[] }>("/api/runs"),
+      getJSON("/api/agents/activity", { ref: slug, limit: "60" }),
+      getJSON("/api/runs"),
     ])
       .then(([a, r]) => {
         if (!alive) return;

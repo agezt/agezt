@@ -81,16 +81,15 @@ func TestLifecycleOperations(t *testing.T) {
 	for i, w := range []struct {
 		name     string
 		readOnly bool
-		http     opapi.HTTP
 		out      any
 	}{
-		{"halt", false, opapi.HTTP{Method: "POST", Path: "/api/halt"}, GateOutput{OK: true, Halted: true}},
-		{"resume", false, opapi.HTTP{Method: "POST", Path: "/api/resume"}, GateOutput{OK: true}},
-		{"journal_verify", true, opapi.HTTP{}, OKOutput{OK: true}},
-		{"shutdown", false, opapi.HTTP{}, OKOutput{OK: true}},
+		{opapi.Halt, false, GateOutput{OK: true, Halted: true}},
+		{opapi.Resume, false, GateOutput{OK: true}},
+		{opapi.JournalVerify, true, OKOutput{OK: true}},
+		{opapi.Shutdown, false, OKOutput{OK: true}},
 	} {
 		spec := ops[i].Spec()
-		if spec.Name != w.name || spec.ReadOnly != w.readOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.HTTP != w.http || spec.Output != reflect.TypeOf(w.out) {
+		if spec.Name != w.name || spec.ReadOnly != w.readOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.Output != reflect.TypeOf(w.out) {
 			t.Fatal(spec)
 		}
 		raw, _ := json.Marshal(w.out)

@@ -131,12 +131,12 @@ func OverlayOperations(provider func(context.Context) *Overlay) ([]app.Operation
 	var ops []app.Operation
 	for _, b := range []func() error{
 		func() error {
-			return bind(&ops, opapi.Spec{Name: "edict_overlay", InputSchema: input}, func(ctx context.Context, in OverlayRequest) (OverlayOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.EdictOverlay, InputSchema: input}, func(ctx context.Context, in OverlayRequest) (OverlayOutput, error) {
 				return provider(ctx).Show(ctx, in)
 			})
 		},
 		func() error {
-			return bindAs(&ops, opapi.Spec{Name: "edict_compact", InputSchema: input}, opapi.PrimaryOnly, func(ctx context.Context, in OverlayRequest) (CompactOutput, error) {
+			return bindAs(&ops, opapi.Spec{Name: opapi.EdictCompact, InputSchema: input}, opapi.PrimaryOnly, func(ctx context.Context, in OverlayRequest) (CompactOutput, error) {
 				return provider(ctx).Compact(ctx, in)
 			})
 		},

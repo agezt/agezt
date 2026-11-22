@@ -17,7 +17,6 @@ import (
 	"github.com/agezt/agezt/internal/strutil"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/boardapi"
-	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 )
 
 func parseAutoRepairResolution(finalText string) *autoRepairResolution {
@@ -95,7 +94,7 @@ func cleanAutoRepairResolution(out *autoRepairResolution) {
 	}
 }
 
-func (c *autoRepairCoordinator) applyAutoRepairResolution(ctx context.Context, k *kernelruntime.Kernel, src autoRepairSource, mailbox Mailbox, postNotify func(boardapi.Message, string), cand autoRepairCandidate, wake autoRepairWakeResult) (*autoRepairResolutionOutcome, error) {
+func (c *autoRepairCoordinator) applyAutoRepairResolution(ctx context.Context, ports Ports, src autoRepairSource, mailbox Mailbox, postNotify func(boardapi.Message, string), cand autoRepairCandidate, wake autoRepairWakeResult) (*autoRepairResolutionOutcome, error) {
 	if wake.Resolution == nil || wake.Resolution.Resolution == "" {
 		return nil, nil
 	}
@@ -106,48 +105,42 @@ func (c *autoRepairCoordinator) applyAutoRepairResolution(ctx context.Context, k
 	case "handled", "blocked":
 		return nil, nil
 	case "paused":
-		if k == nil {
-			return nil, fmt.Errorf("paused resolution requires kernel access")
-		}
-		roster := k.RosterService()
-		if roster == nil {
+		svc := ports.Roster
+		if svc == nil {
 			return nil, agentapi.ErrNoRoster
 		}
-		_, err := roster.SetEnabled(cand.Slug, false)
+		_, err := svc.SetEnabled(cand.Slug, false)
 		if err != nil {
 			return nil, err
 		}
 		return &autoRepairResolutionOutcome{Phase: "resolution_applied"}, nil
 	case "retired":
-		if k == nil {
-			return nil, fmt.Errorf("retired resolution requires kernel access")
-		}
-		roster := k.RosterService()
-		if roster == nil {
+		svc := ports.Roster
+		if svc == nil {
 			return nil, agentapi.ErrNoRoster
 		}
 		reason := strings.TrimSpace(wake.Resolution.Summary)
 		if reason == "" {
 			reason = "retired by escalation resolution"
 		}
-		_, err := roster.SetRetired(cand.Slug, true, reason)
+		_, err := svc.SetRetired(cand.Slug, true, reason)
 		if err != nil {
 			return nil, err
 		}
 		return &autoRepairResolutionOutcome{Phase: "resolution_applied"}, nil
 	case "force_chain":
-		return c.applyForcedRoutingResolution(k, src, cand, wake)
+		return c.applyForcedRoutingResolution(ports, src, cand, wake)
 	case "delegated":
-		if k == nil {
-			return nil, fmt.Errorf("delegated resolution requires kernel access")
+		if ports.Bus == nil {
+			return nil, fmt.Errorf("delegated resolution requires the host bus")
 		}
-		return nil, c.applyDelegatedResolution(ctx, k, k.Bus(), mailbox, postNotify, cand, wake)
+		return nil, c.applyDelegatedResolution(ctx, ports, mailbox, postNotify, cand, wake)
 	default:
 		return nil, nil
 	}
 }
 
-func (c *autoRepairCoordinator) applyForcedRoutingResolution(k *kernelruntime.Kernel, src autoRepairSource, cand autoRepairCandidate, wake autoRepairWakeResult) (*autoRepairResolutionOutcome, error) {
+func (c *autoRepairCoordinator) applyForcedRoutingResolution(ports Ports, src autoRepairSource, cand autoRepairCandidate, wake autoRepairWakeResult) (*autoRepairResolutionOutcome, error) {
 	if wake.Resolution == nil {
 		return nil, nil
 	}
@@ -167,7 +160,7 @@ func (c *autoRepairCoordinator) applyForcedRoutingResolution(k *kernelruntime.Ke
 		equalStringSlices(wake.Resolution.TaskModelChain, cand.RoutingRollbackToChain) {
 		return nil, fmt.Errorf("force_chain resolution must choose a new chain for exhausted routing policy")
 	}
-	prevGeneration := autoRepairLatestForceGeneration(k, cand.Slug, taskType)
+	prevGeneration := autoRepairLatestForceGeneration(ports, cand.Slug, taskType)
 	nextGeneration := prevGeneration + 1
 	if nextGeneration <= 0 {
 		nextGeneration = 1

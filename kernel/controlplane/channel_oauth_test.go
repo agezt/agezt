@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/plugins/builtinchannels"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -21,7 +21,7 @@ func TestChannelOAuthStartStatus(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
 
-	res, err := c.Call(ctx, controlplane.CmdChannelOAuthStart, map[string]any{
+	res, err := c.Call(ctx, opapi.ChannelOAuthStart, map[string]any{
 		"kind": "slack", "label": "team-b",
 		"client_id": "cid123", "client_secret": "shh",
 		"redirect_uri": "https://console.example/oauth/callback",
@@ -47,31 +47,31 @@ func TestChannelOAuthStartStatus(t *testing.T) {
 	}
 
 	// Status reports pending before any callback.
-	st, err := c.Call(ctx, controlplane.CmdChannelOAuthStatus, map[string]any{"state": state})
+	st, err := c.Call(ctx, opapi.ChannelOAuthStatus, map[string]any{"state": state})
 	if err != nil || st["status"] != "pending" {
 		t.Fatalf("status = %v err=%v, want pending", st["status"], err)
 	}
 	// Unknown state → "unknown".
-	st2, _ := c.Call(ctx, controlplane.CmdChannelOAuthStatus, map[string]any{"state": "nope"})
+	st2, _ := c.Call(ctx, opapi.ChannelOAuthStatus, map[string]any{"state": "nope"})
 	if st2["status"] != "unknown" {
 		t.Fatalf("unknown state status = %v", st2["status"])
 	}
 
 	// Unsupported kind refused.
-	if _, err := c.Call(ctx, controlplane.CmdChannelOAuthStart, map[string]any{
+	if _, err := c.Call(ctx, opapi.ChannelOAuthStart, map[string]any{
 		"kind": "telegram", "client_id": "a", "client_secret": "b",
 		"redirect_uri": "https://x/cb",
 	}); err == nil {
 		t.Fatal("telegram should not support oauth")
 	}
 	// Missing client creds refused.
-	if _, err := c.Call(ctx, controlplane.CmdChannelOAuthStart, map[string]any{
+	if _, err := c.Call(ctx, opapi.ChannelOAuthStart, map[string]any{
 		"kind": "slack", "redirect_uri": "https://x/cb",
 	}); err == nil {
 		t.Fatal("missing client_id/secret should be refused")
 	}
 	// Mastodon requires an instance URL.
-	if _, err := c.Call(ctx, controlplane.CmdChannelOAuthStart, map[string]any{
+	if _, err := c.Call(ctx, opapi.ChannelOAuthStart, map[string]any{
 		"kind": "mastodon", "client_id": "a", "client_secret": "b",
 		"redirect_uri": "https://x/cb",
 	}); err == nil {

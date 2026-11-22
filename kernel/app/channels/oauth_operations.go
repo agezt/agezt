@@ -44,8 +44,7 @@ func OAuthOperations(provider func(context.Context) *OAuth) ([]app.Operation, er
 		return opapi.Spec{Name: name, ReadOnly: read, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true,
 			InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{` + properties + `}}`)}
 	}
-	startSpec := spec("channel_oauth_start", false, `"kind":{},"label":{},"client_id":{},"client_secret":{},"redirect_uri":{},"instance_url":{}`)
-	startSpec.HTTP = opapi.HTTP{Method: "POST", Path: "/api/channel/oauth/start"}
+	startSpec := spec(opapi.ChannelOAuthStart, false, `"kind":{},"label":{},"client_id":{},"client_secret":{},"redirect_uri":{},"instance_url":{}`)
 	start, err := app.NewOperation(startSpec, func(ctx context.Context, in OAuthStartRequest) (OAuthStartOutput, error) {
 		return provider(ctx).Start(ctx, OAuthStartInput{Kind: oauthText(in.Kind), Label: oauthText(in.Label), ClientID: oauthText(in.ClientID), ClientSecret: oauthText(in.ClientSecret), RedirectURI: oauthText(in.RedirectURI), InstanceURL: oauthText(in.InstanceURL)})
 	})
@@ -54,14 +53,13 @@ func OAuthOperations(provider func(context.Context) *OAuth) ([]app.Operation, er
 	}
 	// The public GET callback is an existing Web UI page which forwards with its
 	// own operator credential. This internal operation declares no public HTTP route.
-	callback, err := app.NewOperation(spec("channel_oauth_callback", false, `"code":{},"state":{}`), func(ctx context.Context, in OAuthCallbackRequest) (OAuthCallbackOutput, error) {
+	callback, err := app.NewOperation(spec(opapi.ChannelOAuthCallback, false, `"code":{},"state":{}`), func(ctx context.Context, in OAuthCallbackRequest) (OAuthCallbackOutput, error) {
 		return provider(ctx).Callback(ctx, OAuthCallbackInput{Code: oauthText(in.Code), State: oauthText(in.State)})
 	})
 	if err != nil {
 		return nil, err
 	}
-	statusSpec := spec("channel_oauth_status", true, `"state":{}`)
-	statusSpec.HTTP = opapi.HTTP{Method: "POST", Path: "/api/channel/oauth/status"}
+	statusSpec := spec(opapi.ChannelOAuthStatus, true, `"state":{}`)
 	status, err := app.NewOperation(statusSpec, func(ctx context.Context, in OAuthStatusRequest) (OAuthStatusOutput, error) {
 		return provider(ctx).Status(ctx, OAuthStatusInput{State: oauthText(in.State)})
 	})

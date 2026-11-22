@@ -17,7 +17,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/format"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdRunsLast(args []string, stdout, stderr io.Writer) int {
@@ -42,9 +42,9 @@ func cmdRunsLast(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	// Limit=1 because CmdRunsList sorts newest-first — the head of
+	// Limit=1 because opapi.RunsList sorts newest-first — the head of
 	// the slice is exactly what `last` wants.
-	listRes, err := c.Call(ctx, controlplane.CmdRunsList, map[string]any{"limit": 1})
+	listRes, err := c.Call(ctx, opapi.RunsList, map[string]any{"limit": 1})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s runs last: %v\n", brand.CLI, err)
 		return 1

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -31,7 +31,7 @@ func TestEdictLog_ListsAndFiltersDenied(t *testing.T) {
 	dec("file", "fs", false, true)
 
 	// All decisions.
-	res, err := c.Call(context.Background(), controlplane.CmdEdictLog, nil)
+	res, err := c.Call(context.Background(), opapi.EdictLog, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -41,7 +41,7 @@ func TestEdictLog_ListsAndFiltersDenied(t *testing.T) {
 	}
 
 	// Denied only.
-	dres, err := c.Call(context.Background(), controlplane.CmdEdictLog,
+	dres, err := c.Call(context.Background(), opapi.EdictLog,
 		map[string]any{"denied": true})
 	if err != nil {
 		t.Fatal(err)
@@ -76,7 +76,7 @@ func TestEdictStats_Aggregates(t *testing.T) {
 	dec("net", false, false)
 	dec("fs", false, true)
 
-	res, err := c.Call(context.Background(), controlplane.CmdEdictStats, nil)
+	res, err := c.Call(context.Background(), opapi.EdictStats, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -115,7 +115,7 @@ func TestEdictLog_SinceWindow(t *testing.T) {
 		Payload:       map[string]any{"tool": "t", "capability": "c", "allow": true},
 	})
 
-	res, err := c.Call(context.Background(), controlplane.CmdEdictLog,
+	res, err := c.Call(context.Background(), opapi.EdictLog,
 		map[string]any{"since_ms": int64(3_600_000)}) // 1h window includes it
 	if err != nil {
 		t.Fatal(err)
@@ -125,7 +125,7 @@ func TestEdictLog_SinceWindow(t *testing.T) {
 	}
 
 	time.Sleep(5 * time.Millisecond)
-	res, err = c.Call(context.Background(), controlplane.CmdEdictLog,
+	res, err = c.Call(context.Background(), opapi.EdictLog,
 		map[string]any{"since_ms": int64(1)}) // 1ms window excludes it
 	if err != nil {
 		t.Fatal(err)
@@ -153,7 +153,7 @@ func TestEdictLog_ToolAndCapabilityFilters(t *testing.T) {
 	dec("curl", "net", false)
 
 	// --tool shell → 1.
-	tres, err := c.Call(context.Background(), controlplane.CmdEdictLog,
+	tres, err := c.Call(context.Background(), opapi.EdictLog,
 		map[string]any{"tool": "shell"})
 	if err != nil {
 		t.Fatal(err)
@@ -163,7 +163,7 @@ func TestEdictLog_ToolAndCapabilityFilters(t *testing.T) {
 	}
 
 	// --capability net → 2 (http + curl).
-	cres, err := c.Call(context.Background(), controlplane.CmdEdictLog,
+	cres, err := c.Call(context.Background(), opapi.EdictLog,
 		map[string]any{"capability": "net"})
 	if err != nil {
 		t.Fatal(err)
@@ -180,7 +180,7 @@ func TestEdictLog_ToolAndCapabilityFilters(t *testing.T) {
 	}
 
 	// Combined with --denied: net + denied → still 2 (both net are denials).
-	dres, err := c.Call(context.Background(), controlplane.CmdEdictLog,
+	dres, err := c.Call(context.Background(), opapi.EdictLog,
 		map[string]any{"capability": "net", "denied": true})
 	if err != nil {
 		t.Fatal(err)
@@ -206,7 +206,7 @@ func TestEdictStats_ToolScope(t *testing.T) {
 	dec("http", "net", false)
 
 	// Unscoped → 3 total.
-	all, err := c.Call(context.Background(), controlplane.CmdEdictStats, nil)
+	all, err := c.Call(context.Background(), opapi.EdictStats, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -215,7 +215,7 @@ func TestEdictStats_ToolScope(t *testing.T) {
 	}
 
 	// --tool http → 2 total, both denied (rate 1.0).
-	res, err := c.Call(context.Background(), controlplane.CmdEdictStats,
+	res, err := c.Call(context.Background(), opapi.EdictStats,
 		map[string]any{"tool": "http"})
 	if err != nil {
 		t.Fatal(err)

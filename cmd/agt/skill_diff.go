@@ -11,6 +11,7 @@ import (
 
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 )
 
@@ -76,7 +77,7 @@ func splitLines(s string) []string {
 
 // fetchSkill returns a skill's body + lineage by id, or (-, -, false) if absent.
 func fetchSkill(c *controlplane.Client, ctx context.Context, id string) (body string, lineage []string, found bool, err error) {
-	res, cerr := c.Call(ctx, controlplane.CmdSkillGet, map[string]any{"id": id})
+	res, cerr := c.Call(ctx, opapi.SkillGet, map[string]any{"id": id})
 	if cerr != nil {
 		return "", nil, false, cerr
 	}

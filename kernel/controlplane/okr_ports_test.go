@@ -4,6 +4,7 @@ package controlplane
 import (
 	"context"
 	"github.com/agezt/agezt/kernel/app/binding"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"path/filepath"
 	"testing"
 
@@ -39,7 +40,7 @@ func TestTheAdapterBindsTheObjectivePortsToItsOwnKernel(t *testing.T) {
 
 	// The daemon's objective list — the adapter's own wiring — shows the
 	// kernel's objectives.
-	response := callAppHost(t, s, Request{ID: "list", Cmd: CmdOKRList, Token: "primary"})[0]
+	response := callAppHost(t, s, Request{ID: "list", Cmd: opapi.OKRList, Token: "primary"})[0]
 	if response.Type != RespResult {
 		t.Fatalf("the objective list: %s", response.Error)
 	}

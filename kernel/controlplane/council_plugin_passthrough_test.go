@@ -5,6 +5,7 @@ package controlplane
 import (
 	"encoding/json"
 	"github.com/agezt/agezt/kernel/app/binding"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"reflect"
 	"testing"
 
@@ -45,7 +46,7 @@ func TestCouncilAndPluginRowsPassThroughTheHost(t *testing.T) {
 
 	// The membership the operator sets reaches the kernel unchanged: the seat
 	// stays the seat and the model stays the model.
-	if got := call(CmdCouncilSet, map[string]any{"members": []any{
+	if got := call(opapi.CouncilSet, map[string]any{"members": []any{
 		map[string]any{"seat": "Chair", "model": "model-a"},
 		map[string]any{"seat": "Scribe", "model": "model-b"},
 	}}); got != `{"applied":"live","member_count":2,"saved":true}` {
@@ -55,13 +56,13 @@ func TestCouncilAndPluginRowsPassThroughTheHost(t *testing.T) {
 	if members := k.CouncilDefaultMembers(); !reflect.DeepEqual(members, want) {
 		t.Fatal("the membership changed on the way to the kernel", members)
 	}
-	if got := call(CmdCouncilMembers, nil); got != `{"count":2,"members":[{"model":"model-a","seat":"Chair"},{"model":"model-b","seat":"Scribe"}]}` {
+	if got := call(opapi.CouncilMembers, nil); got != `{"count":2,"members":[{"model":"model-a","seat":"Chair"},{"model":"model-b","seat":"Scribe"}]}` {
 		t.Fatal(got)
 	}
 
 	// The manifest reaches the wire unchanged, in the application's own order.
 	var listed appplugins.ListOutput
-	if err := json.Unmarshal([]byte(call(CmdPluginList, nil)), &listed); err != nil {
+	if err := json.Unmarshal([]byte(call(opapi.PluginList, nil)), &listed); err != nil {
 		t.Fatal(err)
 	}
 	if listed.Count != 2 || len(listed.Plugins) != 2 {

@@ -6,7 +6,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -28,7 +28,7 @@ func TestMemoryLog_ListsAndFilters(t *testing.T) {
 		Payload: map[string]any{"old_id": "m2", "new_id": "m3"},
 	})
 
-	res, err := c.Call(context.Background(), controlplane.CmdMemoryLog, nil)
+	res, err := c.Call(context.Background(), opapi.MemoryLog, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +43,7 @@ func TestMemoryLog_ListsAndFilters(t *testing.T) {
 	}
 
 	// --op forgotten → just the forget.
-	fres, err := c.Call(context.Background(), controlplane.CmdMemoryLog,
+	fres, err := c.Call(context.Background(), opapi.MemoryLog,
 		map[string]any{"op": "forgotten"})
 	if err != nil {
 		t.Fatal(err)

@@ -21,7 +21,7 @@ func TestChannelOAuthOperationMetadataAndPresence(t *testing.T) {
 	if err != nil || len(ops) != 3 {
 		t.Fatal(ops, err)
 	}
-	names := []string{"channel_oauth_start", "channel_oauth_callback", "channel_oauth_status"}
+	names := []string{opapi.ChannelOAuthStart, "channel_oauth_callback", "channel_oauth_status"}
 	inputs := []reflect.Type{reflect.TypeFor[OAuthStartRequest](), reflect.TypeFor[OAuthCallbackRequest](), reflect.TypeFor[OAuthStatusRequest]()}
 	outputs := []reflect.Type{reflect.TypeFor[OAuthStartOutput](), reflect.TypeFor[OAuthCallbackOutput](), reflect.TypeFor[OAuthStatusOutput]()}
 	counts := []int{2, 5, 4}
@@ -31,16 +31,19 @@ func TestChannelOAuthOperationMetadataAndPresence(t *testing.T) {
 			t.Fatal(s)
 		}
 		if i == 1 {
-			if s.HTTP != (opapi.HTTP{}) {
-				t.Fatal("internal callback declared public route", s.HTTP)
+			// The internal callback is driven by the console's own /oauth/callback
+			// page, not by a console route for the operation itself.
+			if _, bound := opapi.ConsoleRoute(opapi.ChannelOAuthCallback); bound {
+				t.Fatal("internal callback declared public route", opapi.ChannelOAuthCallback)
 			}
 		} else {
-			path := "/api/channel/oauth/start"
+			op := opapi.ChannelOAuthStart
 			if i == 2 {
-				path = "/api/channel/oauth/status"
+				op = opapi.ChannelOAuthStatus
 			}
-			if s.HTTP.Method != "POST" || s.HTTP.Path != path {
-				t.Fatal(s.HTTP)
+			route, bound := opapi.ConsoleRoute(op)
+			if !bound || route.Method != "POST" {
+				t.Fatal(op, route)
 			}
 		}
 		var node map[string]any
@@ -97,7 +100,7 @@ func TestChannelOAuthOperationMetadataAndPresence(t *testing.T) {
 }
 
 func TestChannelOAuthOperationAdmissionBeforeProviderAndLenientInputs(t *testing.T) {
-	for _, command := range []string{"channel_oauth_start", "channel_oauth_callback", "channel_oauth_status"} {
+	for _, command := range []string{opapi.ChannelOAuthStart, "channel_oauth_callback", "channel_oauth_status"} {
 		for _, mode := range []string{"success", "canceled", "audit-error", "audit-missing", "tenant", "agent"} {
 			p := newOAuthProbe()
 			audit := &accountAudit{}

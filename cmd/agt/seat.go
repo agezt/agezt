@@ -12,24 +12,24 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdSeat(args []string, stdout, stderr io.Writer) int {
-	if len(args) > 0 {
-		switch args[0] {
-		case "add", "create":
-			return cmdSeatAdd(args[1:], stdout, stderr)
-		case "remove", "rm", "delete":
-			return cmdSeatRemove(args[1:], stdout, stderr)
-		case "list", "ls", "-h", "--help", "help", "--json":
-			// fall through to the listing
-		default:
-			fmt.Fprintf(stderr, "%s seats: unexpected arg %q\n", brand.CLI, args[0])
-			fmt.Fprintf(stderr, "usage: %s seats [list] [--json] | seats add <id> [--exec P] [--name N] [--desc D] [--tool X] | seats remove <id>\n", brand.CLI)
-			return 2
-		}
+	if len(args) == 0 {
+		return cmdSeatList(args, stdout, stderr)
 	}
+	if sub, ok := cliSeat.lookup(args[0]); ok {
+		return sub.run(nil, args, stdout, stderr)
+	}
+	fmt.Fprintf(stderr, "%s seats: unexpected arg %q\n", brand.CLI, args[0])
+	fmt.Fprintf(stderr, "usage: %s seats [list] [--json] | seats add <id> [--exec P] [--name N] [--desc D] [--tool X] | seats remove <id>\n", brand.CLI)
+	return 2
+}
+
+// cmdSeatList lists the seats. It takes the whole argument list: the listing
+// is also what "seats --json" and "seats help" mean.
+func cmdSeatList(args []string, stdout, stderr io.Writer) int {
 	asJSON := false
 	for _, a := range args {
 		switch a {
@@ -49,7 +49,7 @@ func cmdSeat(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdSeatList, map[string]any{})
+	res, err := c.Call(ctx, opapi.SeatList, map[string]any{})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s seats: %v\n", brand.CLI, err)
 		return 1
@@ -125,7 +125,7 @@ func cmdSeatAdd(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdSeatCreate, callArgs)
+	res, err := c.Call(ctx, opapi.SeatCreate, callArgs)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s seats add: %v\n", brand.CLI, err)
 		return 1
@@ -156,7 +156,7 @@ func cmdSeatRemove(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdSeatDelete, map[string]any{"id": id})
+	res, err := c.Call(ctx, opapi.SeatDelete, map[string]any{"id": id})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s seats remove: %v\n", brand.CLI, err)
 		return 1

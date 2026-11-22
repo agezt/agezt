@@ -16,7 +16,7 @@ import (
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/cadence"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdScheduleEdit(args []string, stdout, stderr io.Writer) int {
@@ -316,7 +316,7 @@ func cmdScheduleEdit(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdScheduleEdit, callArgs)
+	res, err := c.Call(ctx, opapi.ScheduleEdit, callArgs)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s schedule edit: %v\n", brand.CLI, err)
 		return 1

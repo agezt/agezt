@@ -272,7 +272,7 @@ reply, ack, topics, watch), bearer auth, multi-tenant aware — in **Python** (`
 `Client` + asyncio `AsyncClient`), **TypeScript** (`@agezt/sdk`, zero runtime
 dependencies over `fetch`), and **Rust** (the `agezt` crate, standard library
 only). See [`sdk/`](sdk/) and the CI-enforced
-[`docs/SDK-PARITY.md`](docs/SDK-PARITY.md).
+the generated SDK catalogs (`sdk/*/_generated.*`, `sdk/generated.go`).
 
 **Outbound webhooks.** `AGEZT_WEBHOOKS` takes a comma-list of
 `url|subject|secret` sinks; the daemon POSTs every matching journal event as it
@@ -408,7 +408,7 @@ channels: multi-account, guided Connect, OAuth, two-way email),
 ## Verify
 
 ```bash
-make check       # gen + vet + go test + deps-check + sdk-parity + dead code + frontend
+make check       # gen + vet + go test + deps-check + sdk-gen-check + dead code + frontend
 make test        # go test ./...
 make e2e         # boot a real daemon, exercise every core surface, assert 0 panics
 make webui-e2e   # Playwright against the embedded console (webui-e2e-ps on Windows)

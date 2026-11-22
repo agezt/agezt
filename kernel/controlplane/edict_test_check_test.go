@@ -6,7 +6,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
@@ -19,7 +19,7 @@ func TestEdictTest_AllowsKnownSafeCapability(t *testing.T) {
 	// Capability names use dots (DECISIONS F3 vocabulary): the
 	// constants in kernel/edict are `provider.call`, `file.read`,
 	// `http.post`, etc. — not underscore-separated.
-	res, err := c.Call(context.Background(), controlplane.CmdEdictTest, map[string]any{
+	res, err := c.Call(context.Background(), opapi.EdictTest, map[string]any{
 		"capability": "provider.call",
 		"input":      "POST /v1/chat",
 	})
@@ -41,7 +41,7 @@ func TestEdictTest_AllowsKnownSafeCapability(t *testing.T) {
 func TestEdictTest_HardDeniesForkBomb(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 
-	res, err := c.Call(context.Background(), controlplane.CmdEdictTest, map[string]any{
+	res, err := c.Call(context.Background(), opapi.EdictTest, map[string]any{
 		"capability": "shell",
 		"input":      ":(){:|:&};:",
 	})
@@ -64,7 +64,7 @@ func TestEdictTest_HardDeniesForkBomb(t *testing.T) {
 // capability (which would always return a default-deny).
 func TestEdictTest_RejectsMissingCapability(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
-	_, err := c.Call(context.Background(), controlplane.CmdEdictTest, map[string]any{
+	_, err := c.Call(context.Background(), opapi.EdictTest, map[string]any{
 		"input": "ls",
 	})
 	if err == nil {
@@ -82,7 +82,7 @@ func TestEdictTest_HasNoSideEffects(t *testing.T) {
 
 	headBefore, _ := k.Journal().Head()
 	for i := 0; i < 5; i++ {
-		_, err := c.Call(context.Background(), controlplane.CmdEdictTest, map[string]any{
+		_, err := c.Call(context.Background(), opapi.EdictTest, map[string]any{
 			"capability": "shell",
 			"input":      "echo hello",
 		})

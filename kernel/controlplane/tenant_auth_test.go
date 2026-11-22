@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/contract/memoryapi"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/contract/worldmodelapi"
@@ -122,7 +123,7 @@ func TestTenantToken_AuthorizesOwnTenant(t *testing.T) {
 	tok := mustTenant(t, reg, "acme")
 
 	c := tenantClient(t, dir, tok)
-	if _, err := c.Call(context.Background(), controlplane.CmdEdictShow,
+	if _, err := c.Call(context.Background(), opapi.EdictShow,
 		map[string]any{"tenant": "acme"}); err != nil {
 		t.Errorf("tenant token should manage its own edict; got %v", err)
 	}
@@ -136,7 +137,7 @@ func TestTenantToken_RejectsOtherTenant(t *testing.T) {
 	_ = mustTenant(t, reg, "beta")
 
 	c := tenantClient(t, dir, acmeTok)
-	_, err := c.Call(context.Background(), controlplane.CmdEdictShow,
+	_, err := c.Call(context.Background(), opapi.EdictShow,
 		map[string]any{"tenant": "beta"})
 	if err == nil || !strings.Contains(err.Error(), "unauthorized") {
 		t.Errorf("acme token targeting beta should be unauthorized; got %v", err)
@@ -152,20 +153,20 @@ func TestTenantToken_ForbidsNonAllowlistedCmd(t *testing.T) {
 
 	c := tenantClient(t, dir, tok)
 	// Tenant-registry management is primary-only.
-	_, err := c.Call(context.Background(), controlplane.CmdTenantList,
+	_, err := c.Call(context.Background(), opapi.TenantList,
 		map[string]any{"tenant": "acme"})
 	if err == nil || !strings.Contains(err.Error(), "forbidden") {
 		t.Errorf("tenant token running tenant_list should be forbidden; got %v", err)
 	}
 	// Daemon-global shutdown is primary-only.
-	_, err = c.Call(context.Background(), controlplane.CmdHalt,
+	_, err = c.Call(context.Background(), opapi.Halt,
 		map[string]any{"tenant": "acme"})
 	if err == nil || !strings.Contains(err.Error(), "forbidden") {
 		t.Errorf("tenant token running halt should be forbidden; got %v", err)
 	}
 	// Cross-tenant usage stats (M126) and durable-policy compaction (a mutation)
 	// stay primary-only even after the M128 observability grant.
-	for _, cmd := range []string{controlplane.CmdTenantStats, controlplane.CmdEdictCompact} {
+	for _, cmd := range []string{opapi.TenantStats, opapi.EdictCompact} {
 		if _, err := c.Call(context.Background(), cmd, map[string]any{"tenant": "acme"}); err == nil || !strings.Contains(err.Error(), "forbidden") {
 			t.Errorf("%s should stay primary-only; got %v", cmd, err)
 		}
@@ -183,12 +184,12 @@ func TestTenantToken_AllowsOwnObservability(t *testing.T) {
 	c := tenantClient(t, dir, tok)
 
 	for _, cmd := range []string{
-		controlplane.CmdMemoryLog, controlplane.CmdWorldLog,
-		controlplane.CmdApprovalsLog, controlplane.CmdApprovalsStats,
-		controlplane.CmdPlanHistory, controlplane.CmdPlanStats,
-		controlplane.CmdProviderLog, controlplane.CmdProviderStats, controlplane.CmdProviderRejections,
-		controlplane.CmdScheduleFires, controlplane.CmdScheduleStats,
-		controlplane.CmdWardenLog, controlplane.CmdWardenStats,
+		opapi.MemoryLog, opapi.WorldLog,
+		opapi.ApprovalsLog, opapi.ApprovalsStats,
+		opapi.PlanHistory, opapi.PlanStats,
+		opapi.ProviderLog, opapi.ProviderStats, opapi.ProviderRejections,
+		opapi.ScheduleFires, opapi.ScheduleStats,
+		opapi.WardenLog, opapi.WardenStats,
 	} {
 		if _, err := c.Call(context.Background(), cmd, map[string]any{"tenant": "acme"}); err != nil {
 			t.Errorf("tenant should observe its own %q; got %v", cmd, err)
@@ -203,11 +204,11 @@ func TestTenantToken_AllowsOwnRunStats(t *testing.T) {
 	tok := mustTenant(t, reg, "acme")
 
 	c := tenantClient(t, dir, tok)
-	if _, err := c.Call(context.Background(), controlplane.CmdRunsStats,
+	if _, err := c.Call(context.Background(), opapi.RunsStats,
 		map[string]any{"tenant": "acme"}); err != nil {
 		t.Errorf("tenant token should read its own run stats; got %v", err)
 	}
-	if _, err := c.Call(context.Background(), controlplane.CmdRunsList,
+	if _, err := c.Call(context.Background(), opapi.RunsList,
 		map[string]any{"tenant": "acme"}); err != nil {
 		t.Errorf("tenant token should list its own runs; got %v", err)
 	}
@@ -219,7 +220,7 @@ func TestTenantToken_InvalidRejected(t *testing.T) {
 	_ = mustTenant(t, reg, "acme")
 
 	c := tenantClient(t, dir, "deadbeefnotarealtoken")
-	_, err := c.Call(context.Background(), controlplane.CmdEdictShow,
+	_, err := c.Call(context.Background(), opapi.EdictShow,
 		map[string]any{"tenant": "acme"})
 	if err == nil || !strings.Contains(err.Error(), "unauthorized") {
 		t.Errorf("bogus token should be unauthorized; got %v", err)
@@ -252,7 +253,7 @@ func TestRunsAreTenantScoped(t *testing.T) {
 
 	corrsIn := func(args map[string]any) map[string]bool {
 		t.Helper()
-		res, err := c.Call(context.Background(), controlplane.CmdRunsList, args)
+		res, err := c.Call(context.Background(), opapi.RunsList, args)
 		if err != nil {
 			t.Fatalf("RunsList(%v): %v", args, err)
 		}
@@ -281,7 +282,7 @@ func TestRunsAreTenantScoped(t *testing.T) {
 
 // TestWhyIsTenantScoped — `agt why` is routed per-tenant (M53): a tenant's
 // event chain is traceable only under that tenant's scope, and the primary
-// scope can't see it (and vice versa). Also proves CmdWhy is allowlisted for a
+// scope can't see it (and vice versa). Also proves opapi.Why is allowlisted for a
 // tenant token (the tenant call reaches the handler rather than being forbidden).
 func TestWhyIsTenantScoped(t *testing.T) {
 	k, _, c, dir, reg := startPairWithTenants(t, mock.New(mock.FinalText("ok")))
@@ -309,7 +310,7 @@ func TestWhyIsTenantScoped(t *testing.T) {
 	tc := tenantClient(t, dir, tok)
 
 	// Tenant token tracing its OWN event: allowed and found.
-	res, err := tc.Call(context.Background(), controlplane.CmdWhy,
+	res, err := tc.Call(context.Background(), opapi.Why,
 		map[string]any{"event_id": tenID, "tenant": "acme"})
 	if err != nil {
 		t.Fatalf("tenant why of own event should succeed; got %v", err)
@@ -320,19 +321,19 @@ func TestWhyIsTenantScoped(t *testing.T) {
 
 	// Tenant token tracing the PRIMARY's event: not in the tenant journal →
 	// the chain isn't found, so the tenant can't see primary events.
-	if _, err := tc.Call(context.Background(), controlplane.CmdWhy,
+	if _, err := tc.Call(context.Background(), opapi.Why,
 		map[string]any{"event_id": primID, "tenant": "acme"}); err == nil {
 		t.Errorf("tenant why of a primary event should fail (isolation); got nil error")
 	}
 
 	// Symmetry: the primary scope sees its own event but NOT the tenant's.
-	if res, err := c.Call(context.Background(), controlplane.CmdWhy,
+	if res, err := c.Call(context.Background(), opapi.Why,
 		map[string]any{"event_id": primID}); err != nil {
 		t.Errorf("primary why of its own event should succeed; got %v", err)
 	} else if got, _ := res["correlation"].(string); got != "primary-run" {
 		t.Errorf("primary why correlation = %q want primary-run", got)
 	}
-	if _, err := c.Call(context.Background(), controlplane.CmdWhy,
+	if _, err := c.Call(context.Background(), opapi.Why,
 		map[string]any{"event_id": tenID}); err == nil {
 		t.Errorf("primary why of a tenant event should fail (isolation); got nil error")
 	}
@@ -345,7 +346,7 @@ func TestWhoami_PrimaryAndTenant(t *testing.T) {
 	tok := mustTenant(t, reg, "acme")
 
 	// Primary token (the default startPair client).
-	res, err := c.Call(context.Background(), controlplane.CmdWhoami, nil)
+	res, err := c.Call(context.Background(), opapi.Whoami, nil)
 	if err != nil {
 		t.Fatalf("primary whoami: %v", err)
 	}
@@ -358,7 +359,7 @@ func TestWhoami_PrimaryAndTenant(t *testing.T) {
 
 	// Tenant token.
 	tc := tenantClient(t, dir, tok)
-	tres, err := tc.Call(context.Background(), controlplane.CmdWhoami,
+	tres, err := tc.Call(context.Background(), opapi.Whoami,
 		map[string]any{"tenant": "acme"})
 	if err != nil {
 		t.Fatalf("tenant whoami: %v", err)
@@ -424,12 +425,12 @@ func TestPrimaryToken_RetainsFullAccess(t *testing.T) {
 	_ = mustTenant(t, reg, "acme")
 
 	// Primary managing a tenant's edict.
-	if _, err := c.Call(context.Background(), controlplane.CmdEdictShow,
+	if _, err := c.Call(context.Background(), opapi.EdictShow,
 		map[string]any{"tenant": "acme"}); err != nil {
 		t.Errorf("primary should manage any tenant's edict; got %v", err)
 	}
 	// Primary running tenant-registry management.
-	if _, err := c.Call(context.Background(), controlplane.CmdTenantList, nil); err != nil {
+	if _, err := c.Call(context.Background(), opapi.TenantList, nil); err != nil {
 		t.Errorf("primary should run tenant_list; got %v", err)
 	}
 }

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -46,7 +46,7 @@ func TestPulse_SinceTSMs_ReplaysOnlyRecent(t *testing.T) {
 	)
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- c.StreamUntilCancel(ctx, controlplane.CmdPulseSubscribe,
+		errCh <- c.StreamUntilCancel(ctx, opapi.PulseSubscribe,
 			map[string]any{
 				"pattern":     ">",
 				"since_ts_ms": cutoff,
@@ -97,7 +97,7 @@ func TestPulse_SinceTSMs_FutureCutoffSkipsAll(t *testing.T) {
 	)
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- c.StreamUntilCancel(ctx, controlplane.CmdPulseSubscribe,
+		errCh <- c.StreamUntilCancel(ctx, opapi.PulseSubscribe,
 			map[string]any{
 				"pattern":     ">",
 				"since_ts_ms": future,
@@ -158,7 +158,7 @@ func TestPulse_SinceTSMs_ComposesWithSince(t *testing.T) {
 	)
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- c.StreamUntilCancel(ctx, controlplane.CmdPulseSubscribe,
+		errCh <- c.StreamUntilCancel(ctx, opapi.PulseSubscribe,
 			map[string]any{
 				"pattern":     ">",
 				"since":       999999,
