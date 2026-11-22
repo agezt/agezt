@@ -1,4 +1,4 @@
-import type { WritePath, NativePath } from "@/app/api";
+import type { WritePath, NativeWritePath } from "@/app/api";
 import { useState } from "react";
 import { ArrowUpRight, Brain, FileCode, Heart, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -43,7 +43,7 @@ export function MindTab({
   onMutateTask: (id: string, op: "update" | "remove", status?: string) => void;
   onAddTask: (title: string, scope: "cycle" | "total") => void;
   onAction: (
-    path: WritePath | NativePath,
+    path: WritePath | NativeWritePath,
     params: Record<string, string>,
     success: string,
   ) => Promise<void> | void;

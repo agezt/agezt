@@ -17,7 +17,7 @@ import { SectionPanel } from "@/components/ui/section-panel";
 import { EmptyState } from "@/components/ui/empty";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { LogDetail } from "@/components/LogDetail";
-import { getJSON, postAction, postJSON, type WritePath, type NativePath } from "@/app/api";
+import { getJSON, postAction, postJSON, type WritePath, type NativeWritePath } from "@/app/api";
 import { byDescValue, pct } from "@/app/format";
 import { cn, fmtTime } from "@/app/utils";
 import type { EdictShowResponseHardDenyItem } from "@/app/api/types.generated";
@@ -202,7 +202,7 @@ export function Policy() {
 
   async function act(
     key: string,
-    path: WritePath | NativePath,
+    path: WritePath | NativeWritePath,
     params: Record<string, string>,
     opts?: { confirm?: ConfirmOptions; success?: string },
   ) {

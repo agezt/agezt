@@ -234,23 +234,29 @@ export type StreamPath =
   | "/api/run"
   | "/api/toolbox/install";
 
-/** The console's own endpoints: not operation bindings, but paths it answers. */
-export type NativePath =
+/** The console's own read endpoints: not operation bindings, but paths it answers with a GET. */
+export type NativeReadPath =
   | "/api/artifact/raw"
   | "/api/authmeta"
+  | "/api/files/raw"
+  | "/api/files/tree"
+  | "/api/rollback/checkpoints"
+  | "/api/sse-token"
+  | "/api/voice/status";
+
+/** The console's own write endpoints: not operation bindings, but paths it answers with a POST. */
+export type NativeWritePath =
   | "/api/files/delete"
   | "/api/files/mkdir"
-  | "/api/files/raw"
   | "/api/files/rename"
-  | "/api/files/tree"
   | "/api/login"
   | "/api/logout"
   | "/api/rollback/apply"
-  | "/api/rollback/checkpoints"
-  | "/api/sse-token"
   | "/api/transcribe"
-  | "/api/tts"
-  | "/api/voice/status";
+  | "/api/tts";
+
+/** Every console-native path, whatever its verb. */
+export type NativePath = NativeReadPath | NativeWritePath;
 
 /** Every path the console answers for an operation. */
 export type ApiPath = ReadPath | ReadArgsPath | WritePath | JsonPath | StreamPath;
@@ -271,7 +277,7 @@ export interface RequestOptions {
 declare const runtimePathBrand: unique symbol;
 export type RuntimePath = {
   readonly [runtimePathBrand]: true;
-} & (ReadPath | ReadArgsPath | NativePath);
+} & (ReadPath | ReadArgsPath | NativeReadPath | NativeWritePath);
 
 /** isRequestOptions tells a query bag from a request option bag. */
 function isRequestOptions(value: unknown): value is RequestOptions {
@@ -284,7 +290,7 @@ export async function getJSON<P extends ReadPath>(
   path: P,
   options?: RequestOptions,
 ): Promise<ResponseOf<P>>;
-export async function getJSON<P extends ReadArgsPath | NativePath>(
+export async function getJSON<P extends ReadArgsPath | NativeReadPath>(
   path: P,
   params?: Record<string, string>,
   options?: RequestOptions,
@@ -294,7 +300,7 @@ export async function getJSON<P extends RuntimePath>(
   params?: Record<string, string>,
   options?: RequestOptions,
 ): Promise<ResponseOf<P>>;
-export async function getJSON<P extends ReadPath | ReadArgsPath | NativePath | RuntimePath>(
+export async function getJSON<P extends ReadPath | ReadArgsPath | NativeReadPath | RuntimePath>(
   path: P,
   paramsOrOptions?: Record<string, string> | RequestOptions,
   options?: RequestOptions,
@@ -355,7 +361,7 @@ async function requestGet<T>(
   }
 }
 
-export async function postJSON<P extends JsonPath | NativePath>(
+export async function postJSON<P extends JsonPath | NativeWritePath>(
   path: P,
   body: RequestOf<P>,
   options?: { signal?: AbortSignal },
@@ -365,14 +371,14 @@ export async function postJSON<P extends JsonPath | NativePath>(
 
 /** postJSONAt is the runtime-path twin of postJSON. */
 export async function postJSONAt<T = any>(
-  path: JsonPath | NativePath,
+  path: JsonPath | NativeWritePath,
   body: unknown,
   options?: { signal?: AbortSignal },
 ): Promise<T> {
   return postBody<T>(path, body, options);
 }
 
-export async function postAction<P extends WritePath | NativePath>(
+export async function postAction<P extends WritePath | NativeWritePath>(
   path: P,
   params?: Record<string, string>,
 ): Promise<ResponseOf<P>> {
@@ -381,7 +387,7 @@ export async function postAction<P extends WritePath | NativePath>(
 
 /** postActionAt is the runtime-path twin of postAction. */
 export async function postActionAt<T = any>(
-  path: WritePath | NativePath,
+  path: WritePath | NativeWritePath,
   params?: Record<string, string>,
 ): Promise<T> {
   return postQuery<T>(path, params);

@@ -1,5 +1,68 @@
 # NEXT — handoff for the next coding agent
 
+## Current checkpoint — W5.5 the console's own endpoints get one home, 2026-11-22
+
+The W0–W5 objective remains open. This slice closes the last open end W5.1
+(left in the handoff) and W5.4 kept: *"the console's native endpoints are
+**named** in one place, but the console still registers each one by hand."*
+
+### What was on the tree
+
+- `kernel/contract/opapi/native.go` — the console's **own** endpoints are now a
+  structured list: `Name`, `Path`, `Method`, `Public`, `Mutation`. The names
+  are constants, so a handler cannot be bound to a name the contract does not
+  carry.
+- `kernel/webui/webui_routes.go` — the console binds a handler to each
+  endpoint **by name** and registers the contract's paths. It writes **no
+  path at all**: the last three console path literals are gone (the 21
+  `router.Handle("/api/…")` calls, `"/hooks/"`, `"/events"`). The map says
+  only what the contract cannot: which handler answers, and the timeout and
+  body cap the console allows.
+- `tools/openapi/client.go` — the client publishes the console-native paths
+  **split by verb**: `NativeReadPath` (7) and `NativeWritePath` (8). A wrong
+  verb is a compile error, not a 405.
+- The browser's 15 components that carried the verb-blind `NativePath` union
+  now name the verb they can use (13 POST, 2 GET).
+
+### What the measurement said
+
+- **21** console-native endpoints; the path was written **twice** (the
+  contract's list and the console's literals) and the method, tier and
+  mutation flag were written only in the console.
+- The generated client published the 15 console-native paths as **one flat
+  union** accepted by `getJSON`, `postJSON` **and** `postAction` — so the
+  browser could compile a `GET /api/login` and a `POST /api/authmeta`, both
+  of which the console answers **405**. Nothing in the browser could catch
+  it: the path was in the union, the verb was not.
+- `Mutation` is **not** derivable from the method: the OAuth callback is a
+  `GET` that stores a channel token. The contract states it.
+
+### The evidence
+
+`architecture/325-w55-the-console-own-endpoints-get-one-home-evidence.md` — the
+measurement, the four guards, the four mutations (a handler the contract does
+not name; a name with no handler; the console overriding the contract's
+method; the browser calling a native write endpoint with GET) and the gate
+table.
+
+### What the next slice should do
+
+The browser's **view types** are still the browser's own names
+(`AgentProfile`, `ReaperReport`, `ApiOrder`). The daemon's rows are the truth;
+a browser that wants a narrower view should say so with `Pick`, so the daemon's
+row types can be named directly and `Pick` becomes the browser's only narrowing
+tool. That is the last of the "the dictionary gets one home" work.
+
+Two smaller open ends carried from the first halves:
+
+- `docs/openapi.json` carries the daemon's version, so a version bump makes it
+  stale and the `-check` gate fails. That is intended, but the release step
+  has to regenerate it.
+- **W4** is still untouched: `modules/triggers` (W4.1), `modules/pulse`
+  absorbing anomaly + alerter (W4.2), the channels supervisor and conversation
+  store (W4.3), email DKIM/SPF (W4.4) and signed self-update (W4.5). Those
+  change behaviour, so they need the owner's decisions, not a cleanup.
+
 ## Current checkpoint — W5.1 the browser's payload types get one home, 2026-11-22
 
 The W0–W5 objective remains open. This is the **second half** of W5.1: the first

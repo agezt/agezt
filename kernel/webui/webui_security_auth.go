@@ -166,7 +166,7 @@ func (s *Server) dataTokenPresented(r *http.Request) bool {
 	// EventSource API cannot set custom headers (VULN query-string-token).
 	// Other data routes default to Bearer header / session cookie; the
 	// allowQueryTokensForData legacy flag preserves ?token= for test support.
-	if r.URL.Path == "/events" {
+	if r.URL.Path == consoleEventsPath {
 		if s.sseTokenMatch(r.URL.Query().Get("st")) || s.tokenPresentedFrom(r, false) {
 			return true
 		}

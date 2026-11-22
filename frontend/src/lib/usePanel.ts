@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { getJSON, type ReadPath, type ReadArgsPath, type NativePath, type RuntimePath } from "@/app/api";
+import { getJSON, type ReadPath, type ReadArgsPath, type NativeReadPath, type RuntimePath } from "@/app/api";
 
 interface PanelState<T> {
   data: T | null;
@@ -16,7 +16,7 @@ interface PanelState<T> {
 // the daemon does not answer, and the caller's literal is checked against the
 // catalogue at the call site.
 export function usePanel<T = any>(
-  path: ReadPath | ReadArgsPath | NativePath,
+  path: ReadPath | ReadArgsPath | NativeReadPath,
   params?: Record<string, string>,
 ): PanelState<T> {
   const [data, setData] = useState<T | null>(null);

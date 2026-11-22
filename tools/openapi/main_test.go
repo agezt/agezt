@@ -86,8 +86,8 @@ func TestTheBrowserOnlyNamesPathsTheConsoleAnswers(t *testing.T) {
 	for _, route := range opapi.ConsoleRoutes() {
 		allowed[route.Path] = true
 	}
-	for _, path := range opapi.ConsoleNativePaths() {
-		allowed[path] = true
+	for _, route := range opapi.ConsoleNativeRoutes() {
+		allowed[route.Path] = true
 	}
 	root := filepath.Join(repoRoot, "frontend", "src")
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
