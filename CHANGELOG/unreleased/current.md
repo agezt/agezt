@@ -3340,6 +3340,27 @@ This file holds the active `[Unreleased]` working set.
   catalogue drift apart, or when the application layer repeats a name as a literal. The names and
   their values did not change: the wire protocol is exactly what it was.
 
+- **The browser's view of the daemon's rows is the daemon's rows.** The browser wrote **470**
+  hand-written types of its own; **126** of them copied a daemon row field for field, and **91** of
+  those conflicted with the daemon over **570** fields — **568** of them defensively (the browser
+  marked a field the daemon always sends as optional) and **2** of them false promises (the
+  browser named a field the daemon may not send). The browser's views are now narrowings of the
+  daemon's own rows — a `Pick<Row, …>` or fields whose types are indexed accesses into the row:
+  the browser names the fields it reads, the daemon says what they are. The renderer keeps the
+  registry's null arm **only on a member the daemon always sends**: such a member carries no `?`,
+  so without the arm the browser would read a null as a value, while a member the daemon may omit
+  carries the `?` already and needs no second warning. Restoring that arm cost **56** compile
+  errors, and the compiler's list is the list of the places the two disagreed — all **56** are
+  resolved, and a null the daemon may send is now answered for at the boundary (`?? []`). The
+  renderer also carried a precedence bug: a nullable array item was rendered `X | null[]` (an
+  array of nulls) instead of `(X | null)[]`. Two new guards hold the line: **3** tests on the
+  renderer's rules (`tools/openapi/types_ratchet_test.go`) and **35** compile-time assertions that
+  the daemon's field type must fit the browser's view of it
+  (`frontend/src/app/api/viewtypes.ratchet.test.ts`), proved to fire by **4** reverted mutations.
+  One daemon bug fell out of the binding: the workflow run list dropped the `output_truncated`
+  flag its own journal carried, so the canvas's "output (truncated)" hint could never fire — the
+  daemon's row now carries it, and the browser's field is the daemon's.
+
 ### Fixed
 
 - **The agent gateway is the daemon's transport, and it is closed before the

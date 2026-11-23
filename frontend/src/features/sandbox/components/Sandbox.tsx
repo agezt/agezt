@@ -16,6 +16,7 @@ import { LoadMoreFooter } from "@/components/ui/load-more-footer";
 import { ToggleChip } from "@/components/ui/segmented";
 import { bytes as fmtBytes } from "@/app/format";
 import { SectionPanel } from "@/components/ui/section-panel";
+import type { SandboxListResponseProjectsItem, SandboxListResponseProjectsItemFilesItem } from "@/app/api/types.generated";
 
 // PROJECT_WINDOW is how many project cards render at once. /api/sandbox has no
 // cursor, so every project arrives in one fetch — the window keeps a big
@@ -81,20 +82,19 @@ function downloadText(name: string, text: string) {
 }
 
 // One file inside a project (name relative to the project root, byte size).
-type SbFile = {
-  name: string;
-  bytes: number;
+// SbFile is a project file as the Sandbox view reads it.
+export type SbFile = {
+  name: SandboxListResponseProjectsItemFilesItem["name"];
+  bytes: SandboxListResponseProjectsItemFilesItem["bytes"];
 };
 
-// One persistent code_exec project the agent built under <baseDir>/sandbox/projects.
 type Project = {
-  name: string;
-  files: SbFile[];
-  file_count: number;
-  total_bytes: number;
-  modified_unix: number;
+  name: SandboxListResponseProjectsItem["name"];
+  files: SandboxListResponseProjectsItem["files"];
+  file_count: SandboxListResponseProjectsItem["file_count"];
+  total_bytes: SandboxListResponseProjectsItem["total_bytes"];
+  modified_unix: SandboxListResponseProjectsItem["modified_unix"];
 };
-
 
 // Sandbox shows what the agents BUILT with the code_exec tool: each persistent
 // project, its files, and (on click) a file's contents — so the work agents do
@@ -288,7 +288,7 @@ function ProjectCard({
   // What the agent actually authored, versus what a clone or an install left
   // behind. The card leads with the authored count because that is the number
   // the operator is here for.
-  const authored = p.files.filter((f) => !isBuildNoise(f.name)).length;
+  const authored = (p.files ?? []).filter((f) => !isBuildNoise(f.name)).length;
 
   return (
     <SectionPanel
@@ -335,8 +335,8 @@ function FileBrowser({ p }: { p: Project }) {
   const [showNoise, setShowNoise] = useState(false);
   const [win, setWin] = useState(FILE_WINDOW);
 
-  const noiseCount = p.files.filter((f) => isBuildNoise(f.name)).length;
-  const visible = p.files.filter((f) => {
+  const noiseCount = (p.files ?? []).filter((f) => isBuildNoise(f.name)).length;
+  const visible = (p.files ?? []).filter((f) => {
     if (!showNoise && isBuildNoise(f.name)) return false;
     return !query || f.name.toLowerCase().includes(query.toLowerCase());
   });

@@ -1,29 +1,32 @@
 import type { AgentEvent } from "@/app/events";
+import type { AutonomyFeedResponseItemsItem } from "@/app/api/types.generated";
 
+// AutonomyItem is a self-directed event row as the feed reads it.
+// AutonomyItem is a self-directed event row as the feed reads it.
 export type AutonomyItem = {
-  seq: number;
-  ts_unix_ms?: number;
-  kind: string;
-  subject?: string;
-  category: string;
-  title: string;
-  correlation_id?: string;
-  detail?: string;
-  agent?: string;
-  target_agent?: string;
-  delegate_to?: string;
-  delegated_by?: string;
-  root_agent?: string;
-  chain_depth?: number;
-  incident_id?: string;
-  root_incident_id?: string;
-  parent_incident_id?: string;
-  phase?: string;
-  mode?: string;
-  resolution?: string;
-  routing_task_type?: string;
-  routing_task_model_chain?: string[];
-  routing_force_generation?: number;
+  seq: AutonomyFeedResponseItemsItem["seq"];
+  ts_unix_ms?: AutonomyFeedResponseItemsItem["ts_unix_ms"];
+  kind: AutonomyFeedResponseItemsItem["kind"];
+  subject?: AutonomyFeedResponseItemsItem["subject"];
+  category: AutonomyFeedResponseItemsItem["category"];
+  title: AutonomyFeedResponseItemsItem["title"];
+  correlation_id?: AutonomyFeedResponseItemsItem["correlation_id"];
+  detail?: AutonomyFeedResponseItemsItem["detail"];
+  agent?: AutonomyFeedResponseItemsItem["agent"];
+  target_agent?: AutonomyFeedResponseItemsItem["target_agent"];
+  delegate_to?: AutonomyFeedResponseItemsItem["delegate_to"];
+  delegated_by?: AutonomyFeedResponseItemsItem["delegated_by"];
+  root_agent?: AutonomyFeedResponseItemsItem["root_agent"];
+  chain_depth?: AutonomyFeedResponseItemsItem["chain_depth"];
+  incident_id?: AutonomyFeedResponseItemsItem["incident_id"];
+  root_incident_id?: AutonomyFeedResponseItemsItem["root_incident_id"];
+  parent_incident_id?: AutonomyFeedResponseItemsItem["parent_incident_id"];
+  phase?: AutonomyFeedResponseItemsItem["phase"];
+  mode?: AutonomyFeedResponseItemsItem["mode"];
+  resolution?: AutonomyFeedResponseItemsItem["resolution"];
+  routing_task_type?: AutonomyFeedResponseItemsItem["routing_task_type"];
+  routing_task_model_chain?: AutonomyFeedResponseItemsItem["routing_task_model_chain"];
+  routing_force_generation?: AutonomyFeedResponseItemsItem["routing_force_generation"];
 };
 
 const AUTONOMY_KINDS = new Set([

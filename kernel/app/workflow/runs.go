@@ -47,6 +47,11 @@ type NodeEvent struct {
 	Input    string `json:"input,omitempty"`
 	Output   string `json:"output,omitempty"`
 	Attempts int    `json:"attempts,omitempty"`
+	// OutputTruncated says the node's output was cut short in the journal
+	// (the engine sets the flag when it snips the payload). It rides the run
+	// list so the canvas can say "output (truncated)" instead of showing a
+	// snippet that looks whole.
+	OutputTruncated bool `json:"output_truncated,omitempty"`
 }
 type RunRecord struct {
 	CorrelationID     string      `json:"correlation_id"`
@@ -112,23 +117,24 @@ func (h History) Runs(_ context.Context, in RunsInput) (RunsOutput, error) {
 			r.ParentCorrelation = p.ParentCorrelation
 		case event.KindWorkflowNode:
 			var p struct {
-				Node     string `json:"node"`
-				Type     string `json:"type"`
-				Label    string `json:"label"`
-				OK       *bool  `json:"ok"`
-				Port     string `json:"port"`
-				Handled  *bool  `json:"handled"`
-				Error    string `json:"error"`
-				Input    string `json:"input"`
-				Output   string `json:"output"`
-				Attempts int    `json:"attempts"`
-				Test     bool   `json:"test"`
+				Node            string `json:"node"`
+				Type            string `json:"type"`
+				Label           string `json:"label"`
+				OK              *bool  `json:"ok"`
+				Port            string `json:"port"`
+				Handled         *bool  `json:"handled"`
+				Error           string `json:"error"`
+				Input           string `json:"input"`
+				Output          string `json:"output"`
+				OutputTruncated bool   `json:"output_truncated"`
+				Attempts        int    `json:"attempts"`
+				Test            bool   `json:"test"`
 			}
 			_ = json.Unmarshal(e.Payload, &p)
 			if p.Node == "" || p.Test {
 				return nil
 			}
-			node := NodeEvent{Node: p.Node, TSMS: e.TSUnixMS, OK: p.OK == nil || *p.OK, Type: p.Type, Label: p.Label, Port: p.Port, Handled: p.Handled, Error: p.Error, Input: p.Input, Output: p.Output}
+			node := NodeEvent{Node: p.Node, TSMS: e.TSUnixMS, OK: p.OK == nil || *p.OK, Type: p.Type, Label: p.Label, Port: p.Port, Handled: p.Handled, Error: p.Error, Input: p.Input, Output: p.Output, OutputTruncated: p.OutputTruncated}
 			if p.Attempts > 1 {
 				node.Attempts = p.Attempts
 			}

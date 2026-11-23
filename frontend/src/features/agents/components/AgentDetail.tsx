@@ -977,7 +977,7 @@ export function AgentDetail({
               toolErrors={myToolErrors}
               runs={summary.runs}
               configIssues={health.configIssues}
-              taskModelChain={repairTaskChain}
+              taskModelChain={repairTaskChain ?? undefined}
               onApplied={() => {
                 setBump((b) => b + 1);
                 onChanged?.();

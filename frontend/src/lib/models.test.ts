@@ -1,23 +1,67 @@
 import { describe, it, expect } from "vitest";
 import { flattenModels, filterModels, groupByProvider, pinnedOptions, fmtContext, findModelContext, modelHealth, type ModelCatalog } from "@/lib/models";
+import type {
+  CatalogListResponseProvidersItem,
+  CatalogListResponseProvidersItemModelsItem,
+} from "@/app/api/types.generated";
+
+// model builds a COMPLETE catalog model row — the daemon always sends every
+// field of a model, so a fixture that leaves one out would be a fixture the
+// daemon cannot produce.
+function model(
+  over: Partial<CatalogListResponseProvidersItemModelsItem> = {},
+): CatalogListResponseProvidersItemModelsItem {
+  return {
+    id: "m",
+    name: "m",
+    family: "",
+    context: 0,
+    output: 0,
+    reasoning: false,
+    tool_call: false,
+    strict_tool_args: false,
+    grammar_constrained_decoding: false,
+    schema_constrained_decoding: false,
+    ...over,
+  };
+}
+
+// provider builds a COMPLETE catalog provider row — same rule as model().
+function provider(
+  over: Partial<CatalogListResponseProvidersItem> = {},
+): CatalogListResponseProvidersItem {
+  return {
+    id: "p",
+    name: "p",
+    api: "",
+    doc: "",
+    family: "",
+    credentialed: false,
+    model_count: 0,
+    env: [],
+    models: [],
+    ...over,
+  };
+}
 
 const cat: ModelCatalog = {
+  provider_count: 2,
   providers: [
-    {
+    provider({
       id: "openai",
       name: "OpenAI",
       credentialed: false,
       models: [
-        { id: "gpt-4o", name: "GPT-4o", tool_call: true, reasoning: false, context: 128000, cost_input_usd_per_mtok: 5 },
-        { id: "o3", name: "o3", tool_call: true, reasoning: true, context: 200000 },
+        model({ id: "gpt-4o", name: "GPT-4o", tool_call: true, reasoning: false, context: 128000, cost_input_usd_per_mtok: 5 }),
+        model({ id: "o3", name: "o3", tool_call: true, reasoning: true, context: 200000 }),
       ],
-    },
-    {
+    }),
+    provider({
       id: "deepseek",
       name: "DeepSeek",
       credentialed: true,
-      models: [{ id: "deepseek-v4-pro", name: "DeepSeek V4 Pro", tool_call: true, context: 1000000 }],
-    },
+      models: [model({ id: "deepseek-v4-pro", name: "DeepSeek V4 Pro", tool_call: true, context: 1000000 })],
+    }),
   ],
 };
 
@@ -34,7 +78,7 @@ describe("flattenModels", () => {
 
   it("returns empty for a null/empty catalog", () => {
     expect(flattenModels(null)).toEqual([]);
-    expect(flattenModels({})).toEqual([]);
+    expect(flattenModels({ provider_count: 0, providers: null })).toEqual([]);
   });
 });
 
@@ -79,9 +123,10 @@ describe("findModelContext", () => {
 describe("pinnedOptions", () => {
   it("resolves ids in order, preferring a credentialed provider", () => {
     const multi: ModelCatalog = {
+      provider_count: 2,
       providers: [
-        { id: "unkeyed", credentialed: false, models: [{ id: "shared-model" }] },
-        { id: "keyed", credentialed: true, models: [{ id: "shared-model" }, { id: "keyed-only" }] },
+        provider({ id: "unkeyed", credentialed: false, models: [model({ id: "shared-model" })] }),
+        provider({ id: "keyed", credentialed: true, models: [model({ id: "shared-model" }), model({ id: "keyed-only" })] }),
       ],
     };
     const out = pinnedOptions(flattenModels(multi), ["keyed-only", "shared-model"]);
@@ -113,9 +158,10 @@ describe("modelHealth", () => {
   });
   it("prefers ok if any serving provider is credentialed", () => {
     const multi: ModelCatalog = {
+      provider_count: 2,
       providers: [
-        { id: "unkeyed", credentialed: false, models: [{ id: "shared" }] },
-        { id: "keyed", credentialed: true, models: [{ id: "shared" }] },
+        provider({ id: "unkeyed", credentialed: false, models: [model({ id: "shared" })] }),
+        provider({ id: "keyed", credentialed: true, models: [model({ id: "shared" })] }),
       ],
     };
     expect(modelHealth(multi, "shared")).toBe("ok");

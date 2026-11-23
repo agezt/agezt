@@ -1,42 +1,50 @@
 import type { ExecutionProfilesResponseProfilesItemSecretPolicy } from "@/app/api/types.generated";
+import type {
+  ExecutionProfileCheckResponse,
+  ExecutionProfilesResponse,
+  ExecutionProfilesResponseProfilesItem,
+} from "@/app/api/types.generated";
 // types.ts — execution-profiles type definitions (extracted from ExecutionProfiles.tsx). Day 23 god file split.
 //
 // Only exported type/interface declarations live here. Internal types
 // stay in page.tsx because they aren't consumed outside the
 // package's barrel. Public surface (page.tsx re-exports) unchanged.
 
+// ExecutionProfile is an execution profile row as the page reads it.
 export type ExecutionProfile = {
-  id?: string;
-  name?: string;
-  summary?: string;
-  status?: string;
-  routed?: boolean;
-  requested_isolation?: string;
-  effective_isolation?: string;
-  degraded?: boolean;
-  degrade_reason?: string;
-  tools?: string[];
-  backends?: string[];
-  filesystem?: string;
-  network?: string;
-  environment?: string;
-  secrets?: string;
-  secret_policy?: ExecutionProfilesResponseProfilesItemSecretPolicy;
-  limits?: string[];
-  browser_access?: string;
-  cleanup?: string;
-  policy_capability?: string;
-  notes?: string[];
+  id?: ExecutionProfilesResponseProfilesItem["id"];
+  name?: ExecutionProfilesResponseProfilesItem["name"];
+  summary?: ExecutionProfilesResponseProfilesItem["summary"];
+  status?: ExecutionProfilesResponseProfilesItem["status"];
+  routed?: ExecutionProfilesResponseProfilesItem["routed"];
+  requested_isolation?: ExecutionProfilesResponseProfilesItem["requested_isolation"];
+  effective_isolation?: ExecutionProfilesResponseProfilesItem["effective_isolation"];
+  degraded?: ExecutionProfilesResponseProfilesItem["degraded"];
+  degrade_reason?: ExecutionProfilesResponseProfilesItem["degrade_reason"];
+  tools?: ExecutionProfilesResponseProfilesItem["tools"];
+  backends?: ExecutionProfilesResponseProfilesItem["backends"];
+  filesystem?: ExecutionProfilesResponseProfilesItem["filesystem"];
+  network?: ExecutionProfilesResponseProfilesItem["network"];
+  environment?: ExecutionProfilesResponseProfilesItem["environment"];
+  secrets?: ExecutionProfilesResponseProfilesItem["secrets"];
+  secret_policy?: ExecutionProfilesResponseProfilesItem["secret_policy"];
+  limits?: ExecutionProfilesResponseProfilesItem["limits"];
+  browser_access?: ExecutionProfilesResponseProfilesItem["browser_access"];
+  cleanup?: ExecutionProfilesResponseProfilesItem["cleanup"];
+  policy_capability?: ExecutionProfilesResponseProfilesItem["policy_capability"];
+  notes?: ExecutionProfilesResponseProfilesItem["notes"];
 };
+
 export type ExecutionProfileInventory = {
-  host_os?: string;
-  host_arch?: string;
-  profiles?: ExecutionProfile[];
-  count?: number;
-  routed_count?: number;
-  supported_count?: number;
-  degraded_count?: number;
+  host_os?: ExecutionProfilesResponse["host_os"];
+  host_arch?: ExecutionProfilesResponse["host_arch"];
+  profiles?: ExecutionProfile[] | null;
+  count?: ExecutionProfilesResponse["count"];
+  routed_count?: ExecutionProfilesResponse["routed_count"];
+  supported_count?: ExecutionProfilesResponse["supported_count"];
+  degraded_count?: ExecutionProfilesResponse["degraded_count"];
 };
+
 export type ExecutionProfileCheck = {
   id?: string;
   profile_id?: string;
@@ -50,15 +58,16 @@ export type ExecutionProfileCheck = {
   backend?: string;
 };
 export type ExecutionProfileHealthReport = {
-  host_os?: string;
-  host_arch?: string;
-  checks?: ExecutionProfileCheck[];
-  count?: number;
-  ok_count?: number;
-  warning_count?: number;
-  fail_count?: number;
-  routable_run_profiles?: string[];
+  host_os?: ExecutionProfileCheckResponse["host_os"];
+  host_arch?: ExecutionProfileCheckResponse["host_arch"];
+  checks?: ExecutionProfileCheck[] | null;
+  count?: ExecutionProfileCheckResponse["count"];
+  ok_count?: ExecutionProfileCheckResponse["ok_count"];
+  warning_count?: ExecutionProfileCheckResponse["warning_count"];
+  fail_count?: ExecutionProfileCheckResponse["fail_count"];
+  routable_run_profiles?: ExecutionProfileCheckResponse["routable_run_profiles"];
 };
+
 export type ConfigValueEntry = {
   env?: string;
   value?: string;

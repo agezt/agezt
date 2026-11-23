@@ -22,6 +22,11 @@ import {
   progressLabel,
   lastOpinionFor,
 } from "@/features/council/lib/council";
+import type {
+  CouncilAskResponse,
+  CouncilAskResponseMembersItem,
+  CouncilAskResponseOpinionsItem,
+} from "@/app/api/types.generated";
 
 // Council of Elders view (M839): consult the multi-model panel (kernel/runtime
 // M837). It shows which models sit on the council, takes a question, convenes the
@@ -29,26 +34,30 @@ import {
 // synthesizes), and renders the opinions + the consensus. The agent reaches the
 // same engine via the `council` tool; this is the operator's seat at the table.
 
-type Member = {
-  seat: string;
-  model: string;
+// Member is a council seat as the view reads it.
+export type Member = {
+  seat: CouncilAskResponseMembersItem["seat"];
+  model: CouncilAskResponseMembersItem["model"];
 };
-type Opinion = {
-  seat: string;
-  model: string;
-  round: number;
-  text: string;
-  error?: string;
+
+// Opinion is one seat's answer as the view reads it.
+export type Opinion = {
+  seat: CouncilAskResponseOpinionsItem["seat"];
+  model: CouncilAskResponseOpinionsItem["model"];
+  round: CouncilAskResponseOpinionsItem["round"];
+  text: CouncilAskResponseOpinionsItem["text"];
+  error?: CouncilAskResponseOpinionsItem["error"];
 };
+
 type CouncilResult = {
-  question: string;
-  consensus: string;
-  dissent?: string;
-  rounds: number;
-  members: Member[];
-  opinions: Opinion[];
-  as_of?: string;
-  brief?: string;
+  question: CouncilAskResponse["question"];
+  consensus: CouncilAskResponse["consensus"];
+  dissent?: CouncilAskResponse["dissent"];
+  rounds: CouncilAskResponse["rounds"];
+  members?: CouncilAskResponse["members"];
+  opinions?: CouncilAskResponse["opinions"];
+  as_of?: CouncilAskResponse["as_of"];
+  brief?: CouncilAskResponse["brief"];
 };
 
 export function Council() {
@@ -183,7 +192,7 @@ export function Council() {
     startCouncilRun(newCorr, q, members.map((m) => ({ seat: m.seat, model: m.model })), rounds);
     try {
       const res = await postJSON("/api/council/ask", { question: q, rounds, corr: newCorr });
-      applyCouncilResult(newCorr, { ...res, asOf: res.as_of, brief: res.brief });
+      applyCouncilResult(newCorr, { ...res, asOf: res.as_of, brief: res.brief, opinions: res.opinions ?? [] });
     } catch (e) {
       // The deliberation streams over events independently of this POST, so if the
       // request times out but the verdict still arrived, the error is moot — only

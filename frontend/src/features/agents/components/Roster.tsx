@@ -80,6 +80,7 @@ import {
 import { agentHue, initials } from "@/lib/agent";
 import { SectionPanel } from "@/components/ui/section-panel";
 import { Segmented } from "@/components/ui/segmented";
+import type { AgentImpactResponse } from "@/app/api/types.generated";
 export { agentHue, initials };
 
 // Re-exports: Roster.tsx remains the public module for the roster domain —
@@ -299,27 +300,7 @@ export function Roster() {
   // standing orders fire it) and show it in the confirm, so the effects are
   // explicit before the agent is retired. Recoverable via Revive.
   async function retire(slug: string) {
-    let impact: {
-      standing_orders?: string[];
-      schedules?: string[];
-      memories?: string[];
-      authored_shared_memories?: string[];
-      skills?: string[];
-      configs?: string[];
-      workspaces?: string[];
-      workflow_refs?: string[];
-      mailbox_messages?: string[];
-      subagents?: string[];
-      subagent_standing_orders?: string[];
-      subagent_schedules?: string[];
-      subagent_memories?: string[];
-      subagent_authored_shared_memories?: string[];
-      subagent_skills?: string[];
-      subagent_configs?: string[];
-      subagent_workspaces?: string[];
-      subagent_workflow_refs?: string[];
-      subagent_mailbox_messages?: string[];
-    } = {};
+    let impact: Partial<AgentImpactResponse> = {};
     try {
       impact = await getJSON("/api/agents/impact", { ref: slug });
     } catch {
@@ -433,27 +414,7 @@ export function Roster() {
   }
 
   async function removeAgent(slug: string) {
-    let impact: {
-      standing_orders?: string[];
-      schedules?: string[];
-      memories?: string[];
-      authored_shared_memories?: string[];
-      skills?: string[];
-      configs?: string[];
-      workspaces?: string[];
-      workflow_refs?: string[];
-      mailbox_messages?: string[];
-      subagents?: string[];
-      subagent_standing_orders?: string[];
-      subagent_schedules?: string[];
-      subagent_memories?: string[];
-      subagent_authored_shared_memories?: string[];
-      subagent_skills?: string[];
-      subagent_configs?: string[];
-      subagent_workspaces?: string[];
-      subagent_workflow_refs?: string[];
-      subagent_mailbox_messages?: string[];
-    } = {};
+    let impact: Partial<AgentImpactResponse> = {};
     try {
       impact = await getJSON("/api/agents/impact", { ref: slug });
     } catch {

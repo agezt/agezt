@@ -58,7 +58,7 @@ export interface AcpAgentsResponseClientsItem {
 /** AcpAgentsResponse */
 export interface AcpAgentsResponse {
   active_command?: string;
-  agents: AcpAgentsResponseAgentsItem[];
+  agents: AcpAgentsResponseAgentsItem[] | null;
   arch?: string;
   client_count?: number;
   clients?: AcpAgentsResponseClientsItem[];
@@ -264,7 +264,7 @@ export interface AgentListResponse {
   count: number;
   enabled_count: number;
   next_cursor?: string;
-  profiles: AgentListResponseProfilesItem[];
+  profiles: AgentListResponseProfilesItem[] | null;
   total: number;
 }
 
@@ -279,7 +279,7 @@ export interface AgentActivityResponseActivityItem {
 
 /** AgentActivityResponse */
 export interface AgentActivityResponse {
-  activity: AgentActivityResponseActivityItem[];
+  activity: AgentActivityResponseActivityItem[] | null;
   count: number;
   next_cursor?: string;
   slug: string;
@@ -298,9 +298,9 @@ export interface AgentAddRequest {
 
 /** AgentCapabilitiesResponseConfigEntriesItem */
 export interface AgentCapabilitiesResponseConfigEntriesItem {
-  allowed_agents: string[];
+  allowed_agents: string[] | null;
   description?: string;
-  excluded_agents: string[];
+  excluded_agents: string[] | null;
   key: string;
   owned?: boolean;
   rating: string;
@@ -313,17 +313,17 @@ export interface AgentCapabilitiesResponseConfigEntriesItem {
 export interface AgentCapabilitiesResponseGovernance {
   allowed_count: number;
   ask_count: number;
-  ask_tools: string[];
+  ask_tools: string[] | null;
   authority_boundary: string;
   blocked_count: number;
-  blocked_tools: string[];
+  blocked_tools: string[] | null;
   config_count: number;
   config_hidden_count: number;
   config_owned_count: number;
   config_visible_count: number;
-  direct_tools: string[];
+  direct_tools: string[] | null;
   execution_boundary: string;
-  hidden_configs: string[];
+  hidden_configs: string[] | null;
   max_cost_mc: number;
   max_daily_mc: number;
   memory_policy: string;
@@ -342,7 +342,7 @@ export interface AgentCapabilitiesResponseGovernance {
   tool_deny_count: number;
   tool_policy: string;
   trust_ceiling: string;
-  visible_configs: string[];
+  visible_configs: string[] | null;
 }
 
 /** AgentCapabilitiesResponsePermissionsItem */
@@ -365,7 +365,7 @@ export interface AgentCapabilitiesResponseWakeAccess {
   channel_allowed: boolean;
   delegation_allowed: boolean;
   delegation_scope: string;
-  delegation_sources: string[];
+  delegation_sources: string[] | null;
   direct_allowed: boolean;
   direct_callable: boolean;
   enabled: boolean;
@@ -384,14 +384,14 @@ export interface AgentCapabilitiesResponseWakeAccess {
 /** AgentCapabilitiesResponse */
 export interface AgentCapabilitiesResponse {
   allowed_count: number;
-  config_entries: AgentCapabilitiesResponseConfigEntriesItem[];
+  config_entries: AgentCapabilitiesResponseConfigEntriesItem[] | null;
   count: number;
   governance: AgentCapabilitiesResponseGovernance;
-  permissions: AgentCapabilitiesResponsePermissionsItem[];
+  permissions: AgentCapabilitiesResponsePermissionsItem[] | null;
   profile: AgentListResponseProfilesItem;
   slug: string;
-  tool_allow: string[];
-  tool_deny: string[];
+  tool_allow: string[] | null;
+  tool_deny: string[] | null;
   trust_ceiling: string;
   wake_access: AgentCapabilitiesResponseWakeAccess;
 }
@@ -455,7 +455,7 @@ export interface AgentEscalationsResponseEscalationsItem {
 /** AgentEscalationsResponse */
 export interface AgentEscalationsResponse {
   count: number;
-  escalations: AgentEscalationsResponseEscalationsItem[];
+  escalations: AgentEscalationsResponseEscalationsItem[] | null;
   next_cursor?: string;
   open_count: number;
   slug: string;
@@ -463,57 +463,57 @@ export interface AgentEscalationsResponse {
 
 /** AgentImpactResponse */
 export interface AgentImpactResponse {
-  authored_shared_memories: string[];
+  authored_shared_memories: string[] | null;
   authored_shared_memory_count: number;
   config_count: number;
-  configs: string[];
+  configs: string[] | null;
   mailbox_message_count: number;
-  mailbox_messages: string[];
-  memories: string[];
+  mailbox_messages: string[] | null;
+  memories: string[] | null;
   memory_count: number;
   schedule_count: number;
-  schedules: string[];
+  schedules: string[] | null;
   skill_count: number;
-  skills: string[];
+  skills: string[] | null;
   slug: string;
   standing_count: number;
-  standing_orders: string[];
-  subagent_authored_shared_memories: string[];
+  standing_orders: string[] | null;
+  subagent_authored_shared_memories: string[] | null;
   subagent_authored_shared_memory_count: number;
   subagent_config_count: number;
-  subagent_configs: string[];
+  subagent_configs: string[] | null;
   subagent_count: number;
   subagent_mailbox_message_count: number;
-  subagent_mailbox_messages: string[];
-  subagent_memories: string[];
+  subagent_mailbox_messages: string[] | null;
+  subagent_memories: string[] | null;
   subagent_memory_count: number;
   subagent_schedule_count: number;
-  subagent_schedules: string[];
+  subagent_schedules: string[] | null;
   subagent_skill_count: number;
-  subagent_skills: string[];
+  subagent_skills: string[] | null;
   subagent_standing_count: number;
-  subagent_standing_orders: string[];
+  subagent_standing_orders: string[] | null;
   subagent_workflow_ref_count: number;
-  subagent_workflow_refs: string[];
+  subagent_workflow_refs: string[] | null;
   subagent_workspace_count: number;
-  subagent_workspaces: string[];
-  subagents: string[];
+  subagent_workspaces: string[] | null;
+  subagents: string[] | null;
   workflow_ref_count: number;
-  workflow_refs: string[];
+  workflow_refs: string[] | null;
   workspace_count: number;
-  workspaces: string[];
+  workspaces: string[] | null;
 }
 
 /** AgentPermissionsResponse */
 export interface AgentPermissionsResponse {
   allowed_count: number;
-  config_entries: AgentCapabilitiesResponseConfigEntriesItem[];
+  config_entries: AgentCapabilitiesResponseConfigEntriesItem[] | null;
   count: number;
   governance: AgentCapabilitiesResponseGovernance;
-  permissions: AgentCapabilitiesResponsePermissionsItem[];
+  permissions: AgentCapabilitiesResponsePermissionsItem[] | null;
   slug: string;
-  tool_allow: string[];
-  tool_deny: string[];
+  tool_allow: string[] | null;
+  tool_deny: string[] | null;
   trust_ceiling: string;
   wake_access: AgentCapabilitiesResponseWakeAccess;
 }
@@ -570,7 +570,7 @@ export interface AgentRepairStatusResponseContract {
   failure_threshold: number;
   retry_attempts: number;
   retry_backoff: string;
-  retry_on: string[];
+  retry_on: string[] | null;
   self_repair_attempts: number;
   self_repair_enabled: boolean;
 }
@@ -578,7 +578,7 @@ export interface AgentRepairStatusResponseContract {
 /** AgentRepairStatusResponseHistoryItem */
 export interface AgentRepairStatusResponseHistoryItem {
   answer: string;
-  applied: string[];
+  applied: string[] | null;
   chain_depth: number;
   correlation_id: string;
   delegate_to: string;
@@ -586,21 +586,21 @@ export interface AgentRepairStatusResponseHistoryItem {
   error: string;
   fingerprint: string;
   incident_id: string;
-  issues: string[];
+  issues: string[] | null;
   mailbox_message_id: string;
   mode: string;
   next_eligible_ms: number;
   parent_incident_id: string;
   phase: string;
   previous_routing_force_generation: number;
-  previous_routing_task_model_chain: string[];
+  previous_routing_task_model_chain: string[] | null;
   reason: string;
   resolution: string;
   resolution_summary: string;
   root_agent: string;
   root_incident_id: string;
   routing_force_generation: number;
-  routing_task_model_chain: string[];
+  routing_task_model_chain: string[] | null;
   routing_task_type: string;
   self_repair_attempt: number;
   self_repair_max_attempts: number;
@@ -613,7 +613,7 @@ export interface AgentRepairStatusResponseHistoryItem {
 /** AgentRepairStatusResponseLatest */
 export interface AgentRepairStatusResponseLatest {
   answer: string;
-  applied: string[];
+  applied: string[] | null;
   chain_depth: number;
   correlation_id: string;
   delegate_to: string;
@@ -621,21 +621,21 @@ export interface AgentRepairStatusResponseLatest {
   error: string;
   fingerprint: string;
   incident_id: string;
-  issues: string[];
+  issues: string[] | null;
   mailbox_message_id: string;
   mode: string;
   next_eligible_ms: number;
   parent_incident_id: string;
   phase: string;
   previous_routing_force_generation: number;
-  previous_routing_task_model_chain: string[];
+  previous_routing_task_model_chain: string[] | null;
   reason: string;
   resolution: string;
   resolution_summary: string;
   root_agent: string;
   root_incident_id: string;
   routing_force_generation: number;
-  routing_task_model_chain: string[];
+  routing_task_model_chain: string[] | null;
   routing_task_type: string;
   self_repair_attempt: number;
   self_repair_max_attempts: number;
@@ -663,8 +663,8 @@ export interface AgentRepairStatusResponse {
   contract: AgentRepairStatusResponseContract;
   cooldown_sec: number;
   count: number;
-  history: AgentRepairStatusResponseHistoryItem[];
-  inflight: AgentRepairStatusResponseHistoryItem[];
+  history: AgentRepairStatusResponseHistoryItem[] | null;
+  inflight: AgentRepairStatusResponseHistoryItem[] | null;
   inflight_count: number;
   latest?: AgentRepairStatusResponseLatest;
   next_action: AgentRepairStatusResponseNextAction;
@@ -697,53 +697,53 @@ export interface AgentResolveRequest {
 
 /** AgentRetireResponseImpactSummary */
 export interface AgentRetireResponseImpactSummary {
-  authored_shared_memories: string[];
+  authored_shared_memories: string[] | null;
   authored_shared_memory_count: number;
   config_count: number;
-  configs: string[];
+  configs: string[] | null;
   mailbox_message_count: number;
-  mailbox_messages: string[];
-  memories: string[];
+  mailbox_messages: string[] | null;
+  memories: string[] | null;
   memory_count: number;
   schedule_count: number;
-  schedules: string[];
+  schedules: string[] | null;
   schedules_paused: number;
   skill_count: number;
-  skills: string[];
+  skills: string[] | null;
   slug: string;
   standing_count: number;
-  standing_orders: string[];
+  standing_orders: string[] | null;
   standing_paused: number;
-  subagent_authored_shared_memories: string[];
+  subagent_authored_shared_memories: string[] | null;
   subagent_authored_shared_memory_count: number;
   subagent_config_count: number;
-  subagent_configs: string[];
+  subagent_configs: string[] | null;
   subagent_count: number;
   subagent_mailbox_message_count: number;
-  subagent_mailbox_messages: string[];
-  subagent_memories: string[];
+  subagent_mailbox_messages: string[] | null;
+  subagent_memories: string[] | null;
   subagent_memory_count: number;
   subagent_schedule_count: number;
-  subagent_schedules: string[];
+  subagent_schedules: string[] | null;
   subagent_skill_count: number;
-  subagent_skills: string[];
+  subagent_skills: string[] | null;
   subagent_standing_count: number;
-  subagent_standing_orders: string[];
+  subagent_standing_orders: string[] | null;
   subagent_workflow_ref_count: number;
-  subagent_workflow_refs: string[];
+  subagent_workflow_refs: string[] | null;
   subagent_workspace_count: number;
-  subagent_workspaces: string[];
-  subagents: string[];
+  subagent_workspaces: string[] | null;
+  subagents: string[] | null;
   workflow_ref_count: number;
-  workflow_refs: string[];
+  workflow_refs: string[] | null;
   workspace_count: number;
-  workspaces: string[];
+  workspaces: string[] | null;
 }
 
 /** AgentRetireResponse */
 export interface AgentRetireResponse {
-  impact: string[];
-  impact_summary: AgentRetireResponseImpactSummary;
+  impact: string[] | null;
+  impact_summary: AgentRetireResponseImpactSummary | null;
   profile: AgentListResponseProfilesItem;
   schedules_paused: number;
   standing_paused: number;
@@ -788,7 +788,7 @@ export interface AgentWakeRequest {
 /** ApprovalsResponsePendingItem */
 export interface ApprovalsResponsePendingItem {
   actor: string;
-  affected_resources: string[];
+  affected_resources: string[] | null;
   ambiguity_score: number;
   canonical_intent: string;
   capability: string;
@@ -800,9 +800,9 @@ export interface ApprovalsResponsePendingItem {
   harmful_interpretation: string;
   id: string;
   input: string;
-  predicted_effects: string[];
+  predicted_effects: string[] | null;
   reason: string;
-  regret_axes: Record<string, number>;
+  regret_axes: Record<string, number> | null;
   rollback_notes: string;
   timeout_unix: number;
   tool_name: string;
@@ -811,7 +811,7 @@ export interface ApprovalsResponsePendingItem {
 /** ApprovalsResponse */
 export interface ApprovalsResponse {
   count: number;
-  pending: ApprovalsResponsePendingItem[];
+  pending: ApprovalsResponsePendingItem[] | null;
 }
 
 /** ApprovalsLogResponseApprovalsItem */
@@ -830,7 +830,7 @@ export interface ApprovalsLogResponseApprovalsItem {
 
 /** ApprovalsLogResponse */
 export interface ApprovalsLogResponse {
-  approvals: ApprovalsLogResponseApprovalsItem[];
+  approvals: ApprovalsLogResponseApprovalsItem[] | null;
   count: number;
   next_cursor: string;
 }
@@ -879,7 +879,7 @@ export interface ArtifactListResponseEntriesItem {
 /** ArtifactListResponse */
 export interface ArtifactListResponse {
   count: number;
-  entries: ArtifactListResponseEntriesItem[];
+  entries: ArtifactListResponseEntriesItem[] | null;
 }
 
 /** AttentionResponseItemsItem */
@@ -894,7 +894,7 @@ export interface AttentionResponseItemsItem {
 /** AttentionResponse */
 export interface AttentionResponse {
   count: number;
-  items: AttentionResponseItemsItem[];
+  items: AttentionResponseItemsItem[] | null;
 }
 
 /** AutonomyFeedResponseItemsItem */
@@ -927,7 +927,7 @@ export interface AutonomyFeedResponseItemsItem {
 /** AutonomyFeedResponse */
 export interface AutonomyFeedResponse {
   count: number;
-  items: AutonomyFeedResponseItemsItem[];
+  items: AutonomyFeedResponseItemsItem[] | null;
 }
 
 /** BoardReadResponseMessagesItem */
@@ -946,9 +946,9 @@ export interface BoardReadResponseMessagesItem {
 /** BoardReadResponse */
 export interface BoardReadResponse {
   count: number;
-  messages: BoardReadResponseMessagesItem[];
+  messages: BoardReadResponseMessagesItem[] | null;
   next_cursor?: string;
-  topics: Record<string, number>;
+  topics: Record<string, number> | null;
   total: number;
 }
 
@@ -968,7 +968,7 @@ export interface BoardAckRequest {
 /** BoardHelpResponse */
 export interface BoardHelpResponse {
   count: number;
-  open_help: BoardReadResponseMessagesItem[];
+  open_help: BoardReadResponseMessagesItem[] | null;
 }
 
 /** BoardSendResponse */
@@ -998,7 +998,7 @@ export interface BudgetResponsePerTaskItem {
 /** BudgetResponse */
 export interface BudgetResponse {
   ceiling_mc: number;
-  per_task: BudgetResponsePerTaskItem[];
+  per_task: BudgetResponsePerTaskItem[] | null;
   spent_mc: number;
   strict_pricing: boolean;
   utc_date: string;
@@ -1033,11 +1033,11 @@ export interface CatalogListResponseProvidersItem {
   api: string;
   credentialed: boolean;
   doc: string;
-  env: string[];
+  env: string[] | null;
   family: string;
   id: string;
   model_count: number;
-  models: CatalogListResponseProvidersItemModelsItem[];
+  models: CatalogListResponseProvidersItemModelsItem[] | null;
   name: string;
 }
 
@@ -1048,8 +1048,8 @@ export interface CatalogListResponse {
   local_source: string;
   local_synced_at: string;
   provider_count: number;
-  providers: CatalogListResponseProvidersItem[];
-  sources: string[];
+  providers: CatalogListResponseProvidersItem[] | null;
+  sources: string[] | null;
 }
 
 /** CatalogSyncResponse */
@@ -1071,9 +1071,9 @@ export interface CatalogSyncRequest {
 
 /** ChainsGetResponse */
 export interface ChainsGetResponse {
-  chains: Record<string, string[]>;
+  chains: Record<string, string[] | null>;
   default: string;
-  usage: Record<string, any>;
+  usage: Record<string, any> | null;
 }
 
 /** ChainsSetResponse */
@@ -1176,7 +1176,7 @@ export interface ChannelListResponseChannelsItemAccountsItemProbe {
 /** ChannelListResponseChannelsItemAccountsItem */
 export interface ChannelListResponseChannelsItemAccountsItem {
   configured: boolean;
-  fields: ChannelListResponseChannelsItemAccountsItemFieldsItem[];
+  fields: ChannelListResponseChannelsItemAccountsItemFieldsItem[] | null;
   label: string;
   live: boolean;
   probe: ChannelListResponseChannelsItemAccountsItemProbe;
@@ -1202,7 +1202,7 @@ export interface ChannelListResponseChannelsItemProbe {
 
 /** ChannelListResponseChannelsItem */
 export interface ChannelListResponseChannelsItem {
-  accounts: ChannelListResponseChannelsItemAccountsItem[];
+  accounts: ChannelListResponseChannelsItemAccountsItem[] | null;
   config_section: string;
   configured: boolean;
   connect_method: string;
@@ -1210,12 +1210,12 @@ export interface ChannelListResponseChannelsItem {
   display: string;
   docs_url: string;
   duplex: boolean;
-  fields: ChannelListResponseChannelsItemAccountsItemFieldsItem[];
+  fields: ChannelListResponseChannelsItemAccountsItemFieldsItem[] | null;
   kind: string;
   live: boolean;
   media: ChannelListResponseChannelsItemMedia;
   probe: ChannelListResponseChannelsItemProbe;
-  setup_steps: string[];
+  setup_steps: string[] | null;
   transport: string;
 }
 
@@ -1239,7 +1239,7 @@ export interface ChannelListResponseProbeMatrix {
 
 /** ChannelListResponse */
 export interface ChannelListResponse {
-  channels: ChannelListResponseChannelsItem[];
+  channels: ChannelListResponseChannelsItem[] | null;
   count: number;
   media_matrix: ChannelListResponseMediaMatrix;
   probe_matrix: ChannelListResponseProbeMatrix;
@@ -1270,14 +1270,14 @@ export interface ConfigResponsePaths {
 /** ConfigResponseRouting */
 export interface ConfigResponseRouting {
   model_overrides?: Record<string, string>;
-  requires?: Record<string, string[]>;
-  routes?: Record<string, string[]>;
+  requires?: Record<string, string[] | null>;
+  routes?: Record<string, string[] | null>;
 }
 
 /** ConfigResponse */
 export interface ConfigResponse {
   ask_policy: string;
-  env: Record<string, boolean>;
+  env: Record<string, boolean> | null;
   model: string;
   paths: ConfigResponsePaths;
   plugin_count: number;
@@ -1289,7 +1289,7 @@ export interface ConfigResponse {
 /** ConfigSchemaResponseReloadBoundariesItem */
 export interface ConfigSchemaResponseReloadBoundariesItem {
   apply: string;
-  envs: string[];
+  envs: string[] | null;
 }
 
 /** ConfigSchemaResponseSectionsItemFieldsItem */
@@ -1308,7 +1308,7 @@ export interface ConfigSchemaResponseSectionsItemFieldsItem {
 
 /** ConfigSchemaResponseSectionsItem */
 export interface ConfigSchemaResponseSectionsItem {
-  fields: ConfigSchemaResponseSectionsItemFieldsItem[];
+  fields: ConfigSchemaResponseSectionsItemFieldsItem[] | null;
   help?: string;
   id: string;
   locked?: boolean;
@@ -1318,8 +1318,8 @@ export interface ConfigSchemaResponseSectionsItem {
 
 /** ConfigSchemaResponse */
 export interface ConfigSchemaResponse {
-  reload_boundaries: ConfigSchemaResponseReloadBoundariesItem[];
-  sections: ConfigSchemaResponseSectionsItem[];
+  reload_boundaries: ConfigSchemaResponseReloadBoundariesItem[] | null;
+  sections: ConfigSchemaResponseSectionsItem[] | null;
 }
 
 /** ConfigSchemaRegisterResponse */
@@ -1364,7 +1364,7 @@ export interface ConfigValuesResponseFieldsItem {
 
 /** ConfigValuesResponse */
 export interface ConfigValuesResponse {
-  fields: ConfigValuesResponseFieldsItem[];
+  fields: ConfigValuesResponseFieldsItem[] | null;
 }
 
 /** ConfigcenterAccessResponseEntry */
@@ -1408,7 +1408,7 @@ export interface ConfigcenterDeleteResponse {
 /** ConfigcenterListResponse */
 export interface ConfigcenterListResponse {
   count: number;
-  entries: ConfigcenterAccessResponseEntry[];
+  entries: ConfigcenterAccessResponseEntry[] | null;
 }
 
 /** ConfigcenterSetRatingResponse */
@@ -1438,8 +1438,8 @@ export interface CouncilAskResponse {
   consensus: string;
   correlation_id: string;
   dissent: string;
-  members: CouncilAskResponseMembersItem[];
-  opinions: CouncilAskResponseOpinionsItem[];
+  members: CouncilAskResponseMembersItem[] | null;
+  opinions: CouncilAskResponseOpinionsItem[] | null;
   question: string;
   rounds: number;
 }
@@ -1454,7 +1454,7 @@ export interface CouncilAskRequest {
 /** CouncilMembersResponse */
 export interface CouncilMembersResponse {
   count: number;
-  members: CouncilAskResponseMembersItem[];
+  members: CouncilAskResponseMembersItem[] | null;
 }
 
 /** CouncilSetResponse */
@@ -1484,7 +1484,7 @@ export interface DataCollectionsResponseCollectionsItem {
   created_by: string;
   created_ms: number;
   desc: string;
-  fields: DataCollectionsResponseCollectionsItemFieldsItem[];
+  fields: DataCollectionsResponseCollectionsItemFieldsItem[] | null;
   icon: string;
   name: string;
   system: boolean;
@@ -1494,7 +1494,7 @@ export interface DataCollectionsResponseCollectionsItem {
 
 /** DataCollectionsResponse */
 export interface DataCollectionsResponse {
-  collections: DataCollectionsResponseCollectionsItem[];
+  collections: DataCollectionsResponseCollectionsItem[] | null;
   count: number;
 }
 
@@ -1502,7 +1502,7 @@ export interface DataCollectionsResponse {
 export interface DataInsertResponseRecord {
   created_by: string;
   created_ms: number;
-  fields: Record<string, any>;
+  fields: Record<string, any> | null;
   id: string;
   updated_by: string;
   updated_ms: number;
@@ -1523,7 +1523,7 @@ export interface DataInsertRequest {
 export interface DataRecordsResponse {
   collection: string;
   count: number;
-  records: DataInsertResponseRecord[];
+  records: DataInsertResponseRecord[] | null;
   schema: DataCollectionsResponseCollectionsItem;
 }
 
@@ -1543,7 +1543,7 @@ export interface DecideResponse {
 
 /** EdictDenyAddResponse */
 export interface EdictDenyAddResponse {
-  applies_to: string[];
+  applies_to: string[] | null;
   count: number;
   name: string;
   substring: string;
@@ -1582,7 +1582,7 @@ export interface EdictTestResponse {
 
 /** EdictShowResponseHardDenyItem */
 export interface EdictShowResponseHardDenyItem {
-  applies_to: string[];
+  applies_to: string[] | null;
   name: string;
   substring: string;
 }
@@ -1590,8 +1590,8 @@ export interface EdictShowResponseHardDenyItem {
 /** EdictShowResponse */
 export interface EdictShowResponse {
   ask_policy: string;
-  hard_deny: EdictShowResponseHardDenyItem[];
-  levels: Record<string, string>;
+  hard_deny: EdictShowResponseHardDenyItem[] | null;
+  levels: Record<string, string> | null;
 }
 
 /** ExecutionProfileCheckResponseChecksItem */
@@ -1610,13 +1610,13 @@ export interface ExecutionProfileCheckResponseChecksItem {
 
 /** ExecutionProfileCheckResponse */
 export interface ExecutionProfileCheckResponse {
-  checks: ExecutionProfileCheckResponseChecksItem[];
+  checks: ExecutionProfileCheckResponseChecksItem[] | null;
   count: number;
   fail_count: number;
   host_arch: string;
   host_os: string;
   ok_count: number;
-  routable_run_profiles: string[];
+  routable_run_profiles: string[] | null;
   warning_count: number;
 }
 
@@ -1632,7 +1632,7 @@ export interface ExecutionProfilesResponseProfilesItemSecretPolicy {
 
 /** ExecutionProfilesResponseProfilesItem */
 export interface ExecutionProfilesResponseProfilesItem {
-  backends: string[];
+  backends: string[] | null;
   browser_access: string;
   cleanup: string;
   degrade_reason: string;
@@ -1641,10 +1641,10 @@ export interface ExecutionProfilesResponseProfilesItem {
   environment: string;
   filesystem: string;
   id: string;
-  limits: string[];
+  limits: string[] | null;
   name: string;
   network: string;
-  notes: string[];
+  notes: string[] | null;
   policy_capability: string;
   requested_isolation: string;
   routed: boolean;
@@ -1652,7 +1652,7 @@ export interface ExecutionProfilesResponseProfilesItem {
   secrets: string;
   status: string;
   summary: string;
-  tools: string[];
+  tools: string[] | null;
 }
 
 /** ExecutionProfilesResponse */
@@ -1661,7 +1661,7 @@ export interface ExecutionProfilesResponse {
   degraded_count: number;
   host_arch: string;
   host_os: string;
-  profiles: ExecutionProfilesResponseProfilesItem[];
+  profiles: ExecutionProfilesResponseProfilesItem[] | null;
   routed_count: number;
   supported_count: number;
 }
@@ -1688,7 +1688,7 @@ export interface InboxResponseThreadsItem {
   channel_kind: string;
   correlation_id: string;
   last_ts_unix_ms: number;
-  messages: InboxResponseThreadsItemMessagesItem[];
+  messages: InboxResponseThreadsItemMessagesItem[] | null;
 }
 
 /** InboxResponse */
@@ -1696,7 +1696,7 @@ export interface InboxResponse {
   channel?: string;
   count: number;
   next_cursor?: string;
-  threads: InboxResponseThreadsItem[];
+  threads: (InboxResponseThreadsItem | null)[];
   total: number;
 }
 
@@ -1719,7 +1719,7 @@ export interface JournalGrepResponseEventsItem {
 /** JournalGrepResponse */
 export interface JournalGrepResponse {
   count: number;
-  events: JournalGrepResponseEventsItem[];
+  events: JournalGrepResponseEventsItem[] | null;
   head: number;
 }
 
@@ -1747,7 +1747,7 @@ export interface MarketListResponsePacksItem {
 /** MarketListResponse */
 export interface MarketListResponse {
   count: number;
-  packs: MarketListResponsePacksItem[];
+  packs: MarketListResponsePacksItem[] | null;
 }
 
 /** MarketInstallResponse */
@@ -1790,7 +1790,7 @@ export interface MarketShowResponsePackSignature {
 
 /** MarketShowResponsePackSkillsItem */
 export interface MarketShowResponsePackSkillsItem {
-  resources?: Record<string, string>;
+  resources?: Record<string, string | null>;
   skill_md: string;
 }
 
@@ -1835,12 +1835,12 @@ export interface MarketShowResponse {
   installed: boolean;
   installed_at: number;
   mcp_count: number;
-  mcp_servers: string[];
+  mcp_servers: string[] | null;
   pack: MarketShowResponsePack;
   skill_count: number;
-  skills: MarketShowResponseSkillsItem[];
+  skills: MarketShowResponseSkillsItem[] | null;
   tool_count: number;
-  tools: string[];
+  tools: string[] | null;
   vet: MarketShowResponseVet;
 }
 
@@ -1870,7 +1870,7 @@ export interface MarketRemoveSourceResponse {
 /** MarketSourcesResponse */
 export interface MarketSourcesResponse {
   count: number;
-  sources: MarketAddSourceResponse[];
+  sources: MarketAddSourceResponse[] | null;
 }
 
 /** MarketSyncResponseResultsItem */
@@ -1886,7 +1886,7 @@ export interface MarketSyncResponseResultsItem {
 export interface MarketSyncResponse {
   packs: number;
   partial_error?: string;
-  results: MarketSyncResponseResultsItem[];
+  results: MarketSyncResponseResultsItem[] | null;
   synced: number;
 }
 
@@ -1919,7 +1919,7 @@ export interface McpListResponseServersItem {
 export interface McpListResponse {
   attached_count: number;
   count: number;
-  servers: McpListResponseServersItem[];
+  servers: McpListResponseServersItem[] | null;
 }
 
 /** McpAddResponse */
@@ -1937,7 +1937,7 @@ export interface McpAddRequest {
 /** McpAttachResponse */
 export interface McpAttachResponse {
   server: McpListResponseServersItem;
-  tools: string[];
+  tools: string[] | null;
 }
 
 /** McpDetachResponse */
@@ -1978,7 +1978,7 @@ export interface MemoryListResponseRecordsItem {
 export interface MemoryListResponse {
   count: number;
   next_cursor?: string;
-  records: MemoryListResponseRecordsItem[];
+  records: MemoryListResponseRecordsItem[] | null;
   total: number;
 }
 
@@ -2004,7 +2004,7 @@ export interface MemoryAddRequest {
 
 /** MemoryAuditResponseContradictionsItem */
 export interface MemoryAuditResponseContradictionsItem {
-  ids: string[];
+  ids: string[] | null;
   key: string;
   scope?: string;
   subject?: string;
@@ -2125,7 +2125,7 @@ export interface MemoryLogResponseOpsItem {
 export interface MemoryLogResponse {
   count: number;
   next_cursor: string;
-  ops: MemoryLogResponseOpsItem[];
+  ops: MemoryLogResponseOpsItem[] | null;
 }
 
 /** NetguardLogResponseBlocksItem */
@@ -2139,7 +2139,7 @@ export interface NetguardLogResponseBlocksItem {
 
 /** NetguardLogResponse */
 export interface NetguardLogResponse {
-  blocks: NetguardLogResponseBlocksItem[];
+  blocks: NetguardLogResponseBlocksItem[] | null;
   count: number;
   next_cursor: string;
 }
@@ -2164,7 +2164,7 @@ export interface NodeRegistryResponseNodesItem {
 export interface NodeRegistryResponse {
   count: number;
   error?: string;
-  nodes: NodeRegistryResponseNodesItem[];
+  nodes: NodeRegistryResponseNodesItem[] | null;
   peer_count: number;
   remote_run_registered?: boolean;
 }
@@ -2209,7 +2209,7 @@ export interface PlanRefineRequest {
 
 /** PlanResponse */
 export interface PlanResponse {
-  node_outputs: Record<string, any>;
+  node_outputs: Record<string, any> | null;
   plan_id: string;
 }
 
@@ -2227,7 +2227,7 @@ export interface PlanHistoryResponsePlansItem {
 export interface PlanHistoryResponse {
   count: number;
   next_cursor: string;
-  plans: PlanHistoryResponsePlansItem[];
+  plans: PlanHistoryResponsePlansItem[] | null;
 }
 
 /** EdictStatsResponse */
@@ -2235,7 +2235,7 @@ export interface EdictStatsResponse {
   allowed: number;
   denial_rate: number;
   denied: number;
-  denied_by_capability: Record<string, number>;
+  denied_by_capability: Record<string, number> | null;
   hard_denied: number;
   total: number;
   window_ms: number;
@@ -2257,14 +2257,14 @@ export interface EdictLogResponseDecisionsItem {
 /** EdictLogResponse */
 export interface EdictLogResponse {
   count: number;
-  decisions: EdictLogResponseDecisionsItem[];
+  decisions: EdictLogResponseDecisionsItem[] | null;
   next_cursor: string;
 }
 
 /** ProfileRebuildResponse */
 export interface ProfileRebuildResponse {
   correlation_id: string;
-  facets: string[];
+  facets: string[] | null;
   facets_written: number;
   input_records: number;
 }
@@ -2277,7 +2277,7 @@ export interface PromptsGetResponsePromptsItem {
 
 /** PromptsGetResponse */
 export interface PromptsGetResponse {
-  prompts: PromptsGetResponsePromptsItem[];
+  prompts: PromptsGetResponsePromptsItem[] | null;
 }
 
 /** PromptsSetResponse */
@@ -2321,7 +2321,7 @@ export interface ProviderKeyListResponseKeysItem {
 /** ProviderKeyListResponse */
 export interface ProviderKeyListResponse {
   env: string;
-  keys: ProviderKeyListResponseKeysItem[];
+  keys: ProviderKeyListResponseKeysItem[] | null;
   provider: string;
 }
 
@@ -2369,7 +2369,7 @@ export interface ProviderOauthImportResponse {
   connected: boolean;
   default_model: string;
   email: string;
-  models: string[];
+  models: string[] | null;
   ok: boolean;
 }
 
@@ -2396,7 +2396,7 @@ export interface ProviderOauthStatusResponse {
   default_model: string;
   email: string;
   error: string;
-  models: string[];
+  models: string[] | null;
   status: string;
 }
 
@@ -2445,7 +2445,7 @@ export interface ProviderLogResponseEventsItem {
 /** ProviderLogResponse */
 export interface ProviderLogResponse {
   count: number;
-  events: ProviderLogResponseEventsItem[];
+  events: ProviderLogResponseEventsItem[] | null;
   next_cursor: string;
 }
 
@@ -2502,7 +2502,7 @@ export interface RatelimitLogResponseThrottlesItem {
 export interface RatelimitLogResponse {
   count: number;
   next_cursor: string;
-  throttles: RatelimitLogResponseThrottlesItem[];
+  throttles: RatelimitLogResponseThrottlesItem[] | null;
 }
 
 /** ReaperScanResponseDeadAgentsItem */
@@ -2530,7 +2530,7 @@ export interface ReaperScanResponseDegradedAgentsItem {
 export interface ReaperScanResponseMisconfiguredAgentsItem {
   doctor_agent: string;
   escalate_to: string;
-  issues: string[];
+  issues: string[] | null;
   name: string;
   self_repair_enabled: boolean;
   slug: string;
@@ -2557,7 +2557,7 @@ export interface ReaperScanResponseRoutingForcedExhaustedAgentsItem {
   count: number;
   doctor_agent: string;
   escalate_to: string;
-  forced_chain: string[];
+  forced_chain: string[] | null;
   last_fallback_ms: number;
   last_forced_ms: number;
   last_reason: string;
@@ -2590,13 +2590,13 @@ export interface ReaperScanResponseRoutingPressureAgentsItem {
 /** ReaperScanResponseRoutingUnstableAgentsItem */
 export interface ReaperScanResponseRoutingUnstableAgentsItem {
   count: number;
-  current_chain: string[];
+  current_chain: string[] | null;
   doctor_agent: string;
   escalate_to: string;
   last_reason: string;
   last_rollback_ms: number;
   name: string;
-  previous_chain: string[];
+  previous_chain: string[] | null;
   self_repair_enabled: boolean;
   slug: string;
   task_type: string;
@@ -2606,24 +2606,24 @@ export interface ReaperScanResponseRoutingUnstableAgentsItem {
 
 /** ReaperScanResponse */
 export interface ReaperScanResponse {
-  dead_agents: ReaperScanResponseDeadAgentsItem[];
+  dead_agents: ReaperScanResponseDeadAgentsItem[] | null;
   dead_count: number;
-  degraded_agents: ReaperScanResponseDegradedAgentsItem[];
+  degraded_agents: ReaperScanResponseDegradedAgentsItem[] | null;
   degraded_count: number;
   idle_days: number;
-  misconfigured_agents: ReaperScanResponseMisconfiguredAgentsItem[];
+  misconfigured_agents: ReaperScanResponseMisconfiguredAgentsItem[] | null;
   misconfigured_count: number;
-  retry_pressure_agents: ReaperScanResponseRetryPressureAgentsItem[];
+  retry_pressure_agents: ReaperScanResponseRetryPressureAgentsItem[] | null;
   retry_pressure_count: number;
-  routing_forced_exhausted_agents: ReaperScanResponseRoutingForcedExhaustedAgentsItem[];
+  routing_forced_exhausted_agents: ReaperScanResponseRoutingForcedExhaustedAgentsItem[] | null;
   routing_forced_exhausted_count: number;
-  routing_forced_failed_agents: ReaperScanResponseRoutingForcedExhaustedAgentsItem[];
+  routing_forced_failed_agents: ReaperScanResponseRoutingForcedExhaustedAgentsItem[] | null;
   routing_forced_failed_count: number;
-  routing_forced_probation_agents: ReaperScanResponseRoutingForcedExhaustedAgentsItem[];
+  routing_forced_probation_agents: ReaperScanResponseRoutingForcedExhaustedAgentsItem[] | null;
   routing_forced_probation_count: number;
-  routing_pressure_agents: ReaperScanResponseRoutingPressureAgentsItem[];
+  routing_pressure_agents: ReaperScanResponseRoutingPressureAgentsItem[] | null;
   routing_pressure_count: number;
-  routing_unstable_agents: ReaperScanResponseRoutingUnstableAgentsItem[];
+  routing_unstable_agents: ReaperScanResponseRoutingUnstableAgentsItem[] | null;
   routing_unstable_count: number;
   stale_artifacts: number;
   stale_bytes: number;
@@ -2632,7 +2632,7 @@ export interface ReaperScanResponse {
 
 /** RedactTestResponse */
 export interface RedactTestResponse {
-  categories: string[];
+  categories: string[] | null;
   enabled: boolean;
   literal_hit: boolean;
   redacted: string;
@@ -2647,7 +2647,7 @@ export interface RedactTestRequest {
 /** ResearchAskResponseClaimsItem */
 export interface ResearchAskResponseClaimsItem {
   note: string;
-  source_ids: string[];
+  source_ids: string[] | null;
   text: string;
   verdict: string;
 }
@@ -2664,14 +2664,14 @@ export interface ResearchAskResponseSourcesItem {
 /** ResearchAskResponse */
 export interface ResearchAskResponse {
   cited_sources: number;
-  claims: ResearchAskResponseClaimsItem[];
+  claims: ResearchAskResponseClaimsItem[] | null;
   confidence: number;
   correlation_id: string;
   markdown: string;
-  notes: string[];
+  notes: string[] | null;
   question: string;
-  sources: ResearchAskResponseSourcesItem[];
-  sub_questions: string[];
+  sources: ResearchAskResponseSourcesItem[] | null;
+  sub_questions: string[] | null;
   verified: boolean;
 }
 
@@ -2696,9 +2696,9 @@ export interface RoutingGetResponseActivityValue {
 
 /** RoutingGetResponse */
 export interface RoutingGetResponse {
-  activity: Record<string, RoutingGetResponseActivityValue>;
-  chains: Record<string, string[]>;
-  task_types: string[];
+  activity: Record<string, RoutingGetResponseActivityValue> | null;
+  chains: Record<string, string[] | null>;
+  task_types: string[] | null;
 }
 
 /** RoutingSetResponse */
@@ -2778,7 +2778,7 @@ export interface RunsListResponseRunsItem {
 export interface RunsListResponse {
   count: number;
   next_cursor: string;
-  runs: RunsListResponseRunsItem[];
+  runs: RunsListResponseRunsItem[] | null;
 }
 
 /** SandboxListResponseProjectsItemFilesItem */
@@ -2790,7 +2790,7 @@ export interface SandboxListResponseProjectsItemFilesItem {
 /** SandboxListResponseProjectsItem */
 export interface SandboxListResponseProjectsItem {
   file_count: number;
-  files: SandboxListResponseProjectsItemFilesItem[];
+  files: SandboxListResponseProjectsItemFilesItem[] | null;
   modified_unix: number;
   name: string;
   total_bytes: number;
@@ -2799,7 +2799,7 @@ export interface SandboxListResponseProjectsItem {
 /** SandboxListResponse */
 export interface SandboxListResponse {
   count: number;
-  projects: SandboxListResponseProjectsItem[];
+  projects: SandboxListResponseProjectsItem[] | null;
 }
 
 /** SandboxDeleteResponse */
@@ -2960,7 +2960,7 @@ export interface ScheduleFiresResponseFiresItem {
 /** ScheduleFiresResponse */
 export interface ScheduleFiresResponse {
   count: number;
-  fires: ScheduleFiresResponseFiresItem[];
+  fires: ScheduleFiresResponseFiresItem[] | null;
   next_cursor: string;
 }
 
@@ -2980,8 +2980,8 @@ export interface ScheduleSystemTasksResponseSystemTaskInfoItem {
 /** ScheduleSystemTasksResponse */
 export interface ScheduleSystemTasksResponse {
   count: number;
-  system_task_info: ScheduleSystemTasksResponseSystemTaskInfoItem[];
-  system_tasks: string[];
+  system_task_info: ScheduleSystemTasksResponseSystemTaskInfoItem[] | null;
+  system_tasks: string[] | null;
 }
 
 /** ScheduleTestResponseForecastsItem */
@@ -3003,7 +3003,7 @@ export interface ScheduleTestResponse {
 /** ScheduleListResponse */
 export interface ScheduleListResponse {
   count: number;
-  schedules: ScheduleAddResponse[];
+  schedules: ScheduleAddResponse[] | null;
 }
 
 /** SendResponse */
@@ -3031,7 +3031,7 @@ export interface SkillArchiveResponse {
 export interface SkillFilesResponse {
   count: number;
   dir: string;
-  files: string[];
+  files: string[] | null;
   id: string;
   name: string;
 }
@@ -3041,7 +3041,7 @@ export interface SkillImportResponse {
   created: boolean;
   id: string;
   name: string;
-  resources: string[];
+  resources: string[] | null;
   status: string;
 }
 
@@ -3108,7 +3108,7 @@ export interface SkillListResponseSkillsItem {
 export interface SkillListResponse {
   active_count: number;
   count: number;
-  skills: SkillListResponseSkillsItem[];
+  skills: SkillListResponseSkillsItem[] | null;
 }
 
 /** SkillHygieneResponseIdleItem */
@@ -3135,7 +3135,7 @@ export interface SkillHygieneResponseIdleItem {
 /** SkillHygieneResponse */
 export interface SkillHygieneResponse {
   active: number;
-  idle: SkillHygieneResponseIdleItem[];
+  idle: SkillHygieneResponseIdleItem[] | null;
   idle_count: number;
   idle_days: number;
   total: number;
@@ -3178,7 +3178,7 @@ export interface StandingListResponseOrdersItem {
   scope_entities?: string[];
   target_error?: string;
   target_status?: string;
-  triggers: StandingListResponseOrdersItemTriggersItem[];
+  triggers: StandingListResponseOrdersItemTriggersItem[] | null;
   updated_ms: number;
 }
 
@@ -3186,7 +3186,7 @@ export interface StandingListResponseOrdersItem {
 export interface StandingListResponse {
   count: number;
   enabled_count: number;
-  orders: StandingListResponseOrdersItem[];
+  orders: StandingListResponseOrdersItem[] | null;
 }
 
 /** StandingAddResponse */
@@ -3227,7 +3227,7 @@ export interface StandingEditResponseOrder {
   scope_entities?: string[];
   target_error?: string;
   target_status?: string;
-  triggers: StandingListResponseOrdersItemTriggersItem[];
+  triggers: StandingListResponseOrdersItemTriggersItem[] | null;
   updated_ms: number;
 }
 
@@ -3248,7 +3248,7 @@ export interface StandingWhyResponseEventsItem {
   correlation_id: string;
   id: string;
   kind: string;
-  payload: Record<string, any>;
+  payload: Record<string, any> | null;
   seq: number;
   ts_unix_ms: number;
 }
@@ -3256,7 +3256,7 @@ export interface StandingWhyResponseEventsItem {
 /** StandingWhyResponse */
 export interface StandingWhyResponse {
   count: number;
-  events: StandingWhyResponseEventsItem[];
+  events: StandingWhyResponseEventsItem[] | null;
   id: string;
 }
 
@@ -3334,7 +3334,7 @@ export interface ChatSuggestionsResponseSuggestionsItem {
 
 /** ChatSuggestionsResponse */
 export interface ChatSuggestionsResponse {
-  suggestions: ChatSuggestionsResponseSuggestionsItem[];
+  suggestions: ChatSuggestionsResponseSuggestionsItem[] | null;
 }
 
 /** ToolLogResponseInvocationsItem */
@@ -3343,7 +3343,7 @@ export interface ToolLogResponseInvocationsItem {
   call_id: string;
   correlation_id: string;
   directive_like: boolean;
-  directive_matches: string[];
+  directive_matches: string[] | null;
   duration_ms: number;
   error: boolean;
   input: string;
@@ -3359,15 +3359,15 @@ export interface ToolLogResponseInvocationsItem {
 /** ToolLogResponse */
 export interface ToolLogResponse {
   count: number;
-  invocations: ToolLogResponseInvocationsItem[];
+  invocations: ToolLogResponseInvocationsItem[] | null;
   next_cursor: string;
 }
 
 /** ToolboxInstallResponse */
 export interface ToolboxInstallResponse {
-  failed: string[];
-  installed: string[];
-  skipped: string[];
+  failed: string[] | null;
+  installed: string[] | null;
+  skipped: string[] | null;
 }
 
 /** ToolListResponseToolsItem */
@@ -3383,7 +3383,7 @@ export interface ToolListResponseToolsItem {
 /** ToolListResponse */
 export interface ToolListResponse {
   count: number;
-  tools: ToolListResponseToolsItem[];
+  tools: ToolListResponseToolsItem[] | null;
 }
 
 /** VersionResponse */
@@ -3413,7 +3413,7 @@ export interface WardenLogResponseExecutionsItem {
 /** WardenLogResponse */
 export interface WardenLogResponse {
   count: number;
-  executions: WardenLogResponseExecutionsItem[];
+  executions: WardenLogResponseExecutionsItem[] | null;
   next_cursor: string;
 }
 
@@ -3432,7 +3432,7 @@ export interface WebhookLogResponseDeliveriesItem {
 /** WebhookLogResponse */
 export interface WebhookLogResponse {
   count: number;
-  deliveries: WebhookLogResponseDeliveriesItem[];
+  deliveries: WebhookLogResponseDeliveriesItem[] | null;
   next_cursor: string;
 }
 
@@ -3487,7 +3487,7 @@ export interface WorkflowListResponseWorkflowsItem {
 export interface WorkflowListResponse {
   count: number;
   enabled_count: number;
-  workflows: WorkflowListResponseWorkflowsItem[];
+  workflows: WorkflowListResponseWorkflowsItem[] | null;
 }
 
 /** WorkflowDraftResponseWorkflowEdgesItem */
@@ -3521,7 +3521,7 @@ export interface WorkflowDraftResponseWorkflow {
   last_run?: WorkflowListResponseWorkflowsItemLastRun;
   name: string;
   node_count: number;
-  nodes: WorkflowDraftResponseWorkflowNodesItem[];
+  nodes: WorkflowDraftResponseWorkflowNodesItem[] | null;
   trigger_detail?: string;
   trigger_kind: string;
   updated_ms: number;
@@ -3576,6 +3576,7 @@ export interface WorkflowRunsResponseRunsItemNodeEventsItem {
   node: string;
   ok: boolean;
   output?: string;
+  output_truncated?: boolean;
   port?: string;
   ts_ms: number;
   type?: string;
@@ -3588,7 +3589,7 @@ export interface WorkflowRunsResponseRunsItem {
   error?: string;
   executed?: any[];
   finished_ms?: number;
-  node_events: WorkflowRunsResponseRunsItemNodeEventsItem[];
+  node_events: WorkflowRunsResponseRunsItemNodeEventsItem[] | null;
   parent_correlation_id?: string;
   runner?: string;
   schedule_id?: string;
@@ -3602,7 +3603,7 @@ export interface WorkflowRunsResponseRunsItem {
 /** WorkflowRunsResponse */
 export interface WorkflowRunsResponse {
   count: number;
-  runs: WorkflowRunsResponseRunsItem[];
+  runs: WorkflowRunsResponseRunsItem[] | null;
   workflow: string;
 }
 
@@ -3630,7 +3631,7 @@ export interface WorkflowTemplatesResponseTemplatesItem {
 /** WorkflowTemplatesResponse */
 export interface WorkflowTemplatesResponse {
   count: number;
-  templates: WorkflowTemplatesResponseTemplatesItem[];
+  templates: WorkflowTemplatesResponseTemplatesItem[] | null;
 }
 
 /** WorkflowTestNodeResponse */
@@ -3668,8 +3669,8 @@ export interface WorldListResponseEntitiesItem {
 /** WorldListResponse */
 export interface WorldListResponse {
   count: number;
-  edges: WorldListResponseEdgesItem[];
-  entities: WorldListResponseEntitiesItem[];
+  edges: WorldListResponseEdgesItem[] | null;
+  entities: WorldListResponseEntitiesItem[] | null;
   relation_count: number;
 }
 
@@ -3725,7 +3726,7 @@ export interface WorldLogResponseOpsItem {
 export interface WorldLogResponse {
   count: number;
   next_cursor: string;
-  ops: WorldLogResponseOpsItem[];
+  ops: WorldLogResponseOpsItem[] | null;
 }
 
 /** AgentAddResponseProfileHealthPolicy is the same shape as AgentListResponseProfilesItemHealthPolicy. */
@@ -4285,7 +4286,7 @@ export interface OperationResponseMap {
   "/api/provider/probe": ProviderProbeResponse;
   "/api/provider/reload": ProviderReloadResponse;
   "/api/provider_log": ProviderLogResponse;
-  "/api/pulse": Record<string, any>;
+  "/api/pulse": Record<string, any> | null;
   "/api/pulse/beat": PulseBeatResponse;
   "/api/pulse/cadence": PulseCadenceResponse;
   "/api/pulse/dial": PulseDialResponse;

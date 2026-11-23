@@ -25381,6 +25381,9 @@
                                 "output": {
                                   "type": "string"
                                 },
+                                "output_truncated": {
+                                  "type": "boolean"
+                                },
                                 "port": {
                                   "type": "string"
                                 },

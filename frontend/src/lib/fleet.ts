@@ -15,6 +15,8 @@
 //   workflow  — /api/workflows   DAGs whose trigger node is manual/cron/event/webhook
 //   system    — always-on engines: Pulse (heartbeat), Reaper (sentinel), Overseer
 
+import type { StandingListResponseOrdersItem, StandingListResponseOrdersItemTriggersItem } from "@/app/api/types.generated";
+
 export type FleetKind = "roster" | "standing" | "schedule" | "workflow" | "system";
 
 // How an entity comes alive. "delegation" = only ever invoked by another agent or
@@ -150,19 +152,19 @@ export interface ApiProfile {
 }
 
 type ApiTrigger = {
-  type?: string;
-  schedule?: string;
-  subject?: string;
+  type?: StandingListResponseOrdersItemTriggersItem["type"];
+  schedule?: StandingListResponseOrdersItemTriggersItem["schedule"];
+  subject?: StandingListResponseOrdersItemTriggersItem["subject"];
 };
 
 export interface ApiOrder {
-  id: string;
-  name?: string;
-  enabled: boolean;
-  agent?: string;
-  triggers?: ApiTrigger[];
-  plan?: string;
-  initiative?: { mode?: string };
+  id: StandingListResponseOrdersItem["id"];
+  name?: StandingListResponseOrdersItem["name"];
+  enabled: StandingListResponseOrdersItem["enabled"];
+  agent?: StandingListResponseOrdersItem["agent"];
+  triggers?: StandingListResponseOrdersItem["triggers"];
+  plan?: StandingListResponseOrdersItem["plan"];
+  initiative?: StandingListResponseOrdersItem["initiative"];
 }
 
 export type ApiSchedule = {

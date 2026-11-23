@@ -29,7 +29,7 @@ export function ACPAgents() {
     setLoading(true);
     try {
       const d = await getJSON("/api/acp/agents");
-      setInv(d);
+      setInv({ ...d, agents: d.agents ?? [] });
       setErr(null);
     } catch (e) {
       setErr((e as Error).message);

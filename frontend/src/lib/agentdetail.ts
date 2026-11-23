@@ -3,7 +3,20 @@
 // census adapter, reused as-is) so the deep panel adds no surface to it. All
 // functions are pure + unit-tested; the React component owns fetching/rendering.
 
-import type { AgentListResponseProfilesItemStatus } from "@/app/api/types.generated";
+import type {
+  AgentListResponseProfilesItemStatus,
+  AgentRepairStatusResponse,
+  AgentRepairStatusResponseContract,
+  AgentRepairStatusResponseHistoryItem,
+  AgentRepairStatusResponseNextAction,
+  ReaperScanResponse,
+  ReaperScanResponseDeadAgentsItem,
+  ReaperScanResponseDegradedAgentsItem,
+  ReaperScanResponseMisconfiguredAgentsItem,
+  ReaperScanResponseRoutingForcedExhaustedAgentsItem,
+  ReaperScanResponseRoutingPressureAgentsItem,
+  ReaperScanResponseRoutingUnstableAgentsItem,
+} from "@/app/api/types.generated";
 
 // MemoryRecord mirrors the wire shape of /api/memory records (recordView in
 // kernel/controlplane/memory.go). Only the fields the panel reads are typed.
@@ -45,125 +58,96 @@ export type RunLite = {
   started_unix_ms?: number;
 };
 
+// The reaper's rows are the daemon's own scan rows: the browser names the
+// fields it reads, the daemon names what they are.
 type ReaperDeadAgent = {
-  slug: string;
-  name?: string;
-  last_active_ms?: number;
+  slug: ReaperScanResponseDeadAgentsItem["slug"];
+  name?: ReaperScanResponseDeadAgentsItem["name"];
+  last_active_ms?: ReaperScanResponseDeadAgentsItem["last_active_ms"];
 };
 
 type ReaperDegradedAgent = {
-  slug: string;
-  name?: string;
-  failures?: number;
-  window?: number;
-  threshold?: number;
-  doctor_agent?: string;
-  self_repair_enabled?: boolean;
-  escalate_to?: string;
-  last_failure_ms?: number;
-  last_reason?: string;
+  slug: ReaperScanResponseDegradedAgentsItem["slug"];
+  name?: ReaperScanResponseDegradedAgentsItem["name"];
+  failures?: ReaperScanResponseDegradedAgentsItem["failures"];
+  window?: ReaperScanResponseDegradedAgentsItem["window"];
+  threshold?: ReaperScanResponseDegradedAgentsItem["threshold"];
+  doctor_agent?: ReaperScanResponseDegradedAgentsItem["doctor_agent"];
+  self_repair_enabled?: ReaperScanResponseDegradedAgentsItem["self_repair_enabled"];
+  escalate_to?: ReaperScanResponseDegradedAgentsItem["escalate_to"];
+  last_failure_ms?: ReaperScanResponseDegradedAgentsItem["last_failure_ms"];
+  last_reason?: ReaperScanResponseDegradedAgentsItem["last_reason"];
 };
 
 type ReaperMisconfiguredAgent = {
-  slug: string;
-  name?: string;
-  issues?: string[];
-  doctor_agent?: string;
-  self_repair_enabled?: boolean;
-  escalate_to?: string;
+  slug: ReaperScanResponseMisconfiguredAgentsItem["slug"];
+  name?: ReaperScanResponseMisconfiguredAgentsItem["name"];
+  issues?: ReaperScanResponseMisconfiguredAgentsItem["issues"];
+  doctor_agent?: ReaperScanResponseMisconfiguredAgentsItem["doctor_agent"];
+  self_repair_enabled?: ReaperScanResponseMisconfiguredAgentsItem["self_repair_enabled"];
+  escalate_to?: ReaperScanResponseMisconfiguredAgentsItem["escalate_to"];
 };
 
 type ReaperRoutingPressureAgent = {
-  slug: string;
-  name?: string;
-  count?: number;
-  threshold?: number;
-  window_sec?: number;
-  doctor_agent?: string;
-  self_repair_enabled?: boolean;
-  escalate_to?: string;
-  last_fallback_ms?: number;
-  last_reason?: string;
-  last_failed_model?: string;
-  last_next_model?: string;
-  task_type?: string;
+  slug: ReaperScanResponseRoutingPressureAgentsItem["slug"];
+  name?: ReaperScanResponseRoutingPressureAgentsItem["name"];
+  count?: ReaperScanResponseRoutingPressureAgentsItem["count"];
+  threshold?: ReaperScanResponseRoutingPressureAgentsItem["threshold"];
+  window_sec?: ReaperScanResponseRoutingPressureAgentsItem["window_sec"];
+  doctor_agent?: ReaperScanResponseRoutingPressureAgentsItem["doctor_agent"];
+  self_repair_enabled?: ReaperScanResponseRoutingPressureAgentsItem["self_repair_enabled"];
+  escalate_to?: ReaperScanResponseRoutingPressureAgentsItem["escalate_to"];
+  last_fallback_ms?: ReaperScanResponseRoutingPressureAgentsItem["last_fallback_ms"];
+  last_reason?: ReaperScanResponseRoutingPressureAgentsItem["last_reason"];
+  last_failed_model?: ReaperScanResponseRoutingPressureAgentsItem["last_failed_model"];
+  last_next_model?: ReaperScanResponseRoutingPressureAgentsItem["last_next_model"];
+  task_type?: ReaperScanResponseRoutingPressureAgentsItem["task_type"];
 };
 
-type ReaperRoutingForcedProbationAgent = {
-  slug: string;
-  name?: string;
-  count?: number;
-  threshold?: number;
-  window_sec?: number;
-  doctor_agent?: string;
-  self_repair_enabled?: boolean;
-  escalate_to?: string;
-  last_fallback_ms?: number;
-  last_forced_ms?: number;
-  last_reason?: string;
-  task_type?: string;
-  forced_chain?: string[];
-  routing_force_generation?: number;
-};
-
-type ReaperRoutingForcedFailedAgent = {
-  slug: string;
-  name?: string;
-  count?: number;
-  threshold?: number;
-  window_sec?: number;
-  doctor_agent?: string;
-  self_repair_enabled?: boolean;
-  escalate_to?: string;
-  last_fallback_ms?: number;
-  last_forced_ms?: number;
-  last_reason?: string;
-  task_type?: string;
-  forced_chain?: string[];
-  routing_force_generation?: number;
-};
-
-type ReaperRoutingForcedExhaustedAgent = {
-  slug: string;
-  count?: number;
-  threshold?: number;
-  window_sec?: number;
-  doctor_agent?: string;
-  self_repair_enabled?: boolean;
-  escalate_to?: string;
-  last_fallback_ms?: number;
-  last_forced_ms?: number;
-  last_reason?: string;
-  task_type?: string;
-  forced_chain?: string[];
-  routing_force_generation?: number;
+// The daemon reports the three forced-routing verdicts (probation, failed,
+// exhausted) with ONE row shape, so the browser names one row too.
+type ReaperRoutingForcedAgent = {
+  slug: ReaperScanResponseRoutingForcedExhaustedAgentsItem["slug"];
+  name?: ReaperScanResponseRoutingForcedExhaustedAgentsItem["name"];
+  count?: ReaperScanResponseRoutingForcedExhaustedAgentsItem["count"];
+  threshold?: ReaperScanResponseRoutingForcedExhaustedAgentsItem["threshold"];
+  window_sec?: ReaperScanResponseRoutingForcedExhaustedAgentsItem["window_sec"];
+  doctor_agent?: ReaperScanResponseRoutingForcedExhaustedAgentsItem["doctor_agent"];
+  self_repair_enabled?: ReaperScanResponseRoutingForcedExhaustedAgentsItem["self_repair_enabled"];
+  escalate_to?: ReaperScanResponseRoutingForcedExhaustedAgentsItem["escalate_to"];
+  last_fallback_ms?: ReaperScanResponseRoutingForcedExhaustedAgentsItem["last_fallback_ms"];
+  last_forced_ms?: ReaperScanResponseRoutingForcedExhaustedAgentsItem["last_forced_ms"];
+  last_reason?: ReaperScanResponseRoutingForcedExhaustedAgentsItem["last_reason"];
+  task_type?: ReaperScanResponseRoutingForcedExhaustedAgentsItem["task_type"];
+  forced_chain?: ReaperScanResponseRoutingForcedExhaustedAgentsItem["forced_chain"];
+  routing_force_generation?: ReaperScanResponseRoutingForcedExhaustedAgentsItem["routing_force_generation"];
 };
 
 type ReaperRoutingUnstableAgent = {
-  slug: string;
-  name?: string;
-  count?: number;
-  threshold?: number;
-  window_sec?: number;
-  doctor_agent?: string;
-  self_repair_enabled?: boolean;
-  escalate_to?: string;
-  last_rollback_ms?: number;
-  task_type?: string;
-  current_chain?: string[];
-  previous_chain?: string[];
-  last_reason?: string;
+  slug: ReaperScanResponseRoutingUnstableAgentsItem["slug"];
+  name?: ReaperScanResponseRoutingUnstableAgentsItem["name"];
+  count?: ReaperScanResponseRoutingUnstableAgentsItem["count"];
+  threshold?: ReaperScanResponseRoutingUnstableAgentsItem["threshold"];
+  window_sec?: ReaperScanResponseRoutingUnstableAgentsItem["window_sec"];
+  doctor_agent?: ReaperScanResponseRoutingUnstableAgentsItem["doctor_agent"];
+  self_repair_enabled?: ReaperScanResponseRoutingUnstableAgentsItem["self_repair_enabled"];
+  escalate_to?: ReaperScanResponseRoutingUnstableAgentsItem["escalate_to"];
+  last_rollback_ms?: ReaperScanResponseRoutingUnstableAgentsItem["last_rollback_ms"];
+  task_type?: ReaperScanResponseRoutingUnstableAgentsItem["task_type"];
+  current_chain?: ReaperScanResponseRoutingUnstableAgentsItem["current_chain"];
+  previous_chain?: ReaperScanResponseRoutingUnstableAgentsItem["previous_chain"];
+  last_reason?: ReaperScanResponseRoutingUnstableAgentsItem["last_reason"];
 };
 
 export type ReaperReport = {
-  dead_agents?: ReaperDeadAgent[];
-  degraded_agents?: ReaperDegradedAgent[];
-  misconfigured_agents?: ReaperMisconfiguredAgent[];
-  routing_pressure_agents?: ReaperRoutingPressureAgent[];
-  routing_forced_probation_agents?: ReaperRoutingForcedProbationAgent[];
-  routing_forced_failed_agents?: ReaperRoutingForcedFailedAgent[];
-  routing_forced_exhausted_agents?: ReaperRoutingForcedExhaustedAgent[];
-  routing_unstable_agents?: ReaperRoutingUnstableAgent[];
+  dead_agents?: ReaperDeadAgent[] | null;
+  degraded_agents?: ReaperDegradedAgent[] | null;
+  misconfigured_agents?: ReaperMisconfiguredAgent[] | null;
+  routing_pressure_agents?: ReaperRoutingPressureAgent[] | null;
+  routing_forced_probation_agents?: ReaperRoutingForcedAgent[] | null;
+  routing_forced_failed_agents?: ReaperRoutingForcedAgent[] | null;
+  routing_forced_exhausted_agents?: ReaperRoutingForcedAgent[] | null;
+  routing_unstable_agents?: ReaperRoutingUnstableAgent[] | null;
 };
 
 export interface AgentHealthSnapshot {
@@ -436,71 +420,73 @@ export interface AgentCardRuntimeSummary {
   nextWakeMs?: number;
 }
 
+// The repair rows are the daemon's own status rows: the browser names the
+// fields it reads, the daemon names what they are.
 export type AgentRepairEvent = {
-  seq?: number;
-  ts_unix_ms?: number;
-  correlation_id?: string;
-  mode?: string;
-  phase?: string;
-  reason?: string;
-  fingerprint?: string;
-  self_repair_attempt?: number;
-  self_repair_max_attempts?: number;
-  issues?: string[];
-  applied?: string[];
-  answer?: string;
-  error?: string;
-  target_agent?: string;
-  target_correlation?: string;
-  resolution?: string;
-  resolution_summary?: string;
-  delegate_to?: string;
-  delegated_by?: string;
-  root_agent?: string;
-  chain_depth?: number;
-  incident_id?: string;
-  root_incident_id?: string;
-  parent_incident_id?: string;
-  next_eligible_ms?: number;
-  routing_task_type?: string;
-  routing_task_model_chain?: string[];
-  previous_routing_task_model_chain?: string[];
-  routing_force_generation?: number;
-  previous_routing_force_generation?: number;
+  seq?: AgentRepairStatusResponseHistoryItem["seq"];
+  ts_unix_ms?: AgentRepairStatusResponseHistoryItem["ts_unix_ms"];
+  correlation_id?: AgentRepairStatusResponseHistoryItem["correlation_id"];
+  mode?: AgentRepairStatusResponseHistoryItem["mode"];
+  phase?: AgentRepairStatusResponseHistoryItem["phase"];
+  reason?: AgentRepairStatusResponseHistoryItem["reason"];
+  fingerprint?: AgentRepairStatusResponseHistoryItem["fingerprint"];
+  self_repair_attempt?: AgentRepairStatusResponseHistoryItem["self_repair_attempt"];
+  self_repair_max_attempts?: AgentRepairStatusResponseHistoryItem["self_repair_max_attempts"];
+  issues?: AgentRepairStatusResponseHistoryItem["issues"];
+  applied?: AgentRepairStatusResponseHistoryItem["applied"];
+  answer?: AgentRepairStatusResponseHistoryItem["answer"];
+  error?: AgentRepairStatusResponseHistoryItem["error"];
+  target_agent?: AgentRepairStatusResponseHistoryItem["target_agent"];
+  target_correlation?: AgentRepairStatusResponseHistoryItem["target_correlation"];
+  resolution?: AgentRepairStatusResponseHistoryItem["resolution"];
+  resolution_summary?: AgentRepairStatusResponseHistoryItem["resolution_summary"];
+  delegate_to?: AgentRepairStatusResponseHistoryItem["delegate_to"];
+  delegated_by?: AgentRepairStatusResponseHistoryItem["delegated_by"];
+  root_agent?: AgentRepairStatusResponseHistoryItem["root_agent"];
+  chain_depth?: AgentRepairStatusResponseHistoryItem["chain_depth"];
+  incident_id?: AgentRepairStatusResponseHistoryItem["incident_id"];
+  root_incident_id?: AgentRepairStatusResponseHistoryItem["root_incident_id"];
+  parent_incident_id?: AgentRepairStatusResponseHistoryItem["parent_incident_id"];
+  next_eligible_ms?: AgentRepairStatusResponseHistoryItem["next_eligible_ms"];
+  routing_task_type?: AgentRepairStatusResponseHistoryItem["routing_task_type"];
+  routing_task_model_chain?: AgentRepairStatusResponseHistoryItem["routing_task_model_chain"];
+  previous_routing_task_model_chain?: AgentRepairStatusResponseHistoryItem["previous_routing_task_model_chain"];
+  routing_force_generation?: AgentRepairStatusResponseHistoryItem["routing_force_generation"];
+  previous_routing_force_generation?: AgentRepairStatusResponseHistoryItem["previous_routing_force_generation"];
 };
 
 type AgentRepairContract = {
-  retry_attempts?: number;
-  retry_backoff?: string;
-  retry_on?: string[];
-  doctor_agent?: string;
-  failure_threshold?: number;
-  self_repair_enabled?: boolean;
-  self_repair_attempts?: number;
-  escalate_to?: string;
-  cooldown_sec?: number;
-  authority_boundary?: string;
+  retry_attempts?: AgentRepairStatusResponseContract["retry_attempts"];
+  retry_backoff?: AgentRepairStatusResponseContract["retry_backoff"];
+  retry_on?: AgentRepairStatusResponseContract["retry_on"];
+  doctor_agent?: AgentRepairStatusResponseContract["doctor_agent"];
+  failure_threshold?: AgentRepairStatusResponseContract["failure_threshold"];
+  self_repair_enabled?: AgentRepairStatusResponseContract["self_repair_enabled"];
+  self_repair_attempts?: AgentRepairStatusResponseContract["self_repair_attempts"];
+  escalate_to?: AgentRepairStatusResponseContract["escalate_to"];
+  cooldown_sec?: AgentRepairStatusResponseContract["cooldown_sec"];
+  authority_boundary?: AgentRepairStatusResponseContract["authority_boundary"];
 };
 
 type AgentRepairNextAction = {
-  action?: string;
-  label?: string;
-  detail?: string;
-  tone?: string;
-  correlation_id?: string;
-  fingerprint?: string;
-  phase?: string;
-  next_eligible_ms?: number;
-  delegate_to?: string;
+  action?: AgentRepairStatusResponseNextAction["action"];
+  label?: AgentRepairStatusResponseNextAction["label"];
+  detail?: AgentRepairStatusResponseNextAction["detail"];
+  tone?: AgentRepairStatusResponseNextAction["tone"];
+  correlation_id?: AgentRepairStatusResponseNextAction["correlation_id"];
+  fingerprint?: AgentRepairStatusResponseNextAction["fingerprint"];
+  phase?: AgentRepairStatusResponseNextAction["phase"];
+  next_eligible_ms?: AgentRepairStatusResponseNextAction["next_eligible_ms"];
+  delegate_to?: AgentRepairStatusResponseNextAction["delegate_to"];
 };
 
 export type AgentRepairStatus = {
-  slug?: string;
-  cooldown_sec?: number;
-  next_eligible_ms?: number;
-  inflight_count?: number;
-  history?: AgentRepairEvent[];
-  inflight?: AgentRepairEvent[];
+  slug?: AgentRepairStatusResponse["slug"];
+  cooldown_sec?: AgentRepairStatusResponse["cooldown_sec"];
+  next_eligible_ms?: AgentRepairStatusResponse["next_eligible_ms"];
+  inflight_count?: AgentRepairStatusResponse["inflight_count"];
+  history?: AgentRepairEvent[] | null;
+  inflight?: AgentRepairEvent[] | null;
   latest?: AgentRepairEvent;
   contract?: AgentRepairContract;
   next_action?: AgentRepairNextAction;
@@ -843,7 +829,7 @@ export function healthSnapshot(
         degraded.self_repair_enabled ?? misconfigured?.self_repair_enabled,
       escalateTo: degraded.escalate_to || misconfigured?.escalate_to,
       lastFailureMs: degraded.last_failure_ms,
-      configIssues: misconfigured?.issues,
+      configIssues: misconfigured?.issues ?? undefined,
     };
   }
   if (misconfigured) {

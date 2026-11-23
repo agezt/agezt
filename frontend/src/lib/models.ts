@@ -1,32 +1,14 @@
 // The model catalog powers the Chat model picker: /api/catalog returns the full
 // provider→model inventory (with capabilities + pricing + whether the provider is
 // credentialed). These pure helpers flatten and filter it for the picker UI.
+//
+// The catalog's shape is the daemon's own row type — the browser narrows it to
+// the fields the picker reads, it does not restate the contract.
+import type { CatalogListResponse } from "@/app/api/types.generated";
 
-type CatalogModel = {
-  id: string;
-  name?: string;
-  family?: string;
-  tool_call?: boolean;
-  reasoning?: boolean;
-  context?: number;
-  output?: number;
-  cost_input_usd_per_mtok?: number;
-  cost_output_usd_per_mtok?: number;
-};
-
-type CatalogProvider = {
-  id: string;
-  name?: string;
-  family?: string;
-  credentialed?: boolean;
-  model_count?: number;
-  models?: CatalogModel[];
-};
-
-export type ModelCatalog = {
-  providers?: CatalogProvider[];
-  provider_count?: number;
-};
+// The catalog's shape is the daemon's own row type — the browser narrows it to
+// the fields the picker reads, it does not restate the contract.
+export type ModelCatalog = Pick<CatalogListResponse, "providers" | "provider_count">;
 
 // A flattened, picker-ready option: one model under its provider, carrying the
 // capability + pricing facts the picker shows as badges.

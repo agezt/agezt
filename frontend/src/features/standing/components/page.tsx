@@ -20,6 +20,7 @@ import { ErrorText, KeyValue } from "@/components/JsonView";
 import { Disclosure } from "@/components/ui/disclosure";
 import { LoadMoreFooter } from "@/components/ui/load-more-footer";
 import { Segmented } from "@/components/ui/segmented";
+import type { StandingListResponseOrdersItem, StandingListResponseOrdersItemTriggersItem, StandingWhyResponseEventsItem } from "@/app/api/types.generated";
 
 // STANDING_ORDER_WINDOW caps how many standing-order cards render at once.
 // /api/standing has no pagination (the list arrives whole), so the window
@@ -28,25 +29,28 @@ import { Segmented } from "@/components/ui/segmented";
 // rendered cards are windowed.
 const STANDING_ORDER_WINDOW = 60;
 
+// Trigger is a standing-order trigger as the page reads it.
 type Trigger = {
-  type?: string;
-  schedule?: string;
-  subject?: string;
+  type: StandingListResponseOrdersItemTriggersItem["type"];
+  schedule?: StandingListResponseOrdersItemTriggersItem["schedule"];
+  subject?: StandingListResponseOrdersItemTriggersItem["subject"];
 };
+
 interface Order {
-  id: string;
-  name?: string;
-  enabled?: boolean;
-  triggers?: Trigger[];
-  initiative?: { mode?: string };
-  plan?: string;
-  agent?: string; // M790: firings run AS this roster agent
-  assure?: number;
-  cooldown_sec?: number;
-  frequency_warning?: string;
-  target_status?: string;
-  target_error?: string;
+  id: StandingListResponseOrdersItem["id"];
+  name?: StandingListResponseOrdersItem["name"];
+  enabled?: StandingListResponseOrdersItem["enabled"];
+  triggers?: StandingListResponseOrdersItem["triggers"];
+  initiative?: StandingListResponseOrdersItem["initiative"];
+  plan?: StandingListResponseOrdersItem["plan"];
+  agent?: StandingListResponseOrdersItem["agent"]; // M790: firings run AS this roster agent
+  assure?: StandingListResponseOrdersItem["assure"];
+  cooldown_sec?: StandingListResponseOrdersItem["cooldown_sec"];
+  frequency_warning?: StandingListResponseOrdersItem["frequency_warning"];
+  target_status?: StandingListResponseOrdersItem["target_status"];
+  target_error?: StandingListResponseOrdersItem["target_error"];
 }
+
 // initiativeEnforcement describes what a firing's initiative mode now ENFORCES
 // (M999): the mode caps the trust ceiling, so it's no longer just a label.
 export function initiativeEnforcement(mode: string): string {
@@ -69,10 +73,10 @@ interface StandingAgent {
   kind?: string;
 }
 type WhyEvent = {
-  seq?: number;
-  kind?: string;
-  ts_unix_ms?: number;
-  payload?: Record<string, any>;
+  seq?: StandingWhyResponseEventsItem["seq"];
+  kind?: StandingWhyResponseEventsItem["kind"];
+  ts_unix_ms?: StandingWhyResponseEventsItem["ts_unix_ms"];
+  payload?: StandingWhyResponseEventsItem["payload"];
 };
 
 type StandingFilter = "all" | "attention";

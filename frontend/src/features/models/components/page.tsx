@@ -17,6 +17,7 @@ import { useUI } from "@/components/ui/feedback";
 import { Page } from "@/components/ui/page";
 import { Badge } from "@/components/ui/badge";
 import { ApiKeyField, ChatGPTSignInCard, KeyListItem, useApiKeySubmit, type KeyInfo } from "@/components/apikeys/index";
+import type { CatalogListResponse, CatalogListResponseProvidersItem, CatalogListResponseProvidersItemModelsItem } from "@/app/api/types.generated";
 
 // Models is the LLM model catalog — the providers and models the daemon knows
 // about, synced from models.dev/api.json (the same source as `agt catalog sync`).
@@ -24,34 +25,38 @@ import { ApiKeyField, ChatGPTSignInCard, KeyListItem, useApiKeySubmit, type KeyI
 // one-click Sync to refresh from models.dev. Provider/model SELECTION and
 // multi-key management are separate follow-on areas.
 
+// Model is a catalog model row as the Models page reads it.
 type Model = {
-  id: string;
-  name?: string;
-  family?: string;
-  tool_call?: boolean;
-  reasoning?: boolean;
-  context?: number;
-  output?: number;
-  cost_input_usd_per_mtok?: number;
-  cost_output_usd_per_mtok?: number;
+  id: CatalogListResponseProvidersItemModelsItem["id"];
+  name?: CatalogListResponseProvidersItemModelsItem["name"];
+  family?: CatalogListResponseProvidersItemModelsItem["family"];
+  tool_call?: CatalogListResponseProvidersItemModelsItem["tool_call"];
+  reasoning?: CatalogListResponseProvidersItemModelsItem["reasoning"];
+  context?: CatalogListResponseProvidersItemModelsItem["context"];
+  output?: CatalogListResponseProvidersItemModelsItem["output"];
+  cost_input_usd_per_mtok?: CatalogListResponseProvidersItemModelsItem["cost_input_usd_per_mtok"];
+  cost_output_usd_per_mtok?: CatalogListResponseProvidersItemModelsItem["cost_output_usd_per_mtok"];
 };
+
 type Provider = {
-  id: string;
-  name?: string;
-  family?: string;
-  api?: string;
-  doc?: string;
-  env?: string[];
-  credentialed?: boolean;
-  model_count?: number;
-  models?: Model[];
+  id: CatalogListResponseProvidersItem["id"];
+  name?: CatalogListResponseProvidersItem["name"];
+  family?: CatalogListResponseProvidersItem["family"];
+  api?: CatalogListResponseProvidersItem["api"];
+  doc?: CatalogListResponseProvidersItem["doc"];
+  env?: CatalogListResponseProvidersItem["env"];
+  credentialed?: CatalogListResponseProvidersItem["credentialed"];
+  model_count?: CatalogListResponseProvidersItem["model_count"];
+  models?: Model[] | null;
 };
+
 type CatalogResp = {
-  providers?: Provider[];
-  api_synced_at?: string;
-  api_source_url?: string;
-  provider_count?: number;
+  providers?: CatalogListResponse["providers"];
+  api_synced_at?: CatalogListResponse["api_synced_at"];
+  api_source_url?: CatalogListResponse["api_source_url"];
+  provider_count?: CatalogListResponse["provider_count"];
 };
+
 function ModelsModal({
   title,
   icon: Icon,

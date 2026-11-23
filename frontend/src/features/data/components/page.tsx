@@ -40,6 +40,7 @@ import { EmptyState } from "@/components/ui/empty";
 import { ErrorText } from "@/components/JsonView";
 import { useUI } from "@/components/ui/feedback";
 import { LoadMoreFooter } from "@/components/ui/load-more-footer";
+import type { DataCollectionsResponseCollectionsItem, DataCollectionsResponseCollectionsItemFieldsItem, DataInsertResponseRecord } from "@/app/api/types.generated";
 
 // DATA_RECORD_WINDOW caps how many records each renderer lists at once. The
 // /api/data/records fetch is bounded at 500, but rendering all of them at
@@ -65,29 +66,32 @@ function windowSplit<T>(first: T[], second: T[], limit: number): [T[], T[]] {
 // per-collection app views (expense/calendar/…) layer on top in a later milestone,
 // keyed off each schema's `view`.
 
+// FieldDef is a collection field as the page reads it.
 type FieldDef = {
-  name: string;
-  type?: string;
-  label?: string;
+  name: DataCollectionsResponseCollectionsItemFieldsItem["name"];
+  type?: DataCollectionsResponseCollectionsItemFieldsItem["type"];
+  label?: DataCollectionsResponseCollectionsItemFieldsItem["label"];
 };
+
 type Collection = {
-  name: string;
-  title?: string;
-  icon?: string;
-  view?: string;
-  desc?: string;
-  fields?: FieldDef[];
-  builtin?: boolean;
-  system?: boolean;
-  count?: number;
+  name: DataCollectionsResponseCollectionsItem["name"];
+  title?: DataCollectionsResponseCollectionsItem["title"];
+  icon?: DataCollectionsResponseCollectionsItem["icon"];
+  view?: DataCollectionsResponseCollectionsItem["view"];
+  desc?: DataCollectionsResponseCollectionsItem["desc"];
+  fields?: FieldDef[] | null;
+  builtin?: DataCollectionsResponseCollectionsItem["builtin"];
+  system?: DataCollectionsResponseCollectionsItem["system"];
+  count?: DataCollectionsResponseCollectionsItem["count"];
 };
+
 type DataRecord = {
-  id: string;
-  fields: Record<string, any>;
-  created_ms?: number;
-  updated_ms?: number;
-  created_by?: string;
-  updated_by?: string;
+  id: DataInsertResponseRecord["id"];
+  fields?: DataInsertResponseRecord["fields"];
+  created_ms?: DataInsertResponseRecord["created_ms"];
+  updated_ms?: DataInsertResponseRecord["updated_ms"];
+  created_by?: DataInsertResponseRecord["created_by"];
+  updated_by?: DataInsertResponseRecord["updated_by"];
 };
 
 function fmtCell(v: unknown): string {

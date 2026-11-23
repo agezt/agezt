@@ -26,6 +26,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { getJSON, postJSON, postAction } from "@/app/api";
+import type { ChainsGetResponse, RoutingGetResponse } from "@/app/api/types.generated";
 import { cn } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { useUI } from "@/components/ui/feedback";
@@ -63,15 +64,9 @@ export {
 type Step = "catalog" | "access" | "provider" | "model" | "routing" | "telegram" | "done";
 type RoutingMode = "simple" | "default" | "tasks";
 
-type SetupRoutingResp = {
-  task_types?: string[];
-  chains?: Record<string, string[]>;
-};
+type SetupRoutingResp = Pick<RoutingGetResponse, "task_types" | "chains">;
 
-type SetupChainsResp = {
-  chains?: Record<string, string[]>;
-  default?: string;
-};
+type SetupChainsResp = Pick<ChainsGetResponse, "chains" | "default">;
 
 const SETUP_STEPS: { id: Exclude<Step, "done">; label: string; detail: string; icon: LucideIcon }[] = [
   { id: "catalog", label: "Catalog", detail: "models.dev sync", icon: Database },
@@ -346,7 +341,7 @@ export function Setup({
       if (routingMode === "tasks") {
         const nextRouting = mergeSetupTaskRouting(routingInfo?.chains, effectiveRoutingTasks, `@${chainName}`);
         await postJSON("/api/routing/set", { chains: nextRouting });
-        setRoutingInfo({ ...(routingInfo || {}), chains: nextRouting });
+        setRoutingInfo({ task_types: routingInfo?.task_types ?? null, chains: nextRouting });
       }
 
       setStep("telegram");

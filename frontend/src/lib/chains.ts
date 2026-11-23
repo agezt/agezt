@@ -7,12 +7,16 @@
 // This module is pure (no fetch/DOM) so the reducer logic is unit-testable; the
 // Chains view and ModelPicker fetch /api/chains and call these helpers.
 
+import type { ChainsGetResponse, RoutingGetResponse } from "@/app/api/types.generated";
+
 const CHAIN_PREFIX = "@";
 
-export type ChainsState = {
-  chains: Record<string, string[]>;
-  default: string;
-};
+// ChainMap is the daemon's chain registry — chain name → ordered model ids.
+// The daemon allows a null list for a chain that has none, so the browser
+// carries that nullability instead of inventing a non-null promise.
+export type ChainMap = RoutingGetResponse["chains"];
+
+export type ChainsState = Pick<ChainsGetResponse, "chains" | "default">;
 
 // isChainRef reports whether a model value is actually a "@<name>" reference to
 // a named chain rather than a real model id (model ids never start with "@").
@@ -32,7 +36,7 @@ export function chainRef(name: string): string {
 
 // chainLabel renders a model value for display: a chain reference shows as
 // "⛓ name (N)" with its model count; a plain id passes through unchanged.
-export function chainLabel(value: string, chains: Record<string, string[]>): string {
+export function chainLabel(value: string, chains: ChainMap): string {
   if (!isChainRef(value)) return value;
   const name = chainName(value);
   const models = chains[name];
@@ -68,15 +72,15 @@ export function removeAt<T>(arr: T[], i: number): T[] {
 // renameChain returns a new chains map with key `from` renamed to `to`,
 // preserving its models. No-op when from===to. The default name should be
 // re-pointed by the caller if it referenced `from`.
-export function renameChain(chains: Record<string, string[]>, from: string, to: string): Record<string, string[]> {
+export function renameChain(chains: ChainMap, from: string, to: string): ChainMap {
   if (from === to || !(from in chains)) return chains;
-  const next: Record<string, string[]> = {};
+  const next: ChainMap = {};
   for (const [k, v] of Object.entries(chains)) next[k === from ? to : k] = v;
   return next;
 }
 
 // deleteChain returns a new chains map without `name`.
-export function deleteChain(chains: Record<string, string[]>, name: string): Record<string, string[]> {
+export function deleteChain(chains: ChainMap, name: string): ChainMap {
   const next = { ...chains };
   delete next[name];
   return next;

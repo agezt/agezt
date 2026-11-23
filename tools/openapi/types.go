@@ -122,12 +122,13 @@ func (n schemaNode) nullable() bool {
 
 // renderMode is the browser's VIEW of the registry's strict schema.
 //
-// The view is SPLIT, and the split is measured, not guessed. Keeping the
-// registry's null arms on every field cost 111 more browser call sites than
-// dropping them: the browser's own code already reads a missing field and a
-// null field the same way (`|| []`, `?.`, `??`), because the daemon sends null
-// for a nil slice and the browser has always treated "no items" and "no such
-// field" as one thing. The browser's view therefore FOLDS null into absent.
+// The view is SPLIT, and the split is measured, not guessed.
+//
+// The NULL arm survives where the browser would otherwise have no warning: on
+// a member the daemon ALWAYS sends. Such a member carries no `?`, so without
+// the arm the browser would read a null as a value — `row.halted.length` on a
+// null. A member the daemon MAY omit carries the `?` already, and that `?`
+// forces the guard a null needs, so the arm would only add noise.
 //
 // The registry's exact nullable contract is not lost: docs/openapi.json is
 // generated from the same schemas and keeps every null arm, and it is the
@@ -150,7 +151,7 @@ type renderMode struct {
 
 // mode is the browser's view of the registry's schema.
 func mode() renderMode {
-	return renderMode{null: false, requestRequired: true, required: true}
+	return renderMode{null: true, requestRequired: true, required: true}
 }
 
 // tsRenderer accumulates the named type declarations one schema produces.
@@ -350,6 +351,16 @@ export type RequestOf<P extends string> = P extends keyof OperationRequestMap
 // name is the name the schema gets if it turns out to be an object; nested
 // objects take the parent's name plus the property's name.
 func (r *tsRenderer) renderType(name string, raw json.RawMessage) (string, error) {
+	return r.renderMember(name, raw, true)
+}
+
+// renderMember renders one schema as a member of its parent.
+//
+// keepNull says whether the browser would get a warning about a null without
+// the null arm. A member the daemon ALWAYS sends has no `?` in front of it, so
+// the arm is the only warning it gets; a member the daemon MAY omit carries
+// the `?` already, and the arm would only make the type noisier.
+func (r *tsRenderer) renderMember(name string, raw json.RawMessage, keepNull bool) (string, error) {
 	if len(raw) == 0 {
 		return "any", nil
 	}
@@ -367,34 +378,46 @@ func (r *tsRenderer) renderType(name string, raw json.RawMessage) (string, error
 		if err != nil {
 			return "", err
 		}
-		return r.withNull(canonical, node), nil
+		return r.withNull(canonical, node, keepNull), nil
 	}
 
 	if node.hasType("array") {
 		item := "any"
 		if len(node.Items) > 0 {
-			rendered, err := r.renderType(name+"Item", node.Items)
+			// An ITEM that may be null is the element's own business: the
+			// array being present says nothing about its elements.
+			rendered, err := r.renderMember(name+"Item", node.Items, true)
 			if err != nil {
 				return "", err
 			}
 			item = rendered
 		}
-		return r.withNull(item+"[]", node), nil
+		// A nullable ITEM makes the element type a union, and a union needs
+		// its parentheses: "X | null[]" would be an array of nulls, not an
+		// array of possibly-null elements.
+
+		// A nullable ITEM makes the element type a union, and a union needs
+		// its parentheses: "X | null[]" would be an array of nulls, not an
+		// array of possibly-null elements.
+		if strings.Contains(item, "|") {
+			item = "(" + item + ")"
+		}
+		return r.withNull(item+"[]", node, keepNull), nil
 	}
 
 	if node.hasType("object") {
 		record := "Record<string, any>"
 		if len(node.AdditionalProperties) > 0 && !isJSONBool(node.AdditionalProperties, false) {
 			if isJSONBool(node.AdditionalProperties, true) {
-				return r.withNull(record, node), nil
+				return r.withNull(record, node, keepNull), nil
 			}
-			value, err := r.renderType(name+"Value", node.AdditionalProperties)
+			value, err := r.renderMember(name+"Value", node.AdditionalProperties, true)
 			if err != nil {
 				return "", err
 			}
 			record = "Record<string, " + value + ">"
 		}
-		return r.withNull(record, node), nil
+		return r.withNull(record, node, keepNull), nil
 	}
 
 	types := node.typeNames()
@@ -411,7 +434,7 @@ func (r *tsRenderer) renderType(name string, raw json.RawMessage) (string, error
 		case "boolean":
 			parts = append(parts, "boolean")
 		case "null":
-			if r.mode.null {
+			if r.mode.null && keepNull {
 				parts = append(parts, "null")
 			}
 		case "array":
@@ -452,7 +475,10 @@ func (r *tsRenderer) objectBody(name string, node schemaNode) (string, error) {
 			return "", fmt.Errorf("parse the property %q of %s: %w", prop, name, err)
 		}
 		required := requiredNames[prop]
-		childType, err := r.renderType(name+pascalName(prop), raw)
+		// A member the daemon always sends keeps the null arm: without it the
+		// browser would read a null as a value. A member the daemon may omit
+		// carries the `?` already, so the arm would only add noise.
+		childType, err := r.renderMember(name+pascalName(prop), raw, required)
 		if err != nil {
 			return "", err
 		}
@@ -547,8 +573,8 @@ func propertyName(name string) string {
 // The arm survives only where the browser would otherwise have no warning: on
 // a member the daemon always sends. An optional member drops it, because the
 // `?` in front of the member already forces the guard that a null needs.
-func (r *tsRenderer) withNull(rendered string, node schemaNode) string {
-	if !r.mode.null || !node.nullable() || strings.Contains(rendered, "null") {
+func (r *tsRenderer) withNull(rendered string, node schemaNode, keepNull bool) string {
+	if !r.mode.null || !keepNull || !node.nullable() || strings.Contains(rendered, "null") {
 		return rendered
 	}
 	return rendered + " | null"

@@ -1,27 +1,29 @@
 // ACP (Agent Client Protocol) agent discovery — types + helpers for the ACP
 // Agents view. The backend (kernel/acpcatalog) detects which ACP coding agents
-// are installed on the host; this mirrors its wire shape.
+// are installed on the host; the shapes below are its own rows, narrowed to the
+// fields the view reads.
+import type { AcpAgentsResponse, AcpAgentsResponseAgentsItem } from "@/app/api/types.generated";
 
 export type ACPAgentStatus = {
-  slug: string;
-  name: string;
-  bin: string;
-  command: string;
-  description: string;
-  install?: string;
-  docs?: string;
-  installed: boolean;
-  version?: string;
-  path?: string;
-  active: boolean;
+  slug: AcpAgentsResponseAgentsItem["slug"];
+  name: AcpAgentsResponseAgentsItem["name"];
+  bin: AcpAgentsResponseAgentsItem["bin"];
+  command: AcpAgentsResponseAgentsItem["command"];
+  description: AcpAgentsResponseAgentsItem["description"];
+  install?: AcpAgentsResponseAgentsItem["install"];
+  docs?: AcpAgentsResponseAgentsItem["docs"];
+  installed: AcpAgentsResponseAgentsItem["installed"];
+  version?: AcpAgentsResponseAgentsItem["version"];
+  path?: AcpAgentsResponseAgentsItem["path"];
+  active: AcpAgentsResponseAgentsItem["active"];
 };
 
 export type ACPInventory = {
-  os: string;
-  active_command?: string;
-  agents: ACPAgentStatus[];
-  installed_count: number;
-  missing_count: number;
+  os: AcpAgentsResponse["os"];
+  active_command?: AcpAgentsResponse["active_command"];
+  agents: AcpAgentsResponseAgentsItem[];
+  installed_count: AcpAgentsResponse["installed_count"];
+  missing_count: AcpAgentsResponse["missing_count"];
 };
 
 export interface ACPCensus {

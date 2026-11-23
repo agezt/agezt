@@ -5,20 +5,27 @@
 // message, so /api/inbox returns many short threads for one chat; we merge them
 // by (channel_kind, channel_id, sender) into a session whose messages are the
 // union, time-ordered. Pure + unit-tested.
+//
+// The thread and message shapes are the daemon's own rows: the browser names the
+// fields it reads, the daemon names what they are.
+import type {
+  InboxResponseThreadsItem,
+  InboxResponseThreadsItemMessagesItem,
+} from "@/app/api/types.generated";
 
 type ChannelMessage = {
-  direction?: string;
-  sender?: string;
-  text?: string;
-  ts_unix_ms?: number;
+  direction?: InboxResponseThreadsItemMessagesItem["direction"];
+  sender?: InboxResponseThreadsItemMessagesItem["sender"];
+  text?: InboxResponseThreadsItemMessagesItem["text"];
+  ts_unix_ms?: InboxResponseThreadsItemMessagesItem["ts_unix_ms"];
 };
 
 export type InboxThread = {
-  correlation_id: string;
-  channel_kind?: string;
-  channel_id?: string;
-  messages?: ChannelMessage[];
-  last_ts_unix_ms?: number;
+  correlation_id: InboxResponseThreadsItem["correlation_id"];
+  channel_kind?: InboxResponseThreadsItem["channel_kind"];
+  channel_id?: InboxResponseThreadsItem["channel_id"];
+  messages?: ChannelMessage[] | null;
+  last_ts_unix_ms?: InboxResponseThreadsItem["last_ts_unix_ms"];
 };
 
 export interface ChannelSession {
