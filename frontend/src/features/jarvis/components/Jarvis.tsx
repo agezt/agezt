@@ -24,11 +24,10 @@ import { StatTile } from "@/components/ui/metric-widget";
 // come from the daemon's registry: the roster answers with `profiles`, and a
 // profile is enabled or it is not — there is no `ready` field to invent.
 interface AgentRow {
-  slug: string;
-  name?: string;
-  enabled?: boolean;
-  status?: AgentListResponseProfilesItem["status"];
-}
+  slug: AgentListResponseProfilesItem["slug"];
+  name?: AgentListResponseProfilesItem["name"];
+  enabled?: AgentListResponseProfilesItem["enabled"];
+  status?: AgentListResponseProfilesItem["status"];}
 
 interface ServerVoiceStatus {
   stt?: { configured?: boolean; provider?: string };

@@ -34,10 +34,9 @@ export type WfNode = {
 };
 
 export type WfSettings = {
-  timeout_sec?: number;
-  retries?: number;
-  retry_delay_sec?: number;
-};
+  timeout_sec?: WorkflowDraftResponseWorkflowNodesItem["timeout_sec"];
+  retries?: WorkflowDraftResponseWorkflowNodesItem["retries"];
+  retry_delay_sec?: WorkflowDraftResponseWorkflowNodesItem["retry_delay_sec"];};
 // WfEdge is a workflow edge as the canvas reads it.
 export type WfEdge = {
   from: WorkflowDraftResponseWorkflowEdgesItem["from"];

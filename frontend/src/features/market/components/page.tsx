@@ -4,6 +4,11 @@
 // page uses them; future slices can peel off nodes/panels/flow once the
 // cross-import graph is mapped out).
 
+import type {
+  MarketAddSourceResponse,
+  MarketListResponsePacksItem,
+} from "@/app/api/types.generated";
+
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Store,
@@ -52,29 +57,27 @@ const PACK_WINDOW = 60;
 
 // A marketplace catalogue row joined with install state (see kernel/market.Listing).
 type Pack = {
-  name: string;
-  version: string;
-  description?: string;
-  category?: string;
-  tags?: string[];
-  signed?: boolean;
-  featured?: boolean;
-  downloads?: number;
-  skill_count?: number;
-  mcp_count?: number;
-  tool_count?: number;
-  marketplace?: string;
-  builtin?: boolean;
-  installed?: boolean;
-  update_available?: boolean;
-};
+  name: MarketListResponsePacksItem["name"];
+  version: MarketListResponsePacksItem["version"];
+  description?: MarketListResponsePacksItem["description"];
+  category?: MarketListResponsePacksItem["category"];
+  tags?: MarketListResponsePacksItem["tags"];
+  signed?: MarketListResponsePacksItem["signed"];
+  featured?: MarketListResponsePacksItem["featured"];
+  downloads?: MarketListResponsePacksItem["downloads"];
+  skill_count?: MarketListResponsePacksItem["skill_count"];
+  mcp_count?: MarketListResponsePacksItem["mcp_count"];
+  tool_count?: MarketListResponsePacksItem["tool_count"];
+  marketplace?: MarketListResponsePacksItem["marketplace"];
+  builtin?: MarketListResponsePacksItem["builtin"];
+  installed?: MarketListResponsePacksItem["installed"];
+  update_available?: MarketListResponsePacksItem["update_available"];};
 
 // A configured remote marketplace source (see kernel/market.Source).
 type MarketSource = {
-  name: string;
-  url: string;
-  pubkey?: string;
-};
+  name: MarketAddSourceResponse["name"];
+  url: MarketAddSourceResponse["url"];
+  pubkey?: MarketAddSourceResponse["pubkey"];};
 
 type SortKey = "featured" | "popular" | "name";
 

@@ -7,93 +7,96 @@
 // from the view means a derivation can be reasoned about — and its test read —
 // without scrolling past six hundred lines of JSX.
 
+import type {
+  AgentListResponseProfilesItem,
+  ScheduleAddResponse,
+  ScheduleFiresResponseFiresItem,
+  ScheduleSystemTasksResponseSystemTaskInfoItem,
+  ToolListResponseToolsItem,
+  WorkflowListResponseWorkflowsItem,
+} from "@/app/api/types.generated";
+
 export interface Sched {
-  id: string;
-  intent?: string;
-  model?: string;
-  agent?: string;
-  target?: string;
-  workflow?: string;
-  system_task?: string;
-  tool?: string;
-  payload?: unknown;
-  cadence?: string;
-  mode?: string;
-  interval_sec?: number;
-  at_minutes?: number;
-  end_minutes?: number;
-  days?: number;
-  tz?: string;
-  source?: string;
-  enabled?: boolean;
-  next_run_unix?: number;
-  once_at_unix?: number;
-  last_status?: string;
-  frequency_warning?: string;
-  fires?: number;
-  assure?: number;
-  executor?: string;
-  uses_llm?: boolean;
-  execution_contract?: string;
-  target_status?: string;
-  target_error?: string;
-}
+  id: ScheduleAddResponse["id"];
+  intent?: ScheduleAddResponse["intent"];
+  model?: ScheduleAddResponse["model"];
+  agent?: ScheduleAddResponse["agent"];
+  target?: ScheduleAddResponse["target"];
+  workflow?: ScheduleAddResponse["workflow"];
+  system_task?: ScheduleAddResponse["system_task"];
+  tool?: ScheduleAddResponse["tool"];
+  payload?: ScheduleAddResponse["payload"];
+  cadence?: ScheduleAddResponse["cadence"];
+  mode?: ScheduleAddResponse["mode"];
+  interval_sec?: ScheduleAddResponse["interval_sec"];
+  at_minutes?: ScheduleAddResponse["at_minutes"];
+  end_minutes?: ScheduleAddResponse["end_minutes"];
+  days?: ScheduleAddResponse["days"];
+  tz?: ScheduleAddResponse["tz"];
+  source?: ScheduleAddResponse["source"];
+  enabled?: ScheduleAddResponse["enabled"];
+  next_run_unix?: ScheduleAddResponse["next_run_unix"];
+
+  last_status?: ScheduleAddResponse["last_status"];
+  frequency_warning?: ScheduleAddResponse["frequency_warning"];
+  fires?: ScheduleAddResponse["fires"];
+  assure?: ScheduleAddResponse["assure"];
+  executor?: ScheduleAddResponse["executor"];
+  uses_llm?: ScheduleAddResponse["uses_llm"];
+  execution_contract?: ScheduleAddResponse["execution_contract"];
+  target_status?: ScheduleAddResponse["target_status"];
+  target_error?: ScheduleAddResponse["target_error"];}
 
 export type ScheduleFire = {
-  correlation_id?: string;
-  schedule_id?: string;
-  fired_unix_ms?: number;
-  intent?: string;
-  action?: string;
-  model?: string;
-  target?: string;
-  agent?: string;
-  workflow?: string;
-  system_task?: string;
-  tool?: string;
-  executor?: string;
-  category?: string;
-  effect_class?: string;
-  uses_llm?: boolean;
-  status?: string;
-  reason?: string;
-  duration_ms?: number;
-};
+  correlation_id?: ScheduleFiresResponseFiresItem["correlation_id"];
+  schedule_id?: ScheduleFiresResponseFiresItem["schedule_id"];
+  fired_unix_ms?: ScheduleFiresResponseFiresItem["fired_unix_ms"];
+  intent?: ScheduleFiresResponseFiresItem["intent"];
+  action?: ScheduleFiresResponseFiresItem["action"];
+  model?: ScheduleFiresResponseFiresItem["model"];
+  target?: ScheduleFiresResponseFiresItem["target"];
+  agent?: ScheduleFiresResponseFiresItem["agent"];
+  workflow?: ScheduleFiresResponseFiresItem["workflow"];
+  system_task?: ScheduleFiresResponseFiresItem["system_task"];
+  tool?: ScheduleFiresResponseFiresItem["tool"];
+  executor?: ScheduleFiresResponseFiresItem["executor"];
+  category?: ScheduleFiresResponseFiresItem["category"];
+  effect_class?: ScheduleFiresResponseFiresItem["effect_class"];
+  uses_llm?: ScheduleFiresResponseFiresItem["uses_llm"];
+  status?: ScheduleFiresResponseFiresItem["status"];
+  reason?: ScheduleFiresResponseFiresItem["reason"];
+  duration_ms?: ScheduleFiresResponseFiresItem["duration_ms"];};
 
 export interface ScheduleAgent {
-  slug: string;
-  name?: string;
-  enabled?: boolean;
-  retired?: boolean;
-  managed?: boolean;
-  direct_callable?: boolean;
-  kind?: string;
-  tool_allow?: string[];
-  tool_deny?: string[];
-}
+  slug: AgentListResponseProfilesItem["slug"];
+  name?: AgentListResponseProfilesItem["name"];
+  enabled?: AgentListResponseProfilesItem["enabled"];
+  retired?: AgentListResponseProfilesItem["retired"];
+  managed?: AgentListResponseProfilesItem["managed"];
+  direct_callable?: AgentListResponseProfilesItem["direct_callable"];
+  kind?: AgentListResponseProfilesItem["kind"];
+  tool_allow?: AgentListResponseProfilesItem["tool_allow"];
+  tool_deny?: AgentListResponseProfilesItem["tool_deny"];}
 
 export interface ScheduleWorkflow {
-  id?: string;
-  name: string;
-  enabled?: boolean;
-}
+  id?: WorkflowListResponseWorkflowsItem["id"];
+  name: WorkflowListResponseWorkflowsItem["name"];
+  enabled?: WorkflowListResponseWorkflowsItem["enabled"];}
 
 export type ScheduleTool = {
-  name: string;
-  description?: string;
-};
+  name: ToolListResponseToolsItem["name"];
+  description?: ToolListResponseToolsItem["description"];};
 
 export type ScheduleSystemTaskInfo = {
-  name: string;
-  label?: string;
-  description?: string;
-  category?: string;
-  executor?: string;
-  uses_llm?: boolean;
-  effect_class?: string;
-  effect?: string;
-  recommended_interval_sec?: number;
-};
+  name: ScheduleSystemTasksResponseSystemTaskInfoItem["name"];
+  label?: ScheduleSystemTasksResponseSystemTaskInfoItem["label"];
+  description?: ScheduleSystemTasksResponseSystemTaskInfoItem["description"];
+  category?: ScheduleSystemTasksResponseSystemTaskInfoItem["category"];
+  executor?: ScheduleSystemTasksResponseSystemTaskInfoItem["executor"];
+  uses_llm?: ScheduleSystemTasksResponseSystemTaskInfoItem["uses_llm"];
+  effect_class?: ScheduleSystemTasksResponseSystemTaskInfoItem["effect_class"];
+  effect?: ScheduleSystemTasksResponseSystemTaskInfoItem["effect"];
+  recommended_interval_sec?: ScheduleSystemTasksResponseSystemTaskInfoItem["recommended_interval_sec"];};
 
 export const FALLBACK_SYSTEM_TASKS = ["catalog_sync", "artifact_collect", "memory_clean", "memory_tidy", "log_clean", "graveyard_scan"];
 export const FALLBACK_SYSTEM_TASK_INFO: ScheduleSystemTaskInfo[] = [

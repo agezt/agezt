@@ -4,28 +4,31 @@
 // stay in page.tsx because they aren't consumed outside the
 // package's barrel. Public surface (page.tsx re-exports) unchanged.
 
+import type {
+  McpListResponseServersItem,
+} from "@/app/api/types.generated";
+
 export interface MCPServer {
-  id: string;
-  name: string;
-  command?: string;
-  args?: string[];
+  id: McpListResponseServersItem["id"];
+  name: McpListResponseServersItem["name"];
+  command?: McpListResponseServersItem["command"];
+  args?: McpListResponseServersItem["args"];
   // url + transport: remote (Streamable HTTP) servers (M904). transport is
   // "stdio" | "http"; url is set only for http.
-  url?: string;
-  transport?: string;
-  enabled?: boolean;
-  description?: string;
-  attached?: boolean;
-  tool_count?: number;
+  url?: McpListResponseServersItem["url"];
+  transport?: McpListResponseServersItem["transport"];
+  enabled?: McpListResponseServersItem["enabled"];
+  description?: McpListResponseServersItem["description"];
+  attached?: McpListResponseServersItem["attached"];
+  tool_count?: McpListResponseServersItem["tool_count"];
   // env values are redacted by the backend; only the key names come back (M898).
-  env_keys?: string[];
+  env_keys?: McpListResponseServersItem["env_keys"];
   // header values are redacted too; only the names come back for remote servers (M904).
-  header_keys?: string[];
+  header_keys?: McpListResponseServersItem["header_keys"];
   // tool_allow: optional per-server allowlist of tool names to expose (M899).
-  tool_allow?: string[];
+  tool_allow?: McpListResponseServersItem["tool_allow"];
   // lazy: collapse this server's tools into one mcp_<name> dispatcher (M906).
-  lazy?: boolean;
-}
+  lazy?: McpListResponseServersItem["lazy"];}
 export type CatalogCategory = "core" | "web" | "data" | "dev" | "apps";
 export interface CatalogEntry {
   name: string;

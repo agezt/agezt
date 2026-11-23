@@ -17,7 +17,12 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { AnimatedNumber } from "@/components/AnimatedNumber";
 import { useUI } from "@/components/ui/feedback";
 import { ApiKeyField } from "@/components/apikeys/index";
-import type { CatalogListResponseProvidersItem } from "@/app/api/types.generated";
+import type {
+  CatalogListResponseProvidersItem ,
+  ChannelListResponseChannelsItem ,
+  McpListResponseServersItem ,
+  NodeRegistryResponseNodesItem,
+} from "@/app/api/types.generated";
 
 // Connections — one cockpit for "what's actually wired up". Read-only on the
 // Status tab (AI providers, channels, MCP servers, peer nodes), and the
@@ -38,21 +43,22 @@ interface Provider {
   model_count?: CatalogListResponseProvidersItem["model_count"];
 }
 type ChannelRow = {
-  kind: string;
-  display?: string;
-  live?: boolean;
-  configured?: boolean;
-};
-interface MCPServer { name: string; enabled?: boolean; attached?: boolean }
+  kind: ChannelListResponseChannelsItem["kind"];
+  display?: ChannelListResponseChannelsItem["display"];
+  live?: ChannelListResponseChannelsItem["live"];
+  configured?: ChannelListResponseChannelsItem["configured"];};
+interface MCPServer {
+  name: McpListResponseServersItem["name"];
+  enabled?: McpListResponseServersItem["enabled"];
+  attached?: McpListResponseServersItem["attached"];}
 type NodeRow = {
-  id?: string;
-  name: string;
-  local?: boolean;
-  reachable?: boolean;
-  url?: string;
-  version?: string;
-  status?: string;
-};
+  id?: NodeRegistryResponseNodesItem["id"];
+  name: NodeRegistryResponseNodesItem["name"];
+  local?: NodeRegistryResponseNodesItem["local"];
+  reachable?: NodeRegistryResponseNodesItem["reachable"];
+  url?: NodeRegistryResponseNodesItem["url"];
+  version?: NodeRegistryResponseNodesItem["version"];
+  status?: NodeRegistryResponseNodesItem["status"];};
 
 type Tab = "status" | "keys";
 

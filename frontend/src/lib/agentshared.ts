@@ -1,9 +1,13 @@
 import { fmtDue } from "@/app/utils";
 import type { AgentRuntimeStatus } from "@/lib/agentdetail";
 import type {
-  AgentListResponseProfilesItem,
-  AgentListResponseProfilesItemLifecycle,
-  AgentListResponseProfilesItemTasklistItem,
+  AgentListResponseProfilesItem ,
+  AgentListResponseProfilesItemLifecycle ,
+  AgentListResponseProfilesItemTasklistItem ,
+  AgentRemoveResponse ,
+  AgentSetEnabledResponse ,
+  BoardReadResponseMessagesItem ,
+  ScheduleAddResponse,
 } from "@/app/api/types.generated";
 
 // AgentProfile is the browser's view of one profile from /api/agents. Every
@@ -64,49 +68,45 @@ export interface AgentTask {
 }
 
 export type RosterBoardMessage = {
-  id?: string;
-  from?: string;
-  to?: string;
-  reply_to?: string;
-  acked_by?: string[];
-  ts_unix_ms?: number;
-};
+  id?: BoardReadResponseMessagesItem["id"];
+  from?: BoardReadResponseMessagesItem["from"];
+  to?: BoardReadResponseMessagesItem["to"];
+  reply_to?: BoardReadResponseMessagesItem["reply_to"];
+  acked_by?: BoardReadResponseMessagesItem["acked_by"];
+  ts_unix_ms?: BoardReadResponseMessagesItem["ts_unix_ms"];};
 
 export type RosterSchedule = {
-  id: string;
-  intent?: string;
-  agent?: string;
-  target?: string;
-  mode?: string;
-  interval_sec?: number;
-  enabled?: boolean;
-  frequency_warning?: string;
-};
+  id: ScheduleAddResponse["id"];
+  intent?: ScheduleAddResponse["intent"];
+  agent?: ScheduleAddResponse["agent"];
+  target?: ScheduleAddResponse["target"];
+  mode?: ScheduleAddResponse["mode"];
+  interval_sec?: ScheduleAddResponse["interval_sec"];
+  enabled?: ScheduleAddResponse["enabled"];
+  frequency_warning?: ScheduleAddResponse["frequency_warning"];};
 
 export type AgentRetireResult = {
-  standing_paused?: number;
-  schedules_paused?: number;
-};
+  standing_paused?: AgentSetEnabledResponse["standing_paused"];
+  schedules_paused?: AgentSetEnabledResponse["schedules_paused"];};
 
 export type AgentReviveResult = AgentRetireResult;
 export type AgentEnableResult = AgentRetireResult;
 
 export type AgentRemoveResult = {
-  removed?: boolean;
-  standing_removed?: number;
-  schedules_removed?: number;
-  memories_forgotten?: number;
-  authored_memories_forgotten?: number;
-  skills_archived?: number;
-  configs_deleted?: number;
-  configs_access_pruned?: number;
-  workspaces_deleted?: number;
-  subagents_retired?: number;
-  subagents_retired_slugs?: string[];
-  mailbox_messages_retained?: number;
-  workflow_refs_retained?: number;
-  subagent_workflow_refs_retained?: number;
-};
+  removed?: AgentRemoveResponse["removed"];
+  standing_removed?: AgentRemoveResponse["standing_removed"];
+  schedules_removed?: AgentRemoveResponse["schedules_removed"];
+  memories_forgotten?: AgentRemoveResponse["memories_forgotten"];
+  authored_memories_forgotten?: AgentRemoveResponse["authored_memories_forgotten"];
+  skills_archived?: AgentRemoveResponse["skills_archived"];
+  configs_deleted?: AgentRemoveResponse["configs_deleted"];
+  configs_access_pruned?: AgentRemoveResponse["configs_access_pruned"];
+  workspaces_deleted?: AgentRemoveResponse["workspaces_deleted"];
+  subagents_retired?: AgentRemoveResponse["subagents_retired"];
+  subagents_retired_slugs?: AgentRemoveResponse["subagents_retired_slugs"];
+  mailbox_messages_retained?: AgentRemoveResponse["mailbox_messages_retained"];
+  workflow_refs_retained?: AgentRemoveResponse["workflow_refs_retained"];
+  subagent_workflow_refs_retained?: AgentRemoveResponse["subagent_workflow_refs_retained"];};
 
 export function agentRetireToast(slug: string, res?: AgentRetireResult): string {
   const standing = res?.standing_paused || 0;

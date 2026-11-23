@@ -6,6 +6,10 @@ import {
 } from "lucide-react";
 import { getJSON } from "@/app/api";
 import { cn } from "@/app/utils";
+import type {
+  ChatSuggestionsResponseSuggestionsItem,
+} from "@/app/api/types.generated";
+
 
 // IconMap maps icon names from the backend to Lucide components.
 const iconMap: Record<string, LucideIcon> = {
@@ -31,12 +35,11 @@ const iconMap: Record<string, LucideIcon> = {
 
 // Suggestion is one clickable next-prompt chip.
 export type Suggestion = {
-  id: string;
-  label: string;
-  prompt: string;
-  category: string;
-  icon?: string;
-};
+  id: ChatSuggestionsResponseSuggestionsItem["id"];
+  label: ChatSuggestionsResponseSuggestionsItem["label"];
+  prompt: ChatSuggestionsResponseSuggestionsItem["prompt"];
+  category: ChatSuggestionsResponseSuggestionsItem["category"];
+  icon?: ChatSuggestionsResponseSuggestionsItem["icon"];};
 
 // CategoryMeta styles each suggestion category consistently.
 const categoryMeta: Record<string, { label: string; chipClass: string }> = {

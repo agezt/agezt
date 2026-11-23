@@ -5,18 +5,20 @@ import { getJSON } from "@/app/api";
 import { money } from "@/app/format";
 import { cn } from "@/app/utils";
 import { AnimatedNumber } from "@/components/AnimatedNumber";
-import type { StatusResponseSchedules } from "@/app/api/types.generated";
+import type {
+  BudgetResponsePerTaskItem ,
+  StatusResponse ,
+  StatusResponseSchedules,
+} from "@/app/api/types.generated";
 
 type Status = {
-  halted?: boolean;
-  active_runs?: number;
-  active_skills?: number;
-  pending_approvals?: number;
-  schedules?: StatusResponseSchedules;
-};
+  halted?: StatusResponse["halted"];
+  active_runs?: StatusResponse["active_runs"];
+  active_skills?: StatusResponse["active_skills"];
+  pending_approvals?: StatusResponse["pending_approvals"];
+  schedules?: StatusResponse["schedules"];};
 type Budget = {
-  spent_mc?: number;
-};
+  spent_mc?: BudgetResponsePerTaskItem["spent_mc"];};
 
 // Vitals is the always-visible monitoring strip under the header: the system's
 // live pulse — in-flight runs, today's spend, active schedules and skills, and

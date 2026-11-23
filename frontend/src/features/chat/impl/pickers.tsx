@@ -19,14 +19,17 @@ import { money } from "@/app/format";
 import { getJSON } from "@/app/api";
 import { type ChatTurn } from "@/lib/chat";
 import { type HistorySummary } from "@/lib/conversations";
+import type {
+  ExecutionProfileCheckResponseChecksItem,
+} from "@/app/api/types.generated";
+
 
 interface ExecutionProfileCheck {
-  profile_id?: string;
-  status?: string;
-  title?: string;
-  detail?: string;
-  next?: string;
-}
+  profile_id?: ExecutionProfileCheckResponseChecksItem["profile_id"];
+  status?: ExecutionProfileCheckResponseChecksItem["status"];
+  title?: ExecutionProfileCheckResponseChecksItem["title"];
+  detail?: ExecutionProfileCheckResponseChecksItem["detail"];
+  next?: ExecutionProfileCheckResponseChecksItem["next"];}
 
 const EXEC_PROFILE_OPTIONS: { id: string; label: string; hint: string }[] = [
   { id: "", label: "tool defaults", hint: "use each tool's configured execution profile" },

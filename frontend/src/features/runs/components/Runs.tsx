@@ -27,16 +27,19 @@ import { useRunFocus, clearRunFocus } from "@/lib/runfocus";
 import { TabNav } from "@/components/ui/tab-nav";
 import { useCursorPager } from "@/app/cursor-pager";
 import { LoadMoreFooter } from "@/components/ui/load-more-footer";
+import type {
+  RunsListResponseRunsItem,
+} from "@/app/api/types.generated";
+
 
 type Run = {
-  correlation_id?: string;
-  status?: string;
-  intent?: string;
-  duration_ms?: number;
-  started_unix_ms?: number;
-  phase?: string;
-  tool?: string;
-};
+  correlation_id?: RunsListResponseRunsItem["correlation_id"];
+  status?: RunsListResponseRunsItem["status"];
+  intent?: RunsListResponseRunsItem["intent"];
+  duration_ms?: RunsListResponseRunsItem["duration_ms"];
+  started_unix_ms?: RunsListResponseRunsItem["started_unix_ms"];
+  phase?: RunsListResponseRunsItem["phase"];
+  tool?: RunsListResponseRunsItem["tool"];};
 
 function RunRow({ run, focus, ctx }: { run: Run; focus?: string | null; ctx?: LiveRunContext }) {
   const [open, setOpen] = useState(false);

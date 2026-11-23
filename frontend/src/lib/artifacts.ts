@@ -1,4 +1,9 @@
 import { authHeaders } from "@/app/api";
+import type {
+  ArtifactListResponse,
+  ArtifactListResponseEntriesItem,
+} from "@/app/api/types.generated";
+
 
 // The artifact domain: what a stored artifact IS, how to classify it, and how to
 // get its bytes. The daemon indexes every agent output and inbound channel file
@@ -17,23 +22,21 @@ import { authHeaders } from "@/app/api";
 // screens share belongs in the shared layer, not in one feature's pocket.
 
 export type ArtifactEntry = {
-  id: string;
-  ref: string;
-  name?: string;
-  mime?: string;
-  kind?: string;
-  source?: string;
-  sender?: string;
-  corr?: string;
-  size?: number;
-  created_ms?: number;
-  caption?: string;
-};
+  id: ArtifactListResponseEntriesItem["id"];
+  ref: ArtifactListResponseEntriesItem["ref"];
+  name?: ArtifactListResponseEntriesItem["name"];
+  mime?: ArtifactListResponseEntriesItem["mime"];
+  kind?: ArtifactListResponseEntriesItem["kind"];
+  source?: ArtifactListResponseEntriesItem["source"];
+  sender?: ArtifactListResponseEntriesItem["sender"];
+  corr?: ArtifactListResponseEntriesItem["corr"];
+  size?: ArtifactListResponseEntriesItem["size"];
+  created_ms?: ArtifactListResponseEntriesItem["created_ms"];
+  caption?: ArtifactListResponseEntriesItem["caption"];};
 
 export type ArtifactList = {
-  count: number;
-  entries: ArtifactEntry[];
-};
+  count: ArtifactListResponse["count"];
+  entries: ArtifactListResponse["entries"];};
 
 // isImage decides whether an entry renders as a gallery thumbnail.
 export function isImage(e: ArtifactEntry): boolean {

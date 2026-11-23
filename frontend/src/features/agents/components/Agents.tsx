@@ -62,6 +62,10 @@ import {
 } from "@/lib/fleet";
 import { applyAgentLivePatches, reduceAgentLivePatchMap, shouldReloadAgentCatalog, type AgentLivePatchMap } from "@/features/agents/lib/agentlive";
 import { Segmented } from "@/components/ui/segmented";
+import type {
+  RunsListResponseRunsItem,
+} from "@/app/api/types.generated";
+
 
 // Re-export the run-status helpers from their canonical home (lib/fleet) so the
 // existing test + Dashboard imports from "@/features/agents/components/Agents" keep working.
@@ -69,17 +73,16 @@ export { statusKind, scheduleAgentSlug } from "@/lib/fleet";
 export type { StatusKind } from "@/lib/fleet";
 
 type ApiRun = {
-  correlation_id?: string;
-  parent_correlation?: string;
-  status?: string;
-  model?: string;
-  spent_mc?: number;
-  iters?: number;
-  intent?: string;
-  agent?: string;
-  answer_preview?: string;
-  started_unix_ms?: number;
-};
+  correlation_id?: RunsListResponseRunsItem["correlation_id"];
+  parent_correlation?: RunsListResponseRunsItem["parent_correlation"];
+  status?: RunsListResponseRunsItem["status"];
+  model?: RunsListResponseRunsItem["model"];
+  spent_mc?: RunsListResponseRunsItem["spent_mc"];
+  iters?: RunsListResponseRunsItem["iters"];
+  intent?: RunsListResponseRunsItem["intent"];
+  agent?: RunsListResponseRunsItem["agent"];
+  answer_preview?: RunsListResponseRunsItem["answer_preview"];
+  started_unix_ms?: RunsListResponseRunsItem["started_unix_ms"];};
 
 function toRunNodes(runs: ApiRun[]): RunNode[] {
   return runs.map((r) => ({

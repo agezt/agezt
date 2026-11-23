@@ -20,7 +20,12 @@ import { ErrorText, KeyValue } from "@/components/JsonView";
 import { Disclosure } from "@/components/ui/disclosure";
 import { LoadMoreFooter } from "@/components/ui/load-more-footer";
 import { Segmented } from "@/components/ui/segmented";
-import type { StandingListResponseOrdersItem, StandingListResponseOrdersItemTriggersItem, StandingWhyResponseEventsItem } from "@/app/api/types.generated";
+import type {
+  AgentListResponseProfilesItem ,
+  StandingListResponseOrdersItem ,
+  StandingListResponseOrdersItemTriggersItem ,
+  StandingWhyResponseEventsItem,
+} from "@/app/api/types.generated";
 
 // STANDING_ORDER_WINDOW caps how many standing-order cards render at once.
 // /api/standing has no pagination (the list arrives whole), so the window
@@ -65,13 +70,12 @@ export function initiativeEnforcement(mode: string): string {
 }
 
 interface StandingAgent {
-  slug: string;
-  enabled?: boolean;
-  retired?: boolean;
-  managed?: boolean;
-  direct_callable?: boolean;
-  kind?: string;
-}
+  slug: AgentListResponseProfilesItem["slug"];
+  enabled?: AgentListResponseProfilesItem["enabled"];
+  retired?: AgentListResponseProfilesItem["retired"];
+  managed?: AgentListResponseProfilesItem["managed"];
+  direct_callable?: AgentListResponseProfilesItem["direct_callable"];
+  kind?: AgentListResponseProfilesItem["kind"];}
 type WhyEvent = {
   seq?: StandingWhyResponseEventsItem["seq"];
   kind?: StandingWhyResponseEventsItem["kind"];

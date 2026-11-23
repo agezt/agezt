@@ -4,59 +4,61 @@
 // functions are pure + unit-tested; the React component owns fetching/rendering.
 
 import type {
-  AgentListResponseProfilesItemStatus,
-  AgentRepairStatusResponse,
-  AgentRepairStatusResponseContract,
-  AgentRepairStatusResponseHistoryItem,
-  AgentRepairStatusResponseNextAction,
-  ReaperScanResponse,
-  ReaperScanResponseDeadAgentsItem,
-  ReaperScanResponseDegradedAgentsItem,
-  ReaperScanResponseMisconfiguredAgentsItem,
-  ReaperScanResponseRoutingForcedExhaustedAgentsItem,
-  ReaperScanResponseRoutingPressureAgentsItem,
-  ReaperScanResponseRoutingUnstableAgentsItem,
+  AgentEscalationsResponseEscalationsItem ,
+  AgentListResponseProfilesItemStatus ,
+  AgentRepairStatusResponse ,
+  AgentRepairStatusResponseContract ,
+  AgentRepairStatusResponseHistoryItem ,
+  AgentRepairStatusResponseNextAction ,
+  JournalGrepResponseEventsItem ,
+  MemoryListResponseRecordsItem ,
+  ProviderLogResponseEventsItem ,
+  ReaperScanResponse ,
+  ReaperScanResponseDeadAgentsItem ,
+  ReaperScanResponseDegradedAgentsItem ,
+  ReaperScanResponseMisconfiguredAgentsItem ,
+  ReaperScanResponseRoutingForcedExhaustedAgentsItem ,
+  ReaperScanResponseRoutingPressureAgentsItem ,
+  ReaperScanResponseRoutingUnstableAgentsItem ,
+  RunsListResponseRunsItem ,
+  SkillListResponseSkillsItem,
 } from "@/app/api/types.generated";
 
 // MemoryRecord mirrors the wire shape of /api/memory records (recordView in
 // kernel/controlplane/memory.go). Only the fields the panel reads are typed.
 export type MemoryRecord = {
-  id?: string;
-  type?: string;
-  subject?: string;
-  content?: string;
-  confidence?: number;
-  created_ms?: number;
-  last_seen_ms?: number;
-  tags?: Record<string, string>;
-  added_by?: string;
-};
+  id?: MemoryListResponseRecordsItem["id"];
+  type?: MemoryListResponseRecordsItem["type"];
+  subject?: MemoryListResponseRecordsItem["subject"];
+  content?: MemoryListResponseRecordsItem["content"];
+  confidence?: MemoryListResponseRecordsItem["confidence"];
+  created_ms?: MemoryListResponseRecordsItem["created_ms"];
+  last_seen_ms?: MemoryListResponseRecordsItem["last_seen_ms"];
+  tags?: MemoryListResponseRecordsItem["tags"];
+  added_by?: MemoryListResponseRecordsItem["added_by"];};
 
 // SkillLite mirrors the /api/skills list fields the panel reads.
 export type SkillLite = {
-  id?: string;
-  name?: string;
-  description?: string;
-  status?: string;
-  agent?: string;
-  triggers?: string[];
-};
+  id?: SkillListResponseSkillsItem["id"];
+  name?: SkillListResponseSkillsItem["name"];
+  description?: SkillListResponseSkillsItem["description"];
+  status?: SkillListResponseSkillsItem["status"];
+  agent?: SkillListResponseSkillsItem["agent"];
+  triggers?: SkillListResponseSkillsItem["triggers"];};
 
 // CorrelatedRow is any diagnostics row that can be attributed to a run/agent
 // (policy decisions, tool invocations). Both carry a correlation id and an actor.
 export interface CorrelatedRow {
-  correlation_id?: string;
-  actor?: string;
-}
+  correlation_id?: JournalGrepResponseEventsItem["correlation_id"];
+  actor?: JournalGrepResponseEventsItem["actor"];}
 
 // RunLite is the subset of /api/runs the panel folds for spend/last-active.
 export type RunLite = {
-  correlation_id?: string;
-  agent?: string;
-  status?: string;
-  spent_mc?: number;
-  started_unix_ms?: number;
-};
+  correlation_id?: RunsListResponseRunsItem["correlation_id"];
+  agent?: RunsListResponseRunsItem["agent"];
+  status?: RunsListResponseRunsItem["status"];
+  spent_mc?: RunsListResponseRunsItem["spent_mc"];
+  started_unix_ms?: RunsListResponseRunsItem["started_unix_ms"];};
 
 // The reaper's rows are the daemon's own scan rows: the browser names the
 // fields it reads, the daemon names what they are.
@@ -176,84 +178,18 @@ export interface AgentConfigOverrideSummary {
   generic: Array<{ key: string; value: string }>;
 }
 
-export interface AgentRuntimeStatus {
-  health_state?: AgentListResponseProfilesItemStatus["health_state"];
-  health_label?: string;
-  repair_mode?: "misconfigured" | "degraded" | string;
-  repair_state?: "idle" | "queued" | "completed" | "failed" | string;
-  repair_label?: string;
-  invalid_runtime_overrides?: number;
-  misconfiguration_count?: number;
-  repair_inflight?: number;
-  repair_next_eligible_ms?: number;
-  repair_last_ts_ms?: number;
-  repair_last_error?: string;
-  repair_self_attempt?: number;
-  repair_self_max_attempts?: number;
-  config_issues?: string[];
-  repair_incident_id?: string;
-  repair_root_incident_id?: string;
-  repair_parent_incident_id?: string;
-  repair_root_agent?: string;
-  repair_chain_depth?: number;
-  self_repair_enabled?: boolean;
-  routing_fallback_count?: number;
-  routing_last_reason?: string;
-  routing_last_failed?: string;
-  routing_last_next?: string;
-  routing_last_ts_ms?: number;
-  routing_force_generation?: number;
-  retry_count?: number;
-  retry_last_reason?: string;
-  retry_last_ts_ms?: number;
-  retry_next_attempt?: number;
-  retry_max_attempts?: number;
-  escalation_open_count?: number;
-  escalation_acked_count?: number;
-  wake_schedule_count?: number;
-  wake_standing_count?: number;
-  wake_event_subjects?: string[];
-  next_wake_ms?: number;
-  next_wake_label?: string;
-  active_run_count?: number;
-  active_correlation_id?: string;
-  active_intent?: string;
-  active_started_ms?: number;
-  active_model?: string;
-  active_spent_mc?: number;
-  active_phase?: string;
-  active_last_event_ms?: number;
-  active_last_event_kind?: string;
-  active_detail?: string;
-  active_tool?: string;
-  active_iter?: number;
-  active_wake_source?: string;
-  active_wake_reason?: string;
-  active_schedule_id?: string;
-  active_standing_id?: string;
-  active_standing_name?: string;
-  active_trigger_subject?: string;
-  active_parent_correlation?: string;
-  operational_state?: "running" | "sleeping" | "paused" | "retired" | string;
-  operational_label?: string;
-  last_activity_ms?: number;
-  last_activity_kind?: string;
-  last_activity_correlation_id?: string;
-  last_activity_summary?: string;
-  last_autonomy_runbook?: AgentLastAutonomyRunbook;
+export interface AgentRuntimeStatus
+  extends Omit<
+    Partial<AgentListResponseProfilesItemStatus>,
+    "last_autonomy_runbook" | "mailbox_wakes"
+  > {
   // Causality: board message id -> the wake it triggered (the standing/mailbox
   // fire's run correlation + timestamp). Lets the comms tab mark which message
   // actually woke the agent and link it to the run. Derived from the journal.
+  // The daemon sends this record untyped, so the browser names its own shape.
   mailbox_wakes?: Record<string, MailboxWakeRef>;
-  // Enforcement audit: how many tool calls the runtime REFUSED for this agent
-  // (policy.decision allow=false), plus the most recent one. Proves the policy is
-  // enforced at runtime, not merely displayed.
-  policy_denied_count?: number;
-  policy_denied_last_tool?: string;
-  policy_denied_last_reason?: string;
-  policy_denied_last_capability?: string;
-  policy_denied_last_hard?: boolean;
-  policy_denied_last_ms?: number;
+  // The daemon sends this record untyped too; the browser reads it as a runbook.
+  last_autonomy_runbook?: AgentLastAutonomyRunbook;
 }
 
 export interface MailboxWakeRef {
@@ -345,16 +281,15 @@ export function lastAutonomyRunbookSourceLabel(rb?: AgentLastAutonomyRunbook): s
 }
 
 export type ProviderRoutingRow = {
-  ts_unix_ms?: number;
-  kind?: string;
-  primary?: string;
-  chain?: string;
-  task_type?: string;
-  failed?: string;
-  next?: string;
-  reason?: string;
-  scope?: string;
-};
+  ts_unix_ms?: ProviderLogResponseEventsItem["ts_unix_ms"];
+  kind?: ProviderLogResponseEventsItem["kind"];
+  primary?: ProviderLogResponseEventsItem["primary"];
+  chain?: ProviderLogResponseEventsItem["chain"];
+  task_type?: ProviderLogResponseEventsItem["task_type"];
+  failed?: ProviderLogResponseEventsItem["failed"];
+  next?: ProviderLogResponseEventsItem["next"];
+  reason?: ProviderLogResponseEventsItem["reason"];
+  scope?: ProviderLogResponseEventsItem["scope"];};
 
 export interface ProviderRoutingSummary {
   kindLabel: string;
@@ -501,32 +436,31 @@ export interface AgentRepairSnapshot {
 }
 
 export type AgentEscalation = {
-  message_id?: string;
-  from?: string;
-  to?: string;
-  text?: string;
-  ts_unix_ms?: number;
-  status?: string;
-  reply_count?: number;
-  acked?: boolean;
-  source_agent?: string;
-  mode?: string;
-  wake_phase?: string;
-  wake_reason?: string;
-  wake_error?: string;
-  wake_correlation_id?: string;
-  fingerprint?: string;
-  resolution?: string;
-  resolution_summary?: string;
-  delegate_to?: string;
-  origin_kind?: string;
-  origin_agent?: string;
-  root_agent?: string;
-  chain_depth?: number;
-  incident_id?: string;
-  root_incident_id?: string;
-  parent_incident_id?: string;
-};
+  message_id?: AgentEscalationsResponseEscalationsItem["message_id"];
+  from?: AgentEscalationsResponseEscalationsItem["from"];
+  to?: AgentEscalationsResponseEscalationsItem["to"];
+  text?: AgentEscalationsResponseEscalationsItem["text"];
+  ts_unix_ms?: AgentEscalationsResponseEscalationsItem["ts_unix_ms"];
+  status?: AgentEscalationsResponseEscalationsItem["status"];
+  reply_count?: AgentEscalationsResponseEscalationsItem["reply_count"];
+  acked?: AgentEscalationsResponseEscalationsItem["acked"];
+  source_agent?: AgentEscalationsResponseEscalationsItem["source_agent"];
+  mode?: AgentEscalationsResponseEscalationsItem["mode"];
+  wake_phase?: AgentEscalationsResponseEscalationsItem["wake_phase"];
+  wake_reason?: AgentEscalationsResponseEscalationsItem["wake_reason"];
+  wake_error?: AgentEscalationsResponseEscalationsItem["wake_error"];
+  wake_correlation_id?: AgentEscalationsResponseEscalationsItem["wake_correlation_id"];
+  fingerprint?: AgentEscalationsResponseEscalationsItem["fingerprint"];
+  resolution?: AgentEscalationsResponseEscalationsItem["resolution"];
+  resolution_summary?: AgentEscalationsResponseEscalationsItem["resolution_summary"];
+  delegate_to?: AgentEscalationsResponseEscalationsItem["delegate_to"];
+  origin_kind?: AgentEscalationsResponseEscalationsItem["origin_kind"];
+  origin_agent?: AgentEscalationsResponseEscalationsItem["origin_agent"];
+  root_agent?: AgentEscalationsResponseEscalationsItem["root_agent"];
+  chain_depth?: AgentEscalationsResponseEscalationsItem["chain_depth"];
+  incident_id?: AgentEscalationsResponseEscalationsItem["incident_id"];
+  root_incident_id?: AgentEscalationsResponseEscalationsItem["root_incident_id"];
+  parent_incident_id?: AgentEscalationsResponseEscalationsItem["parent_incident_id"];};
 
 export interface AgentEscalationSummary {
   openCount: number;

@@ -668,7 +668,7 @@ export function Schedules() {
             initialEndMinutes={editingSchedule.end_minutes}
             initialDays={editingSchedule.days}
             initialTz={editingSchedule.tz}
-            initialOnceAtUnix={editingSchedule.once_at_unix || (editingSchedule.mode === "once" ? editingSchedule.next_run_unix : undefined)}
+            initialOnceAtUnix={editingSchedule.mode === "once" ? editingSchedule.next_run_unix : undefined}
             agents={profiles}
             workflows={workflows}
             tools={tools}

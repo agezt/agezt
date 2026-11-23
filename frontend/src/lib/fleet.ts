@@ -15,7 +15,21 @@
 //   workflow  — /api/workflows   DAGs whose trigger node is manual/cron/event/webhook
 //   system    — always-on engines: Pulse (heartbeat), Reaper (sentinel), Overseer
 
-import type { StandingListResponseOrdersItem, StandingListResponseOrdersItemTriggersItem } from "@/app/api/types.generated";
+import type {
+  AgentListResponseProfilesItem ,
+  AgentListResponseProfilesItemHealthPolicy ,
+  AgentListResponseProfilesItemLifecycle ,
+  AgentListResponseProfilesItemRetryPolicy ,
+  AgentListResponseProfilesItemSelfRepair ,
+  AgentListResponseProfilesItemStatus ,
+  AgentListResponseProfilesItemTasklistItem ,
+  RunsListResponseRunsItem ,
+  ScheduleAddResponse ,
+  StandingListResponseOrdersItem ,
+  StandingListResponseOrdersItemTriggersItem ,
+  WorkflowListResponseWorkflowsItem,
+} from "@/app/api/types.generated";
+import type { AgentRuntimeStatus } from "@/lib/agentdetail";
 
 export type FleetKind = "roster" | "standing" | "schedule" | "workflow" | "system";
 
@@ -87,69 +101,59 @@ export type FleetEntityFilter = "all" | FleetKind | "running" | "guardians" | "g
 // optional ones degrade gracefully.
 
 export type FleetRun = {
-  correlation_id?: string;
-  status?: string;
-  agent?: string;
-  started_unix_ms?: number;
-};
+  correlation_id?: RunsListResponseRunsItem["correlation_id"];
+  status?: RunsListResponseRunsItem["status"];
+  agent?: RunsListResponseRunsItem["agent"];
+  started_unix_ms?: RunsListResponseRunsItem["started_unix_ms"];};
 
 export interface ApiProfile {
-  slug: string;
-  name?: string;
-  model?: string;
-  enabled: boolean;
-  retired?: boolean;
-  system?: boolean;
-  kind?: "system" | "custom" | "subagent";
-  managed?: boolean;
-  owner_agent?: string;
-  parent_agent?: string;
-  direct_callable?: boolean;
-  soul?: string;
-  description?: string;
-  task_type?: string;
-  memory_scope?: string;
-  workdir?: string;
-  max_cost_mc?: number;
-  max_daily_mc?: number;
-  tool_allow?: string[];
-  tool_deny?: string[];
-  trust_ceiling?: "L0" | "L1" | "L2" | "L3" | "L4";
+  slug: AgentListResponseProfilesItem["slug"];
+  name?: AgentListResponseProfilesItem["name"];
+  model?: AgentListResponseProfilesItem["model"];
+  enabled: AgentListResponseProfilesItem["enabled"];
+  retired?: AgentListResponseProfilesItem["retired"];
+  system?: AgentListResponseProfilesItem["system"];
+  kind?: AgentListResponseProfilesItem["kind"];
+  managed?: AgentListResponseProfilesItem["managed"];
+  owner_agent?: AgentListResponseProfilesItem["owner_agent"];
+  parent_agent?: AgentListResponseProfilesItem["parent_agent"];
+  direct_callable?: AgentListResponseProfilesItem["direct_callable"];
+  soul?: AgentListResponseProfilesItem["soul"];
+  description?: AgentListResponseProfilesItem["description"];
+  task_type?: AgentListResponseProfilesItem["task_type"];
+  memory_scope?: AgentListResponseProfilesItem["memory_scope"];
+  workdir?: AgentListResponseProfilesItem["workdir"];
+  max_cost_mc?: AgentListResponseProfilesItem["max_cost_mc"];
+  max_daily_mc?: AgentListResponseProfilesItem["max_daily_mc"];
+  tool_allow?: AgentListResponseProfilesItem["tool_allow"];
+  tool_deny?: AgentListResponseProfilesItem["tool_deny"];
+  trust_ceiling?: AgentListResponseProfilesItem["trust_ceiling"];
   lifecycle?: {
-    mode?: "persistent" | "cycle" | "retire_on_complete";
-    retire_on_complete?: boolean;
-    max_cycles?: number;
-    completed_cycles?: number;
-  };
+  mode?: AgentListResponseProfilesItemLifecycle["mode"];
+  retire_on_complete?: AgentListResponseProfilesItemLifecycle["retire_on_complete"];
+  max_cycles?: AgentListResponseProfilesItemLifecycle["max_cycles"];
+  completed_cycles?: AgentListResponseProfilesItemLifecycle["completed_cycles"];};
   tasklist?: {
-    id?: string;
-    title?: string;
-    scope?: "cycle" | "total";
-    status?: "todo" | "doing" | "done" | "blocked" | "retired";
-  }[];
-  retry_policy?: { max_attempts?: number; backoff?: string; base_delay_sec?: number; max_delay_sec?: number; retry_on?: string[] };
-  health_policy?: { stale_after_sec?: number; failure_window?: number; failure_threshold?: number; doctor_agent?: string };
-  self_repair?: { enabled?: boolean; max_attempts?: number; escalate_to?: string };
-  status?: {
-    health_state?: "healthy" | "degraded" | "misconfigured" | "stale" | "retired" | "unstable" | "stabilizing" | "force_failed";
-    health_label?: string;
-    repair_state?: string;
-    repair_label?: string;
-    invalid_runtime_overrides?: number;
-    repair_inflight?: number;
-    repair_next_eligible_ms?: number;
-    routing_fallback_count?: number;
-    routing_last_reason?: string;
-    routing_last_failed?: string;
-    routing_last_next?: string;
-    routing_last_ts_ms?: number;
-    retry_count?: number;
-    retry_last_reason?: string;
-    retry_last_ts_ms?: number;
-    retry_next_attempt?: number;
-    retry_max_attempts?: number;
-  };
-}
+  id?: AgentListResponseProfilesItemTasklistItem["id"];
+  title?: AgentListResponseProfilesItemTasklistItem["title"];
+  scope?: AgentListResponseProfilesItemTasklistItem["scope"];
+  status?: AgentListResponseProfilesItemTasklistItem["status"];}[];
+  retry_policy?: {
+  max_attempts?: AgentListResponseProfilesItemRetryPolicy["max_attempts"];
+  backoff?: AgentListResponseProfilesItemRetryPolicy["backoff"];
+  base_delay_sec?: AgentListResponseProfilesItemRetryPolicy["base_delay_sec"];
+  max_delay_sec?: AgentListResponseProfilesItemRetryPolicy["max_delay_sec"];
+  retry_on?: AgentListResponseProfilesItemRetryPolicy["retry_on"];};
+  health_policy?: {
+  stale_after_sec?: AgentListResponseProfilesItemHealthPolicy["stale_after_sec"];
+  failure_window?: AgentListResponseProfilesItemHealthPolicy["failure_window"];
+  failure_threshold?: AgentListResponseProfilesItemHealthPolicy["failure_threshold"];
+  doctor_agent?: AgentListResponseProfilesItemHealthPolicy["doctor_agent"];};
+  self_repair?: {
+  enabled?: AgentListResponseProfilesItemSelfRepair["enabled"];
+  max_attempts?: AgentListResponseProfilesItemSelfRepair["max_attempts"];
+  escalate_to?: AgentListResponseProfilesItemSelfRepair["escalate_to"];};
+  status?: AgentRuntimeStatus;}
 
 type ApiTrigger = {
   type?: StandingListResponseOrdersItemTriggersItem["type"];
@@ -168,34 +172,32 @@ export interface ApiOrder {
 }
 
 export type ApiSchedule = {
-  id: string;
-  intent?: string;
-  model?: string;
-  agent?: string;
-  target?: string;
-  workflow?: string;
-  system_task?: string;
-  tool?: string;
-  payload?: any;
-  cadence?: string;
-  mode?: string;
-  interval_sec?: number;
-  source?: string;
-  enabled: boolean;
-  next_run_unix?: number;
-  last_status?: string;
-  fires?: number;
-};
+  id: ScheduleAddResponse["id"];
+  intent?: ScheduleAddResponse["intent"];
+  model?: ScheduleAddResponse["model"];
+  agent?: ScheduleAddResponse["agent"];
+  target?: ScheduleAddResponse["target"];
+  workflow?: ScheduleAddResponse["workflow"];
+  system_task?: ScheduleAddResponse["system_task"];
+  tool?: ScheduleAddResponse["tool"];
+  payload?: ScheduleAddResponse["payload"];
+  cadence?: ScheduleAddResponse["cadence"];
+  mode?: ScheduleAddResponse["mode"];
+  interval_sec?: ScheduleAddResponse["interval_sec"];
+  source?: ScheduleAddResponse["source"];
+  enabled: ScheduleAddResponse["enabled"];
+  next_run_unix?: ScheduleAddResponse["next_run_unix"];
+  last_status?: ScheduleAddResponse["last_status"];
+  fires?: ScheduleAddResponse["fires"];};
 
 export interface ApiWorkflow {
-  id?: string;
-  name: string;
-  description?: string;
-  enabled?: boolean;
-  trigger_kind?: string;
-  trigger_detail?: string;
-  node_count?: number;
-}
+  id?: WorkflowListResponseWorkflowsItem["id"];
+  name: WorkflowListResponseWorkflowsItem["name"];
+  description?: WorkflowListResponseWorkflowsItem["description"];
+  enabled?: WorkflowListResponseWorkflowsItem["enabled"];
+  trigger_kind?: WorkflowListResponseWorkflowsItem["trigger_kind"];
+  trigger_detail?: WorkflowListResponseWorkflowsItem["trigger_detail"];
+  node_count?: WorkflowListResponseWorkflowsItem["node_count"];}
 
 export interface ApiPulse {
   running?: boolean;
@@ -544,7 +546,14 @@ export function buildFleet(
       running,
       state,
       system: p.system,
-      agentClass: p.kind || (p.system ? "system" : p.managed || p.direct_callable === false ? "subagent" : "custom"),
+      agentClass:
+        p.kind === "system" || p.kind === "custom" || p.kind === "subagent"
+          ? p.kind
+          : p.system
+            ? "system"
+            : p.managed || p.direct_callable === false
+              ? "subagent"
+              : "custom",
       model: p.model,
       description: p.description,
       triggers,

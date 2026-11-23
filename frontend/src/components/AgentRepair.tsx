@@ -18,20 +18,23 @@ import {
 } from "@/lib/agentrepair";
 import type { AgentProfile } from "@/lib/agentshared";
 import type { RunLite } from "@/lib/agentdetail";
+import type {
+  ChainsGetResponse,
+  EdictLogResponseDecisionsItem,
+  ToolLogResponseInvocationsItem,
+} from "@/app/api/types.generated";
+
 
 type DenialRow = {
-  capability?: string;
-  tool?: string;
-  reason?: string;
-  hard_denied?: boolean;
-};
+  capability?: EdictLogResponseDecisionsItem["capability"];
+  tool?: EdictLogResponseDecisionsItem["tool"];
+  reason?: EdictLogResponseDecisionsItem["reason"];
+  hard_denied?: EdictLogResponseDecisionsItem["hard_denied"];};
 type ToolErrRow = {
-  tool?: string;
-  output?: string;
-};
+  tool?: ToolLogResponseInvocationsItem["tool"];
+  output?: ToolLogResponseInvocationsItem["output"];};
 type RoutingSnapshot = {
-  chains?: Record<string, string[]>;
-};
+  chains?: ChainsGetResponse["chains"];};
 
 export function repairReadinessPassport(
   profile: Pick<AgentProfile, "retired" | "kind" | "managed" | "direct_callable" | "parent_agent" | "owner_agent" | "retry_policy" | "health_policy" | "self_repair">,

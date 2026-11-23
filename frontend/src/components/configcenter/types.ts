@@ -8,7 +8,11 @@
 //
 // The field shape is the daemon's own schema row, narrowed to the fields the
 // page reads — the browser names the fields, the daemon names what they are.
-import type { ConfigSchemaResponseSectionsItemFieldsItem } from "@/app/api/types.generated";
+import type {
+  ConfigSchemaResponse ,
+  ConfigSchemaResponseSectionsItemFieldsItem ,
+  ConfigValuesResponseFieldsItem,
+} from "@/app/api/types.generated";
 
 export type FieldType = "text" | "password" | "number" | "bool" | "csv" | "select";
 export type ApplyMode = "live" | "restart";
@@ -26,9 +30,8 @@ export type Field = {
   locked?: ConfigSchemaResponseSectionsItemFieldsItem["locked"];
 };
 export type ValueEntry = {
-  env: string;
-  secret: boolean;
-  env_pinned: boolean;
-  set: boolean;
-  value?: string;
-};
+  env: ConfigValuesResponseFieldsItem["env"];
+  secret: ConfigValuesResponseFieldsItem["secret"];
+  env_pinned: ConfigValuesResponseFieldsItem["env_pinned"];
+  set: ConfigValuesResponseFieldsItem["set"];
+  value?: ConfigValuesResponseFieldsItem["value"];};

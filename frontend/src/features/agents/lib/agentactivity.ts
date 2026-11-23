@@ -1,9 +1,12 @@
 import type { AgentEvent } from "@/app/events";
+import type {
+  RunsListResponseRunsItem,
+} from "@/app/api/types.generated";
+
 
 export interface AgentRunRef {
-  correlation_id?: string;
-  status?: string;
-}
+  correlation_id?: RunsListResponseRunsItem["correlation_id"];
+  status?: RunsListResponseRunsItem["status"];}
 
 export interface AgentActivityPulse {
   liveRuns: number;

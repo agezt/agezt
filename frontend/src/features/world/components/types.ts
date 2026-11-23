@@ -4,11 +4,14 @@
 // stay in page.tsx because they aren't consumed outside the
 // package's barrel. Public surface (page.tsx re-exports) unchanged.
 
+import type {
+  WorldListResponseEntitiesItem,
+} from "@/app/api/types.generated";
+
 export type WorldEntity = {
-  id?: string;
-  name: string;
-  kind?: string;
-  aliases?: string[];
-  attrs?: Record<string, string>;
-  weight?: number;
-};
+  id?: WorldListResponseEntitiesItem["id"];
+  name: WorldListResponseEntitiesItem["name"];
+  kind?: WorldListResponseEntitiesItem["kind"];
+  aliases?: WorldListResponseEntitiesItem["aliases"];
+  attrs?: WorldListResponseEntitiesItem["attrs"];
+  weight?: WorldListResponseEntitiesItem["weight"];};

@@ -10,6 +10,11 @@ import { useEvents } from "@/app/events";
 import { agentActivityEventMatches, agentActivityOperationalState, agentActivityPulse, agentRunCorrelations, filterAgentLogEvents } from "@/features/agents/lib/agentactivity";
 import { RunDetailLoader } from "@/components/RunDetail";
 import { IncidentBadges } from "@/components/IncidentBadges";
+import type {
+  AgentActivityResponseActivityItem,
+  RunsListResponseRunsItem,
+} from "@/app/api/types.generated";
+
 import {
   incidentBadgeItem,
   incidentEventSummary,
@@ -17,25 +22,23 @@ import {
 } from "@/lib/incidentevents";
 
 type ActivityItem = {
-  seq: number;
-  kind: string;
-  ts_unix_ms?: number;
-  correlation_id?: string;
-  summary: string;
-};
+  seq: AgentActivityResponseActivityItem["seq"];
+  kind: AgentActivityResponseActivityItem["kind"];
+  ts_unix_ms?: AgentActivityResponseActivityItem["ts_unix_ms"];
+  correlation_id?: AgentActivityResponseActivityItem["correlation_id"];
+  summary: AgentActivityResponseActivityItem["summary"];};
 
 // RunLite is the subset of /api/runs we need to list an agent's own runs and
 // derive its spend/last-active summary. Mirrors ApiRun in Agents.tsx.
 interface RunLite {
-  correlation_id?: string;
-  status?: string;
-  model?: string;
-  spent_mc?: number;
-  iters?: number;
-  intent?: string;
-  agent?: string;
-  started_unix_ms?: number;
-}
+  correlation_id?: RunsListResponseRunsItem["correlation_id"];
+  status?: RunsListResponseRunsItem["status"];
+  model?: RunsListResponseRunsItem["model"];
+  spent_mc?: RunsListResponseRunsItem["spent_mc"];
+  iters?: RunsListResponseRunsItem["iters"];
+  intent?: RunsListResponseRunsItem["intent"];
+  agent?: RunsListResponseRunsItem["agent"];
+  started_unix_ms?: RunsListResponseRunsItem["started_unix_ms"];}
 
 type DrillTab = "activity" | "runs" | "logs";
 

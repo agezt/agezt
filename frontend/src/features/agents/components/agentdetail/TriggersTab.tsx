@@ -16,6 +16,10 @@ import { AgentWakeAccess } from "@/features/agents/components/agentdetail/shared
 import { agentMailboxSubjects, mailboxSubjectBinding, mailboxWakeArmIssue } from "@/features/agents/components/agentdetail/comms";
 import { agentManagedSubagent } from "@/features/agents/components/agentdetail/capability";
 import { agentScheduleBindingTitle } from "@/features/agents/components/agentdetail/lifecycle";
+import type {
+  AgentActivityResponseActivityItem,
+} from "@/app/api/types.generated";
+
 
 export function TriggersTab({
   slug,
@@ -381,10 +385,9 @@ function MailboxWakeSubjects({
 }
 
 interface WhyEvent {
-  seq?: number;
-  kind?: string;
-  ts_unix_ms?: number;
-}
+  seq?: AgentActivityResponseActivityItem["seq"];
+  kind?: AgentActivityResponseActivityItem["kind"];
+  ts_unix_ms?: AgentActivityResponseActivityItem["ts_unix_ms"];}
 function WhyHistory({ id }: { id: string }) {
   const [events, setEvents] = useState<WhyEvent[] | null>(null);
   const [err, setErr] = useState<string | null>(null);

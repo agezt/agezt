@@ -1,5 +1,67 @@
 # NEXT — handoff for the next coding agent
 
+## Current checkpoint — W5.7 the browser's last hand-written views, 2026-11-23
+
+The W0–W5 objective remains open. W5.6 gave the browser the **view** types;
+this slice finishes the job — every view that copies a daemon row now takes
+its types from that row, and a guard holds that line for the whole tree.
+
+### What was on the tree
+
+- **44** browser files: the views that copied a daemon row now name their
+  fields and take their types from it (`Row["field"]`, `Pick<Row, …>`). The
+  optionality stays the browser's; the type is the daemon's. The typecheck
+  went **40 → 0** errors — the compiler's list of the places the two
+  disagreed.
+- **The browser's live status IS the daemon's status row.** `AgentRuntimeStatus`
+  named 69 fields and **every one** of them was a field of the daemon's status
+  row; it is now a partial view of that row, with the two records the daemon
+  sends untyped left as the browser's own shape.
+- **Two fields the daemon never sends are gone**: the schedule row's
+  `once_at_unix` (only the request schema carries it) and the channel probe's
+  `note`. Both were always `undefined`.
+- **The daemon's terminal cursor is an empty string.** The pager read `""` as
+  a cursor, so `hasMore` stayed true on the last page and the "load more"
+  button did nothing. Both shapes now mean "no more pages".
+- **A new guard**: `frontend/src/app/api/viewrows.ratchet.test.ts` — the
+  browser may not spell a daemon row by hand. A five-entry ledger (the
+  browser's own one-line badge summaries) with two teeth: a new copy fails, a
+  stale allowance fails too. **3** reverted mutations prove it fires.
+
+### What the measurement said
+
+- **358** hand-written browser types; **153** of them copy a daemon row.
+- Before this slice: **55** bound, **98** still by hand.
+- The copies disagreed with the daemon over **341** fields — **318**
+  defensive, **7** false promises, **6** narrowings, **10** null-blind.
+- After: **146** of the copies are bound; the rest are the browser's own.
+- The two false promises W5.6 left (`ScheduleWorkflow.name`, `QueuedMsg.id`)
+  are **not** false promises: one is a pick-list against a request schema
+  whose fields are all `any`, the other is the browser's own message queue.
+  The names coincided; the dataflow did not.
+
+### The evidence
+
+`architecture/327-w57-the-browsers-last-hand-written-views-evidence.md` — the
+measurement, the seven real findings, the new guard, the three mutations and
+the gates.
+
+### What the next slice should do
+
+The browser's views are the daemon's rows; the **request** side is not. The
+daemon's request schemas are typed field by field as `any`
+(`ScheduleAddRequest`, `StandingAddRequest`, `ChannelAccountSetRequest`, the
+run request, …), so a request row is a shape the browser can only promise
+against — it cannot be bound the way a response row now is. The next end of
+"the dictionary gets one home" is the registry's schema for the **request**
+side, and a browser that sends the request row the daemon declares.
+
+The **2** phantom-field classes are worth a guard of their own: a view that
+names a field the daemon's row does not have is a promise the daemon cannot
+keep (the schedule row's `once_at_unix` and the probe's `note` were both
+dead). The current guard catches the *type* of a hand-written copy; it does
+not catch a field name the daemon never sends.
+
 ## Current checkpoint — W5.6 the browser's view of the daemon's rows, 2026-11-22
 
 The W0–W5 objective remains open. W5.1 gave the browser its **payload** types

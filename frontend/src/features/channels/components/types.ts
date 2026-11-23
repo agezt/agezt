@@ -4,40 +4,42 @@
 // stay in page.tsx because they aren't consumed outside the
 // package's barrel. Public surface (page.tsx re-exports) unchanged.
 
-import type { ChannelListResponseChannelsItem } from "@/app/api/types.generated";
+import type {
+  ChannelListResponseChannelsItem ,
+  ChannelListResponseChannelsItemAccountsItem ,
+  ChannelListResponseChannelsItemAccountsItemFieldsItem ,
+  ChannelListResponseChannelsItemMedia ,
+  ChannelListResponseChannelsItemProbe,
+} from "@/app/api/types.generated";
 
 export type ChannelField = {
-  env: string;
-  label: string;
-  secret?: boolean;
-  required?: boolean;
-  help?: string;
-  set?: boolean;
-  value?: string;
-  env_pinned?: boolean;
-};
+  env: ChannelListResponseChannelsItemAccountsItemFieldsItem["env"];
+  label: ChannelListResponseChannelsItemAccountsItemFieldsItem["label"];
+  secret: ChannelListResponseChannelsItemAccountsItemFieldsItem["secret"];
+  required: ChannelListResponseChannelsItemAccountsItemFieldsItem["required"];
+  help: ChannelListResponseChannelsItemAccountsItemFieldsItem["help"];
+  set: ChannelListResponseChannelsItemAccountsItemFieldsItem["set"];
+  value?: ChannelListResponseChannelsItemAccountsItemFieldsItem["value"];
+  env_pinned: ChannelListResponseChannelsItemAccountsItemFieldsItem["env_pinned"];};
 export type MediaCaps = {
-  image_in?: boolean;
-  voice_in?: boolean;
-  image_out?: boolean;
-  voice_out?: boolean;
-};
+  image_in?: ChannelListResponseChannelsItemMedia["image_in"];
+  voice_in?: ChannelListResponseChannelsItemMedia["voice_in"];
+  image_out?: ChannelListResponseChannelsItemMedia["image_out"];
+  voice_out?: ChannelListResponseChannelsItemMedia["voice_out"];};
 export interface ChannelProbe {
-  accounts?: number;
-  configured_accounts?: number;
-  live_accounts?: number;
-  roundtrip_status?: string;
-  roundtrip_ready?: boolean;
-  mode?: string;
-  note?: string;
+  accounts?: ChannelListResponseChannelsItemProbe["accounts"];
+  configured_accounts?: ChannelListResponseChannelsItemProbe["configured_accounts"];
+  live_accounts?: ChannelListResponseChannelsItemProbe["live_accounts"];
+  roundtrip_status?: ChannelListResponseChannelsItemProbe["roundtrip_status"];
+  roundtrip_ready?: ChannelListResponseChannelsItemProbe["roundtrip_ready"];
+  mode?: ChannelListResponseChannelsItemProbe["mode"];
 }
 export type ChannelAccount = {
-  label: string;
-  configured?: boolean;
-  live?: boolean;
-  probe?: ChannelProbe;
-  fields?: ChannelField[] | null;
-};
+  label: ChannelListResponseChannelsItemAccountsItem["label"];
+  configured?: ChannelListResponseChannelsItemAccountsItem["configured"];
+  live?: ChannelListResponseChannelsItemAccountsItem["live"];
+  probe?: ChannelListResponseChannelsItemAccountsItem["probe"];
+  fields?: ChannelListResponseChannelsItemAccountsItem["fields"];};
 export interface ChannelRow {
   kind: ChannelListResponseChannelsItem["kind"];
   display: ChannelListResponseChannelsItem["display"];

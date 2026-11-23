@@ -88,12 +88,12 @@ function StatusBadge({ live, configured }: { live?: boolean; configured?: boolea
 function RoundtripBadge({ probe, configured }: { probe?: ChannelProbe; configured?: boolean }) {
   const status = probe?.roundtrip_status;
   if (!status) return null;
-  if (status === "ready") return <Badge variant="good" title={probe.note || "ready"}>roundtrip ready</Badge>;
-  if (status === "restart_required") return <Badge variant="warn" title={probe.note || "restart required"}>restart first</Badge>;
+  if (status === "ready") return <Badge variant="good" title={"ready"}>roundtrip ready</Badge>;
+  if (status === "restart_required") return <Badge variant="warn" title={"restart required"}>restart first</Badge>;
   // "setup first" next to "needs setup" is the same sentence twice. Only an
   // already-configured channel that still cannot round-trip has news here.
   if (!configured) return null;
-  return <Badge variant="warn" title={probe.note || "setup required"}>setup first</Badge>;
+  return <Badge variant="warn" title={"setup required"}>setup first</Badge>;
 }
 
 // POPULAR_CHANNELS are the ones operators wire first — they lead the grid (and
