@@ -1,4 +1,9 @@
 import type { AgentEvent } from "@/app/events";
+import type {
+  CouncilAskResponseMembersItem,
+  CouncilAskResponseOpinionsItem,
+} from "@/app/api/types.generated";
+
 
 // Council live model (M987). The backend emits a stream of council.* events as a
 // deliberation unfolds — convened → each member starts its turn → each opinion
@@ -8,17 +13,15 @@ import type { AgentEvent } from "@/app/events";
 // are pure (time passed in) so they're unit-testable without a live daemon.
 
 export type CouncilSeat = {
-  seat: string;
-  model: string;
-};
+  seat: CouncilAskResponseMembersItem["seat"];
+  model: CouncilAskResponseMembersItem["model"];};
 
 export type CouncilOpinion = {
-  seat: string;
-  model: string;
-  round: number;
-  text: string;
-  error?: string;
-};
+  seat: CouncilAskResponseOpinionsItem["seat"];
+  model: CouncilAskResponseOpinionsItem["model"];
+  round: CouncilAskResponseOpinionsItem["round"];
+  text: CouncilAskResponseOpinionsItem["text"];
+  error?: CouncilAskResponseOpinionsItem["error"];};
 
 type CouncilPhase = "convening" | "deliberating" | "done";
 

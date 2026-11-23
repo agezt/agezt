@@ -49,8 +49,10 @@ import { SectionPanel } from "@/components/ui/section-panel";
 // ---- types (extracted to ./types) ----
 import type { Field, ValueEntry, ApplyMode } from "./types";
 import type {
-  ConfigSchemaResponseReloadBoundariesItem,
-  ConfigSchemaResponseSectionsItem,
+  ConfigSchemaResponseReloadBoundariesItem ,
+  ConfigSchemaResponseSectionsItem ,
+  ConfigSetResponse ,
+  ConfigcenterAccessResponseEntry,
 } from "@/app/api/types.generated";
 // The Config Center is the editable companion to the read-only Config view:
 // schema-driven forms (one section per channel/area) backed by the daemon's
@@ -72,24 +74,21 @@ type Section = {
 };
 type ReloadBoundary = {
   apply: ConfigSchemaResponseReloadBoundariesItem["apply"];
-  envs: string[];
-};
+  envs: NonNullable<ConfigSchemaResponseReloadBoundariesItem["envs"]>;};
 type SetResult = {
-  env: string;
-  saved: boolean;
-  applied: string;
-  env_pinned?: boolean;
-  reload_error?: string;
-};
+  env: ConfigSetResponse["env"];
+  saved: ConfigSetResponse["saved"];
+  applied: ConfigSetResponse["applied"];
+  env_pinned?: ConfigSetResponse["env_pinned"];
+  reload_error?: ConfigSetResponse["reload_error"];};
 type AgentConfigEntry = {
-  key: string;
-  value?: string;
-  rating?: string;
-  description?: string;
-  allowed_agents?: string[];
-  excluded_agents?: string[];
-  updated_at?: number;
-};
+  key: ConfigcenterAccessResponseEntry["key"];
+  value?: ConfigcenterAccessResponseEntry["value"];
+  rating?: ConfigcenterAccessResponseEntry["rating"];
+  description?: ConfigcenterAccessResponseEntry["description"];
+  allowed_agents?: ConfigcenterAccessResponseEntry["allowed_agents"];
+  excluded_agents?: ConfigcenterAccessResponseEntry["excluded_agents"];
+  updated_at?: ConfigcenterAccessResponseEntry["updated_at"];};
 
 type Category = "Core" | "Channels" | "Skills & Plugins";
 const CATEGORY_ORDER: Category[] = ["Core", "Channels", "Skills & Plugins"];

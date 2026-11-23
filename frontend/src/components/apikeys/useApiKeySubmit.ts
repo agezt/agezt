@@ -3,17 +3,20 @@
 // The Connections page and the Models KeyManager share it; setup-wizard code
 // uses inline posts because it also chains provider/model/routing reloads.
 
+import type {
+  ProviderKeyAddRequest,
+} from "@/app/api/types.generated";
+
 import { useCallback, useState } from "react";
 import { postJSON, postAction } from "@/app/api";
 import { useUI } from "@/components/ui/feedback";
 
 export type AddKeyInput = {
-  provider?: string;
-  env?: string;
-  label?: string;
-  value?: string;
-  active?: boolean;
-};
+  provider?: ProviderKeyAddRequest["provider"];
+  env?: ProviderKeyAddRequest["env"];
+  label?: ProviderKeyAddRequest["label"];
+  value?: ProviderKeyAddRequest["value"];
+  active?: ProviderKeyAddRequest["active"];};
 
 export interface UseApiKeySubmitOptions {
   /** Optional provider id to send alongside (some keys/add paths want it). */

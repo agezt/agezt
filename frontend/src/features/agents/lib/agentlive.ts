@@ -1,5 +1,9 @@
 import type { AgentEvent } from "@/app/events";
 import type { AgentRuntimeStatus } from "@/lib/agentdetail";
+import type {
+  AgentListResponseProfilesItem,
+} from "@/app/api/types.generated";
+
 
 interface AgentLivePatch {
   enabled?: boolean;
@@ -11,9 +15,11 @@ interface AgentLivePatch {
 export type AgentLivePatchMap = Record<string, AgentLivePatch>;
 
 export interface AgentLiveTarget {
-  slug: string;
-  enabled?: boolean;
-  retired?: boolean;
+  slug: AgentListResponseProfilesItem["slug"];
+  enabled?: AgentListResponseProfilesItem["enabled"];
+  retired?: AgentListResponseProfilesItem["retired"];
+  // The status the browser folds in from the event feed — the daemon's status
+  // row, seen partially (see AgentRuntimeStatus).
   status?: AgentRuntimeStatus;
 }
 

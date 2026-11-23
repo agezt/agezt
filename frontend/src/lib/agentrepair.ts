@@ -5,6 +5,12 @@
 // / fallbacks) it proposes. Both halves — composing the brief and extracting the
 // proposal from the run's final answer — are pure so they're unit-testable.
 
+import type {
+  EdictLogResponseDecisionsItem,
+  RunsListResponseRunsItem,
+  ToolLogResponseInvocationsItem,
+} from "@/app/api/types.generated";
+
 // Minimal shapes (decoupled from the UI row/profile types so this stays pure).
 export interface RepairProfile {
   slug: string;
@@ -30,20 +36,17 @@ export interface RepairProfile {
   };
 }
 type RepairFailure = {
-  correlation_id?: string;
-  status?: string;
-  started_unix_ms?: number;
-};
+  correlation_id?: RunsListResponseRunsItem["correlation_id"];
+  status?: RunsListResponseRunsItem["status"];
+  started_unix_ms?: RunsListResponseRunsItem["started_unix_ms"];};
 type RepairDenial = {
-  capability?: string;
-  tool?: string;
-  reason?: string;
-  hard_denied?: boolean;
-};
+  capability?: EdictLogResponseDecisionsItem["capability"];
+  tool?: EdictLogResponseDecisionsItem["tool"];
+  reason?: EdictLogResponseDecisionsItem["reason"];
+  hard_denied?: EdictLogResponseDecisionsItem["hard_denied"];};
 type RepairToolError = {
-  tool?: string;
-  output?: string;
-};
+  tool?: ToolLogResponseInvocationsItem["tool"];
+  output?: ToolLogResponseInvocationsItem["output"];};
 export interface RepairContext {
   profile: RepairProfile;
   fail?: RepairFailure;

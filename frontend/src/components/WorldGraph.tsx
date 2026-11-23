@@ -1,18 +1,21 @@
 import { useMemo } from "react";
 import { ReactFlow, Background, Controls, MarkerType, type Node, type Edge } from "@xyflow/react";
 import { clip } from "@/app/utils";
+import type {
+  WorldListResponseEdgesItem,
+  WorldListResponseEntitiesItem,
+} from "@/app/api/types.generated";
+
 
 type Entity = {
-  id: string;
-  name?: string;
-  kind?: string;
-  weight?: number;
-};
+  id: WorldListResponseEntitiesItem["id"];
+  name?: WorldListResponseEntitiesItem["name"];
+  kind?: WorldListResponseEntitiesItem["kind"];
+  weight?: WorldListResponseEntitiesItem["weight"];};
 type WorldEdge = {
-  from: string;
-  to: string;
-  verb?: string;
-};
+  from: WorldListResponseEdgesItem["from"];
+  to: WorldListResponseEdgesItem["to"];
+  verb?: WorldListResponseEdgesItem["verb"];};
 
 const MAX = 40;
 

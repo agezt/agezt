@@ -24,30 +24,34 @@ import { useMemoryLogPager, useMemoryPager } from "@/app/cursor-pager";
 import { LoadMoreFooter } from "@/components/ui/load-more-footer";
 import { LogHistoryPanel } from "@/components/LogHistoryPanel";
 import { Segmented } from "@/components/ui/segmented";
-import type { MemoryAuditResponseContradictionsItem, MemoryAddRequest, MemorySupersedeRequest } from "@/app/api/types.generated";
+import type {
+  MemoryAddRequest ,
+  MemoryAuditResponse ,
+  MemoryAuditResponseContradictionsItem ,
+  MemoryListResponseRecordsItem ,
+  MemorySupersedeRequest,
+} from "@/app/api/types.generated";
 
 type MemRecord = {
-  id?: string;
-  type?: string;
-  subject?: string;
-  content?: string;
-  confidence?: number;
-  created_ms?: number;
-  last_seen_ms?: number;
-  source_event?: string;
-  added_by?: string;
-  updated_by?: string;
-  tags?: Record<string, string>;
-};
+  id?: MemoryListResponseRecordsItem["id"];
+  type?: MemoryListResponseRecordsItem["type"];
+  subject?: MemoryListResponseRecordsItem["subject"];
+  content?: MemoryListResponseRecordsItem["content"];
+  confidence?: MemoryListResponseRecordsItem["confidence"];
+  created_ms?: MemoryListResponseRecordsItem["created_ms"];
+  last_seen_ms?: MemoryListResponseRecordsItem["last_seen_ms"];
+  source_event?: MemoryListResponseRecordsItem["source_event"];
+  added_by?: MemoryListResponseRecordsItem["added_by"];
+  updated_by?: MemoryListResponseRecordsItem["updated_by"];
+  tags?: MemoryListResponseRecordsItem["tags"];};
 
 type MemoryAudit = {
-  total?: number;
-  usable?: number;
-  expired?: number;
-  suspended?: number;
-  contradiction_load?: number;
-  contradictions?: MemoryAuditResponseContradictionsItem[];
-};
+  total?: MemoryAuditResponse["total"];
+  usable?: MemoryAuditResponse["usable"];
+  expired?: MemoryAuditResponse["expired"];
+  suspended?: MemoryAuditResponse["suspended"];
+  contradiction_load?: MemoryAuditResponse["contradiction_load"];
+  contradictions?: MemoryAuditResponse["contradictions"];};
 
 // parseMemoryJSON normalises an exported memory file into a list of re-addable
 // `memory_add` arg objects. Accepts a bare array, a {memory:[…]} or a {records:[…]}

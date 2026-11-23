@@ -34,36 +34,39 @@ import { useUI } from "@/components/ui/feedback";
 import { LoadMoreFooter } from "@/components/ui/load-more-footer";
 import { incidentEventSummary, isIncidentFamilyEvent } from "@/lib/incidentevents";
 import { StatTile } from "@/components/ui/metric-widget";
+import type {
+  AgentListResponseProfilesItem,
+  BoardReadResponseMessagesItem,
+  RunsListResponseRunsItem,
+} from "@/app/api/types.generated";
+
 
 // Shapes mirror the read routes this view aggregates — kept loose (all optional)
 // so a field the backend drops never crashes the dashboard.
 interface Run {
-  correlation_id?: string;
-  status?: string;
-  intent?: string;
-  model?: string;
-  iters?: number;
-  duration_ms?: number;
-  started_unix_ms?: number;
-  parent_correlation?: string;
-}
+  correlation_id?: RunsListResponseRunsItem["correlation_id"];
+  status?: RunsListResponseRunsItem["status"];
+  intent?: RunsListResponseRunsItem["intent"];
+  model?: RunsListResponseRunsItem["model"];
+  iters?: RunsListResponseRunsItem["iters"];
+  duration_ms?: RunsListResponseRunsItem["duration_ms"];
+  started_unix_ms?: RunsListResponseRunsItem["started_unix_ms"];
+  parent_correlation?: RunsListResponseRunsItem["parent_correlation"];}
 interface AgentProfile {
-  slug: string;
-  name?: string;
-  model?: string;
-  task_type?: string;
-  enabled?: boolean;
-  retired?: boolean;
-}
+  slug: AgentListResponseProfilesItem["slug"];
+  name?: AgentListResponseProfilesItem["name"];
+  model?: AgentListResponseProfilesItem["model"];
+  task_type?: AgentListResponseProfilesItem["task_type"];
+  enabled?: AgentListResponseProfilesItem["enabled"];
+  retired?: AgentListResponseProfilesItem["retired"];}
 type HelpMsg = {
-  id?: string;
-  topic?: string;
-  from?: string;
-  to?: string;
-  text?: string;
-  ts_unix_ms?: number;
-  help?: boolean;
-};
+  id?: BoardReadResponseMessagesItem["id"];
+  topic?: BoardReadResponseMessagesItem["topic"];
+  from?: BoardReadResponseMessagesItem["from"];
+  to?: BoardReadResponseMessagesItem["to"];
+  text?: BoardReadResponseMessagesItem["text"];
+  ts_unix_ms?: BoardReadResponseMessagesItem["ts_unix_ms"];
+  help?: BoardReadResponseMessagesItem["help"];};
 
 interface OverseerData {
   runs: Run[];

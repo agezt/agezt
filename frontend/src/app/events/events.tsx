@@ -8,17 +8,20 @@ import {
   type ReactNode,
 } from "react";
 import { eventsURLAsync } from "@/app/api";
+import type {
+  JournalGrepResponseEventsItem,
+} from "@/app/api/types.generated";
+
 
 export type AgentEvent = {
-  id?: string;
-  seq?: number;
-  ts_unix_ms?: number;
-  subject?: string;
-  actor?: string;
-  kind?: string;
-  correlation_id?: string;
-  payload?: any;
-};
+  id?: JournalGrepResponseEventsItem["id"];
+  seq?: JournalGrepResponseEventsItem["seq"];
+  ts_unix_ms?: JournalGrepResponseEventsItem["ts_unix_ms"];
+  subject?: JournalGrepResponseEventsItem["subject"];
+  actor?: JournalGrepResponseEventsItem["actor"];
+  kind?: JournalGrepResponseEventsItem["kind"];
+  correlation_id?: JournalGrepResponseEventsItem["correlation_id"];
+  payload?: JournalGrepResponseEventsItem["payload"];};
 
 const MAX_FEED = 300;
 

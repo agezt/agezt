@@ -18,6 +18,11 @@ import { Disclosure } from "@/components/ui/disclosure";
 import { cn } from "@/app/utils";
 import { FieldRow, type Field, type ValueEntry } from "@/components/configcenter/ConfigCenter";
 import { ApiKeyField } from "@/components/apikeys/index";
+import type {
+  ConfigSchemaResponse,
+  ConfigSchemaResponseSectionsItem,
+} from "@/app/api/types.generated";
+
 import {
   STT_PROVIDERS,
   TTS_PROVIDERS,
@@ -35,12 +40,10 @@ import {
 // still there for custom endpoints, tucked under "Advanced".
 
 type SchemaSection = {
-  id: string;
-  fields?: Field[];
-};
+  id: ConfigSchemaResponseSectionsItem["id"];
+  fields?: ConfigSchemaResponseSectionsItem["fields"];};
 type SchemaResponse = {
-  sections?: SchemaSection[];
-};
+  sections?: ConfigSchemaResponse["sections"];};
 
 // FALLBACK mirrors kernel/settings/schema.go's "voice" section so the Advanced
 // editor works even when the schema can't be fetched (older daemon / test).

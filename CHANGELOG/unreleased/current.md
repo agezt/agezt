@@ -3361,6 +3361,26 @@ This file holds the active `[Unreleased]` working set.
   flag its own journal carried, so the canvas's "output (truncated)" hint could never fire — the
   daemon's row now carries it, and the browser's field is the daemon's.
 
+- **The browser's last hand-written views are the daemon's rows.** W5.6 bound the views the
+  compiler pointed at; the browser still wrote **358** types of its own, and **153** of them
+  copied a daemon row field for field — **98** of them still by hand, across **44** files.
+  Measured against the daemon's rows they disagreed over **341** fields: **318** defensive (the
+  browser marked a field the daemon always sends as optional), **7** false promises, **6**
+  narrowings and **10** fields where the daemon may send `null` and the browser did not admit
+  it. Every view that copies a daemon row now names its fields and takes their types from
+  that row, and the **40** compile errors the binding produced — the compiler's list of the
+  places the two disagreed — are all resolved (**40 → 0**). The browser's live status had
+  **no field of its own**: all **69** of its fields were fields of the daemon's status row, so
+  it is now a partial view of that row. Two fields the daemon **never sends** are gone — the
+  schedule row's `once_at_unix` (only the request schema carries it) and the channel probe's
+  `note`; both were always `undefined`. The daemon's terminal cursor is an **empty string**,
+  and the pager read it as a cursor: the last page kept offering "load more" and clicking it
+  did nothing. A new guard holds the line — the browser may not spell a daemon row by hand
+  (`frontend/src/app/api/viewrows.ratchet.test.ts`), with a five-entry ledger for the
+  browser's own badge summaries and two teeth: a new copy fails, and a stale allowance fails
+  too. Proved by **3** reverted mutations. No Go file changed: the daemon's rows were already
+  right, and the browser was the one that disagreed.
+
 ### Fixed
 
 - **The agent gateway is the daemon's transport, and it is closed before the

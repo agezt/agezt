@@ -1,9 +1,13 @@
-import type { ExecutionProfilesResponseProfilesItemSecretPolicy } from "@/app/api/types.generated";
 import type {
-  ExecutionProfileCheckResponse,
-  ExecutionProfilesResponse,
-  ExecutionProfilesResponseProfilesItem,
+  ConfigValuesResponseFieldsItem ,
+  ExecutionProfileCheckResponse ,
+  ExecutionProfileCheckResponseChecksItem ,
+  ExecutionProfilesResponse ,
+  ExecutionProfilesResponseProfilesItem ,
+  ExecutionProfilesResponseProfilesItemSecretPolicy,
 } from "@/app/api/types.generated";
+
+
 // types.ts — execution-profiles type definitions (extracted from ExecutionProfiles.tsx). Day 23 god file split.
 //
 // Only exported type/interface declarations live here. Internal types
@@ -46,17 +50,16 @@ export type ExecutionProfileInventory = {
 };
 
 export type ExecutionProfileCheck = {
-  id?: string;
-  profile_id?: string;
-  status?: string;
-  title?: string;
-  detail?: string;
-  next?: string;
-  routed?: boolean;
-  degraded?: boolean;
-  backend_available?: boolean;
-  backend?: string;
-};
+  id?: ExecutionProfileCheckResponseChecksItem["id"];
+  profile_id?: ExecutionProfileCheckResponseChecksItem["profile_id"];
+  status?: ExecutionProfileCheckResponseChecksItem["status"];
+  title?: ExecutionProfileCheckResponseChecksItem["title"];
+  detail?: ExecutionProfileCheckResponseChecksItem["detail"];
+  next?: ExecutionProfileCheckResponseChecksItem["next"];
+  routed?: ExecutionProfileCheckResponseChecksItem["routed"];
+  degraded?: ExecutionProfileCheckResponseChecksItem["degraded"];
+  backend_available?: ExecutionProfileCheckResponseChecksItem["backend_available"];
+  backend?: ExecutionProfileCheckResponseChecksItem["backend"];};
 export type ExecutionProfileHealthReport = {
   host_os?: ExecutionProfileCheckResponse["host_os"];
   host_arch?: ExecutionProfileCheckResponse["host_arch"];
@@ -69,11 +72,10 @@ export type ExecutionProfileHealthReport = {
 };
 
 export type ConfigValueEntry = {
-  env?: string;
-  value?: string;
-  set?: boolean;
-  env_pinned?: boolean;
-};
+  env?: ConfigValuesResponseFieldsItem["env"];
+  value?: ConfigValuesResponseFieldsItem["value"];
+  set?: ConfigValuesResponseFieldsItem["set"];
+  env_pinned?: ConfigValuesResponseFieldsItem["env_pinned"];};
 export interface ExecutionProfilePolicyValues {
   allow: string;
   deny: string;

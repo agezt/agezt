@@ -1,5 +1,12 @@
 import type { AgentEvent } from "@/app/events";
 import type { AutonomyItem } from "@/lib/autonomy";
+import type {
+  AgentListResponseProfilesItem,
+  AgentListResponseProfilesItemSelfRepair,
+  AgentListResponseProfilesItemStatus,
+} from "@/app/api/types.generated";
+import type { AgentRuntimeStatus } from "@/lib/agentdetail";
+
 
 export interface IncidentMeta {
   incidentId?: string;
@@ -8,22 +15,16 @@ export interface IncidentMeta {
 }
 
 export interface IncidentProfileLite {
-  slug: string;
-  name?: string;
-  owner_agent?: string;
-  parent_agent?: string;
-  direct_callable?: boolean;
-  enabled?: boolean;
-  retired?: boolean;
-  self_repair?: { enabled?: boolean };
-  status?: {
-    health_state?: string;
-    repair_inflight?: number;
-    routing_fallback_count?: number;
-    escalation_open_count?: number;
-    escalation_acked_count?: number;
-  };
-}
+  slug: AgentListResponseProfilesItem["slug"];
+  name?: AgentListResponseProfilesItem["name"];
+  owner_agent?: AgentListResponseProfilesItem["owner_agent"];
+  parent_agent?: AgentListResponseProfilesItem["parent_agent"];
+  direct_callable?: AgentListResponseProfilesItem["direct_callable"];
+  enabled?: AgentListResponseProfilesItem["enabled"];
+  retired?: AgentListResponseProfilesItem["retired"];
+  self_repair?: {
+  enabled?: AgentListResponseProfilesItemSelfRepair["enabled"];};
+  status?: AgentRuntimeStatus;}
 
 export interface IncidentActionContext {
   rootSlug?: string;

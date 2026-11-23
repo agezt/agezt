@@ -18,24 +18,26 @@ import { ErrorText } from "@/components/JsonView";
 import { Badge } from "@/components/ui/badge";
 import { Disclosure } from "@/components/ui/disclosure";
 import { SectionPanel } from "@/components/ui/section-panel";
-import type { SkillListResponseSkillsItemMetrics } from "@/app/api/types.generated";
+import type {
+  SkillListResponseSkillsItem ,
+  SkillListResponseSkillsItemMetrics,
+} from "@/app/api/types.generated";
 
 type Skill = {
-  id?: string;
-  name?: string;
-  description?: string;
-  body?: string;
-  status?: string;
-  version?: string;
-  lineage?: string[];
-  resources?: string[];
-  source_event?: string;
-  agent?: string;
-  triggers?: string[];
-  tools_required?: string[];
-  created_ms?: number;
-  metrics?: SkillListResponseSkillsItemMetrics;
-};
+  id?: SkillListResponseSkillsItem["id"];
+  name?: SkillListResponseSkillsItem["name"];
+  description?: SkillListResponseSkillsItem["description"];
+  body?: SkillListResponseSkillsItem["body"];
+  status?: SkillListResponseSkillsItem["status"];
+  version?: SkillListResponseSkillsItem["version"];
+  lineage?: SkillListResponseSkillsItem["lineage"];
+  resources?: SkillListResponseSkillsItem["resources"];
+  source_event?: SkillListResponseSkillsItem["source_event"];
+  agent?: SkillListResponseSkillsItem["agent"];
+  triggers?: SkillListResponseSkillsItem["triggers"];
+  tools_required?: SkillListResponseSkillsItem["tools_required"];
+  created_ms?: SkillListResponseSkillsItem["created_ms"];
+  metrics?: SkillListResponseSkillsItem["metrics"];};
 
 interface SkillScanFinding {
   severity: "high" | "medium" | "low";

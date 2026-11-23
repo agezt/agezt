@@ -2,18 +2,21 @@ import { useEffect, useRef, useState } from "react";
 import { Users, Check } from "lucide-react";
 import { getJSON } from "@/app/api";
 import { cn } from "@/app/utils";
+import type {
+  AgentListResponseProfilesItem,
+} from "@/app/api/types.generated";
+
 
 interface AgentOption {
-  slug: string;
-  name?: string;
-  model?: string;
-  description?: string;
-  enabled?: boolean;
-  retired?: boolean;
-  managed?: boolean;
-  direct_callable?: boolean;
-  kind?: string;
-}
+  slug: AgentListResponseProfilesItem["slug"];
+  name?: AgentListResponseProfilesItem["name"];
+  model?: AgentListResponseProfilesItem["model"];
+  description?: AgentListResponseProfilesItem["description"];
+  enabled?: AgentListResponseProfilesItem["enabled"];
+  retired?: AgentListResponseProfilesItem["retired"];
+  managed?: AgentListResponseProfilesItem["managed"];
+  direct_callable?: AgentListResponseProfilesItem["direct_callable"];
+  kind?: AgentListResponseProfilesItem["kind"];}
 
 // AgentPicker selects the conversation's named agent (M789): the thread runs
 // AS the picked roster identity — its soul, model chain, memory scope, and

@@ -20,8 +20,15 @@ import { LogDetail } from "@/components/LogDetail";
 import { getJSON, postAction, postJSON, type WritePath, type NativeWritePath } from "@/app/api";
 import { byDescValue, pct } from "@/app/format";
 import { cn, fmtTime } from "@/app/utils";
-import type { EdictShowResponseHardDenyItem } from "@/app/api/types.generated";
-import type { EdictShowResponse, RedactTestResponse } from "@/app/api/types.generated";
+import type {
+  EdictLogResponseDecisionsItem ,
+  EdictShowResponse ,
+  EdictShowResponseHardDenyItem ,
+  EdictTestResponse ,
+  RedactTestResponse,
+} from "@/app/api/types.generated";
+
+
 
 type EdictShow = {
   ask_policy?: EdictShowResponse["ask_policy"];
@@ -592,24 +599,22 @@ export function DenyAddForm({
 }
 
 type EdictDecision = {
-  decision?: string;
-  capability?: string;
-  level?: string;
-  reason?: string;
-  hard_denied?: boolean;
-  hard_deny_rule?: string;
-  would_ask?: boolean;
-  requires_approval?: boolean;
-};
+  decision?: EdictTestResponse["decision"];
+  capability?: EdictTestResponse["capability"];
+  level?: EdictTestResponse["level"];
+  reason?: EdictTestResponse["reason"];
+  hard_denied?: EdictTestResponse["hard_denied"];
+  hard_deny_rule?: EdictTestResponse["hard_deny_rule"];
+  would_ask?: EdictTestResponse["would_ask"];
+  requires_approval?: EdictTestResponse["requires_approval"];};
 
 type PolicyLogEntry = {
-  ts_unix_ms?: number;
-  allow?: boolean;
-  hard_denied?: boolean;
-  capability?: string;
-  tool?: string;
-  reason?: string;
-};
+  ts_unix_ms?: EdictLogResponseDecisionsItem["ts_unix_ms"];
+  allow?: EdictLogResponseDecisionsItem["allow"];
+  hard_denied?: EdictLogResponseDecisionsItem["hard_denied"];
+  capability?: EdictLogResponseDecisionsItem["capability"];
+  tool?: EdictLogResponseDecisionsItem["tool"];
+  reason?: EdictLogResponseDecisionsItem["reason"];};
 
 // effectiveOutcome folds the raw decision into the operator-facing verdict: a hard
 // deny, a plain deny, an ask (the call is allowed but would pause for approval), or a

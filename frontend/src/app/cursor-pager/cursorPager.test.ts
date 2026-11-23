@@ -5,6 +5,11 @@
 // same guarantees: terminal first page, cursor chain, dedup, server-error
 // surface, three-page chain.
 
+import type {
+  AgentListResponse,
+  MemoryListResponse,
+} from "@/app/api/types.generated";
+
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
 
@@ -15,7 +20,7 @@ interface Row {
 
 let nextResponse: ((cursor: string | null) => unknown) | "throw" = () => ({
   items: [],
-  next_cursor: null,
+  next_cursor: "",
 });
 
 const messages: string[] = [];
@@ -53,13 +58,13 @@ function row(id: string): Row {
 }
 
 beforeEach(() => {
-  nextResponse = () => ({ items: [], next_cursor: null });
+  nextResponse = () => ({ items: [], next_cursor: "" });
   messages.length = 0;
 });
 
 describe("useCursorPager", () => {
   it("first page terminal: cursor stays null, hasMore=false", async () => {
-    nextResponse = () => ({ items: [row("a"), row("b")], next_cursor: null });
+    nextResponse = () => ({ items: [row("a"), row("b")], next_cursor: "" });
     const { result } = renderHook(() =>
       useCursorPager<Row>("/api/journal", "items", "id", 50),
     );
@@ -101,7 +106,7 @@ describe("useCursorPager", () => {
   it("dedups when the same row appears on a later page", async () => {
     nextResponse = (cursor) => {
       if (!cursor) return { items: [row("a"), row("b")], next_cursor: "100:1" };
-      return { items: [row("a"), row("c")], next_cursor: null };
+      return { items: [row("a"), row("c")], next_cursor: "" };
     };
     const { result } = renderHook(() =>
       useCursorPager<Row>("/api/journal", "items", "id", 50),
@@ -159,13 +164,11 @@ describe("useCursorPager", () => {
 // contract.
 
 interface AgentsResp {
-  profiles: { slug: string }[];
-  next_cursor: string | null;
-}
+  profiles: AgentListResponse["profiles"];
+  next_cursor: AgentListResponse["next_cursor"];}
 interface MemoryResp {
-  records: { id: string }[];
-  next_cursor: string | null;
-}
+  records: MemoryListResponse["records"];
+  next_cursor: MemoryListResponse["next_cursor"];}
 
 describe("useAgentsPager", () => {
   it("hits /api/agents with cursor + slug-dedup", async () => {
@@ -195,7 +198,7 @@ describe("useMemoryPager", () => {
   it("hits /api/memory with id as idKey", async () => {
     nextResponse = () => ({
       records: [{ id: "rec-1" }, { id: "rec-2" }],
-      next_cursor: null,
+      next_cursor: "",
     } as MemoryResp);
     const { result } = renderHook(() => useMemoryPager());
     await waitFor(() => expect(result.current.loading).toBe(false));
@@ -234,7 +237,7 @@ describe("useCursorPager dedup key — absent ids", () => {
               { id: "a", note: "p1-a" }, // genuine repeat -> must still drop
               { id: "b", note: "p2-b" },
             ],
-            next_cursor: null,
+            next_cursor: "",
           };
     const { result } = renderHook(() =>
       useCursorPager<MaybeIdRow>("/api/journal", "items", "id", 50),
@@ -259,7 +262,7 @@ describe("useCursorPager dedup key — absent ids", () => {
               { id: 0, note: "zero-repeat" },
               { id: 0, note: "zero-repeat-2" },
             ],
-            next_cursor: null,
+            next_cursor: "",
           };
     const { result } = renderHook(() =>
       useCursorPager<MaybeIdRow>("/api/journal", "items", "id", 50),

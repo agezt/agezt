@@ -10,44 +10,48 @@ import { type AgentProfile } from "@/features/agents/components/Roster";
 import { type FleetState, type ApiOrder, type ApiSchedule } from "@/lib/fleet";
 import { type AgentConfigOverrideSummary, type MemoryRecord, type SkillLite } from "@/lib/agentdetail";
 import type {
-  AgentCapabilitiesResponseConfigEntriesItem,
-  AgentCapabilitiesResponseGovernance,
-  AgentCapabilitiesResponsePermissionsItem,
-  AgentCapabilitiesResponseWakeAccess,
-  RoutingGetResponse,
+  AgentCapabilitiesResponseConfigEntriesItem ,
+  AgentCapabilitiesResponseGovernance ,
+  AgentCapabilitiesResponsePermissionsItem ,
+  AgentCapabilitiesResponseWakeAccess ,
+  AgentPermissionsResponse ,
+  AgentRepairResponse ,
+  ApprovalsLogResponseApprovalsItem ,
+  BoardReadResponseMessagesItem ,
+  EdictLogResponseDecisionsItem ,
+  RoutingGetResponse ,
+  ToolListResponseToolsItem ,
+  ToolLogResponseInvocationsItem,
 } from "@/app/api/types.generated";
 
 // Diagnostics row shapes (mirrors of /api/policy_log + /api/tool_log rows).
 export type PolicyDecision = {
-  ts_unix_ms?: number;
-  actor?: string;
-  correlation_id?: string;
-  tool?: string;
-  capability?: string;
-  allow?: boolean;
-  reason?: string;
-  hard_denied?: boolean;
-};
+  ts_unix_ms?: EdictLogResponseDecisionsItem["ts_unix_ms"];
+  actor?: EdictLogResponseDecisionsItem["actor"];
+  correlation_id?: EdictLogResponseDecisionsItem["correlation_id"];
+  tool?: EdictLogResponseDecisionsItem["tool"];
+  capability?: EdictLogResponseDecisionsItem["capability"];
+  allow?: EdictLogResponseDecisionsItem["allow"];
+  reason?: EdictLogResponseDecisionsItem["reason"];
+  hard_denied?: EdictLogResponseDecisionsItem["hard_denied"];};
 export type ToolInvocation = {
-  ts_unix_ms?: number;
-  actor?: string;
-  correlation_id?: string;
-  tool?: string;
-  error?: boolean;
-  output?: string;
-  duration_ms?: number;
-};
+  ts_unix_ms?: ToolLogResponseInvocationsItem["ts_unix_ms"];
+  actor?: ToolLogResponseInvocationsItem["actor"];
+  correlation_id?: ToolLogResponseInvocationsItem["correlation_id"];
+  tool?: ToolLogResponseInvocationsItem["tool"];
+  error?: ToolLogResponseInvocationsItem["error"];
+  output?: ToolLogResponseInvocationsItem["output"];
+  duration_ms?: ToolLogResponseInvocationsItem["duration_ms"];};
 export type ApprovalDecision = {
-  ts_unix_ms?: number;
-  approval_id?: string;
-  actor?: string;
-  correlation_id?: string;
-  capability?: string;
-  tool?: string;
-  reason?: string;
-  status?: string;
-  resolved_by?: string;
-};
+  ts_unix_ms?: ApprovalsLogResponseApprovalsItem["ts_unix_ms"];
+  approval_id?: ApprovalsLogResponseApprovalsItem["approval_id"];
+  actor?: ApprovalsLogResponseApprovalsItem["actor"];
+  correlation_id?: ApprovalsLogResponseApprovalsItem["correlation_id"];
+  capability?: ApprovalsLogResponseApprovalsItem["capability"];
+  tool?: ApprovalsLogResponseApprovalsItem["tool"];
+  reason?: ApprovalsLogResponseApprovalsItem["reason"];
+  status?: ApprovalsLogResponseApprovalsItem["status"];
+  resolved_by?: ApprovalsLogResponseApprovalsItem["resolved_by"];};
 export interface PolicyStats {
   denial_rate?: number;
   denied?: number;
@@ -57,10 +61,9 @@ export interface PolicyStats {
   total?: number;
 }
 export type ToolCatalogRow = {
-  name: string;
-  description?: string;
-  capability?: string;
-};
+  name: ToolListResponseToolsItem["name"];
+  description?: ToolListResponseToolsItem["description"];
+  capability?: ToolListResponseToolsItem["capability"];};
 // AgentPermissionRow is a capability row as the Diagnostics tab reads it.
 // AgentPermissionRow is a capability row as the Diagnostics tab reads it.
 export type AgentPermissionRow = {
@@ -76,13 +79,12 @@ export type AgentPermissionRow = {
 };
 
 export type AgentPermissionsSnapshot = {
-  permissions?: AgentPermissionRow[] | null;
-  config_entries?: AgentConfigPermissionRow[] | null;
-  wake_access?: AgentWakeAccess;
-  governance?: AgentGovernanceSnapshot;
-  allowed_count?: number;
-  count?: number;
-};
+  permissions?: AgentPermissionsResponse["permissions"];
+  config_entries?: AgentPermissionsResponse["config_entries"];
+  wake_access?: AgentPermissionsResponse["wake_access"];
+  governance?: AgentPermissionsResponse["governance"];
+  allowed_count?: AgentPermissionsResponse["allowed_count"];
+  count?: AgentPermissionsResponse["count"];};
 
 // AgentGovernanceSnapshot is the governance block as the Diagnostics tab reads it.
 type AgentGovernanceSnapshot = {
@@ -151,24 +153,22 @@ export type AgentConfigPermissionRow = {
 };
 
 export type AgentWakeResult = {
-  accepted?: boolean;
-  agent?: string;
-  correlation_id?: string;
-};
+  accepted?: AgentRepairResponse["accepted"];
+  agent?: AgentRepairResponse["agent"];
+  correlation_id?: AgentRepairResponse["correlation_id"];};
 
 // Board message (mirror of /api/board rows) for the Comms tab. The read view
 // emits ts_unix_ms (not ts_ms) and omits from/to when empty.
 export type BoardMessage = {
-  id?: string;
-  topic?: string;
-  from?: string;
-  to?: string;
-  reply_to?: string;
-  text?: string;
-  ts_unix_ms?: number;
-  help?: boolean;
-  acked_by?: string[];
-};
+  id?: BoardReadResponseMessagesItem["id"];
+  topic?: BoardReadResponseMessagesItem["topic"];
+  from?: BoardReadResponseMessagesItem["from"];
+  to?: BoardReadResponseMessagesItem["to"];
+  reply_to?: BoardReadResponseMessagesItem["reply_to"];
+  text?: BoardReadResponseMessagesItem["text"];
+  ts_unix_ms?: BoardReadResponseMessagesItem["ts_unix_ms"];
+  help?: BoardReadResponseMessagesItem["help"];
+  acked_by?: BoardReadResponseMessagesItem["acked_by"];};
 export const EMPTY_BOARD_MESSAGES: BoardMessage[] = [];
 // Routing snapshot (mirror of /api/routing) for the Model tab.
 export type RoutingInfo = {

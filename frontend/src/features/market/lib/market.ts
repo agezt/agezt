@@ -1,31 +1,33 @@
 import { authHeaders, getJSON } from "@/app/api";
 import { parseSSEChunk, type ChatFrame } from "@/lib/chat";
-import type { MarketShowResponseSkillsItem } from "@/app/api/types.generated";
+import type {
+  MarketShowResponse ,
+  MarketShowResponseSkillsItem ,
+  MarketShowResponseVet ,
+  MarketShowResponseVetFindingsItem,
+} from "@/app/api/types.generated";
 
 // One security-review finding from the pre-install vet (kernel/market.VetFinding).
 // Internal: reached through VetReport.findings; not exported (knip gate).
 type VetFinding = {
-  severity: string;
-  where: string;
-  rule: string;
-  detail: string;
-};
+  severity: MarketShowResponseVetFindingsItem["severity"];
+  where: MarketShowResponseVetFindingsItem["where"];
+  rule: MarketShowResponseVetFindingsItem["rule"];
+  detail: MarketShowResponseVetFindingsItem["detail"];};
 
 // The pack's pre-install security review (kernel/market.VetReport). Purely
 // informational — installs are never blocked on it (default-allow posture).
 export type VetReport = {
-  verdict: string;
-  findings?: VetFinding[];
-};
+  verdict: MarketShowResponseVet["verdict"];
+  findings?: MarketShowResponseVet["findings"];};
 
 // A pack's readable contents, for the gallery's "What's inside" panel and the
 // full detail view.
 export type PackDetails = {
-  skills: MarketShowResponseSkillsItem[];
-  mcp_servers: string[];
-  tools: string[];
-  vet?: VetReport;
-};
+  skills: NonNullable<MarketShowResponse["skills"]>;
+  mcp_servers: NonNullable<MarketShowResponse["mcp_servers"]>;
+  tools: NonNullable<MarketShowResponse["tools"]>;
+  vet?: MarketShowResponse["vet"];};
 
 // fetchPackDetails resolves one pack's contents (skills + MCP servers + CLI
 // tools) plus its security review from the read-only show endpoint, for lazy

@@ -3,15 +3,18 @@
 // fingerprint, an "active" badge (or "activate" button when not), and a delete
 // affordance. Values are write-only — only the fingerprint is shown.
 
+import type {
+  ProviderKeyListResponseKeysItem,
+} from "@/app/api/types.generated";
+
 import { Check, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
 export type KeyInfo = {
-  label: string;
-  active: boolean;
-  last4: string;
-};
+  label: ProviderKeyListResponseKeysItem["label"];
+  active: ProviderKeyListResponseKeysItem["active"];
+  last4: ProviderKeyListResponseKeysItem["last4"];};
 
 export interface KeyListItemProps {
   keyInfo: KeyInfo;

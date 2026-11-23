@@ -3,15 +3,18 @@ import { ShieldCheck, ShieldAlert, Check, X, ArrowRight } from "lucide-react";
 import { getJSON, postAction } from "@/app/api";
 import { useEvents } from "@/app/events";
 import { cn } from "@/app/utils";
+import type {
+  ApprovalsResponsePendingItem,
+} from "@/app/api/types.generated";
+
 
 // PendingApproval is one HITL request awaiting the operator's decision, as
 // returned by /api/approvals.
 export type PendingApproval = {
-  id?: string;
-  capability?: string;
-  tool_name?: string;
-  reason?: string;
-};
+  id?: ApprovalsResponsePendingItem["id"];
+  capability?: ApprovalsResponsePendingItem["capability"];
+  tool_name?: ApprovalsResponsePendingItem["tool_name"];
+  reason?: ApprovalsResponsePendingItem["reason"];};
 
 // approvalLabel is the one-line summary shown for a pending request. Pure +
 // unit-tested.

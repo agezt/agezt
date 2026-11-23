@@ -58,7 +58,9 @@ export function useCursorPager<T extends Record<string, unknown>>(
     if (!data) return;
     const items = (data[itemsKey] as T[] | undefined) ?? [];
     setPaged(items);
-    setCursor((data.next_cursor as string | undefined) ?? null);
+    // The daemon's terminal cursor is an EMPTY STRING, not a null —
+    // `|| null` reads both shapes as "no more pages".
+    setCursor((data.next_cursor as string | undefined) || null);
     setMoreError(null);
   }, [data, itemsKey]);
 
@@ -93,7 +95,7 @@ export function useCursorPager<T extends Record<string, unknown>>(
         }
         return merged;
       });
-      setCursor((page.next_cursor as string | undefined) ?? null);
+      setCursor((page.next_cursor as string | undefined) || null);
     } catch (err) {
       setMoreError(err instanceof Error ? err.message : String(err));
     } finally {

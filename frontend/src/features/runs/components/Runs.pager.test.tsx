@@ -12,35 +12,26 @@
 // module-level `getJSON` is sufficient — the React hook tree runs for real
 // and the only thing we control is the response.
 
+import type {
+  RunsListResponse,
+  RunsListResponseRunsItem,
+} from "@/app/api/types.generated";
+
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
 
-// Minimal Run shape used by the Runs view's render path. We inline it
-// here rather than importing from the component because the row type is
-// wide and we only need a couple of fields populated for the pager
-// behaviour we exercise.
-interface Run {
-  correlation_id?: string;
-  intent?: string;
-  status?: string;
-  started_unix_ms?: number;
-  completed_unix_ms?: number;
-  duration_ms?: number;
-  iters?: number;
-  spent_mc?: number;
-  model?: string;
-  agent?: string;
-  [k: string]: unknown;
-}
+// The run row IS the daemon's row: the pager hands these straight to the
+// Runs view, so the test builds what the daemon sends — every field it
+// carries, no cast, no "minimal shape" the daemon could never produce.
+type Run = RunsListResponseRunsItem;
 
 // Mutable holder so the test can drive one-shot responses per call.
 interface Response {
-  runs: Run[];
-  next_cursor: string | null;
-}
+  runs: RunsListResponse["runs"];
+  next_cursor: RunsListResponse["next_cursor"];}
 let nextResponse: Response | ((cursor: string | null) => Response) | "throw" = {
   runs: [],
-  next_cursor: null,
+  next_cursor: "",
 };
 
 const messages: string[] = [];
@@ -71,23 +62,27 @@ vi.mock("@/app/api", async (importOriginal) => {
 // mocked module graph.
 import { useRunsPager } from "@/features/runs/components/Runs";
 
+// A run row the daemon can produce: every field its row carries, no cast.
 function runRow(id: string): Run {
   return {
     correlation_id: id,
     intent: id,
     status: "running",
+    reason: "",
     started_unix_ms: 1_700_000_000_000,
     completed_unix_ms: 0,
     duration_ms: 0,
     iters: 0,
+    parent_correlation: "",
     spent_mc: 0,
     model: "",
+    answer_preview: "",
     agent: "",
-  } as Run;
+  };
 }
 
 beforeEach(() => {
-  nextResponse = { runs: [], next_cursor: null };
+  nextResponse = { runs: [], next_cursor: "" };
   throwOn = null;
   messages.length = 0;
 });
@@ -98,7 +93,7 @@ afterEach(() => {
 
 describe("useRunsPager", () => {
   it("first page: terminal — cursor stays null, hasMore=false", async () => {
-    nextResponse = { runs: [runRow("a"), runRow("b")], next_cursor: null };
+    nextResponse = { runs: [runRow("a"), runRow("b")], next_cursor: "" };
     const { result } = renderHook(() => useRunsPager());
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.paged.map((r) => r.correlation_id)).toEqual(["a", "b"]);
@@ -108,7 +103,7 @@ describe("useRunsPager", () => {
   it("first page with next_cursor sets hasMore; loadMore pulls page 2 and clears the cursor on terminal", async () => {
     nextResponse = (cursor) => {
       if (cursor) {
-        return { runs: [runRow("c"), runRow("d")], next_cursor: null };
+        return { runs: [runRow("c"), runRow("d")], next_cursor: "" };
       }
       return { runs: [runRow("a"), runRow("b")], next_cursor: "100:1" };
     };
@@ -146,7 +141,7 @@ describe("useRunsPager", () => {
   it("dedups rows by correlation_id when a duplicate appears on a later page", async () => {
     nextResponse = (cursor) => {
       if (!cursor) return { runs: [runRow("a"), runRow("b")], next_cursor: "100:1" };
-      return { runs: [runRow("a"), runRow("c")], next_cursor: null };
+      return { runs: [runRow("a"), runRow("c")], next_cursor: "" };
     };
     const { result } = renderHook(() => useRunsPager());
     await waitFor(() => expect(result.current.loading).toBe(false));
@@ -158,7 +153,7 @@ describe("useRunsPager", () => {
   });
 
   it("chains three pages correctly via repeated loadMore calls", async () => {
-    const cursorChain = ["100:1", "200:2", null];
+    const cursorChain = ["100:1", "200:2", ""];
     nextResponse = (cursor) => {
       const i = ["", ...cursorChain].indexOf(cursor ?? "");
       const rows =
