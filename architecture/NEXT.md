@@ -35,8 +35,9 @@ browser reads after a payload arrives is the daemon's own row, narrowed.
   defensive (the browser marked a field the daemon always sends as optional),
   **2** false promises.
 - Restoring the null arm cost **56** compile errors — the compiler's list of
-  the places the two disagreed. The older global rule ("fold null into
-  absent") cost **111** errors across **38** files.
+  the places the two disagreed. W5.1 had measured the blunt versions: every
+  null arm kept broke the browser in **149** places, every arm dropped left
+  **38** call sites reading a null as a value.
 - The browser changed in **39** files; the typecheck went from **56** errors
   to **0**.
 

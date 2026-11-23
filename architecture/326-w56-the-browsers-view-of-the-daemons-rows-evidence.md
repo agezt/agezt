@@ -39,9 +39,11 @@ on a null). A member the daemon may omit carries the `?` already, and that
 The rule is not a promise the browser breaks silently: it is the **cost** of
 the rule that the compiler charged. Restoring the null arm where the browser
 needs it produced **56** type errors — the compiler naming, file by file, the
-places where the browser's view and the daemon's row disagreed. (The older,
-global "fold null into absent" cost **111** errors across **38** files; the
-narrow rule costs **56** across **25** files.)
+places where the browser's view and the daemon's row disagreed. (W5.1 measured the blunt versions: keeping the null arm **everywhere** broke the
+browser in **149** places, and dropping it **everywhere** left **38** call sites
+reading a null as a value. The narrow rule costs **56** compile errors across
+**25** files — and every one of them names a place where the browser's view
+and the daemon's row disagreed.)
 
 The rule also exposed a **precedence bug in the renderer**: a nullable array
 item was rendered `X | null[]` — an array of nulls, not an array of
