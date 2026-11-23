@@ -43,10 +43,11 @@ import {
   groupDetail,
   type AutonomyItem,
 } from "@/lib/autonomy";
+import type { AutonomyFeedResponse } from "@/app/api/types.generated";
 
 type Feed = {
-  items?: AutonomyItem[];
-  count?: number;
+  items?: AutonomyFeedResponse["items"];
+  count?: AutonomyFeedResponse["count"];
 };
 
 // catMeta colours + icons each self-directed category so the feed reads at a

@@ -10,45 +10,57 @@
 // aggressive 8-file attempt that was rolled back).
 
 import type { Tone } from "@/lib/tone";
-import type { WorkflowListResponseWorkflowsItemLastRun } from "@/app/api/types.generated";
+import type {
+  WorkflowDraftResponseWorkflow,
+  WorkflowDraftResponseWorkflowEdgesItem,
+  WorkflowDraftResponseWorkflowNodesItem,
+  WorkflowListResponseWorkflowsItemLastRun,
+  WorkflowRunsResponseRunsItem,
+  WorkflowRunsResponseRunsItemNodeEventsItem,
+  WorkflowTemplatesResponseTemplatesItem,
+} from "@/app/api/types.generated";
 
-export interface WfNode {
-  id: string;
-  type: string;
-  label?: string;
-  config?: Record<string, unknown>;
-  x?: number;
-  y?: number;
-  // Reliability settings (M808) — per-node, outside config.
-  timeout_sec?: number;
-  retries?: number;
-  retry_delay_sec?: number;
-}
+// WfNode is a workflow node as the canvas reads it.
+export type WfNode = {
+  id: WorkflowDraftResponseWorkflowNodesItem["id"];
+  type: WorkflowDraftResponseWorkflowNodesItem["type"];
+  label?: WorkflowDraftResponseWorkflowNodesItem["label"];
+  config?: WorkflowDraftResponseWorkflowNodesItem["config"];
+  x?: WorkflowDraftResponseWorkflowNodesItem["x"];
+  y?: WorkflowDraftResponseWorkflowNodesItem["y"];
+  timeout_sec?: WorkflowDraftResponseWorkflowNodesItem["timeout_sec"];
+  retries?: WorkflowDraftResponseWorkflowNodesItem["retries"];
+  retry_delay_sec?: WorkflowDraftResponseWorkflowNodesItem["retry_delay_sec"];
+};
+
 export type WfSettings = {
   timeout_sec?: number;
   retries?: number;
   retry_delay_sec?: number;
 };
+// WfEdge is a workflow edge as the canvas reads it.
 export type WfEdge = {
-  from: string;
-  to: string;
-  port?: string;
+  from: WorkflowDraftResponseWorkflowEdgesItem["from"];
+  to: WorkflowDraftResponseWorkflowEdgesItem["to"];
+  port?: WorkflowDraftResponseWorkflowEdgesItem["port"];
 };
+
 export type Wf = {
-  id?: string;
-  name: string;
-  description?: string;
-  enabled?: boolean;
+  id?: WorkflowDraftResponseWorkflow["id"];
+  name: WorkflowDraftResponseWorkflow["name"];
+  description?: WorkflowDraftResponseWorkflow["description"];
+  enabled?: WorkflowDraftResponseWorkflow["enabled"];
   // The LIST answer carries the shape, not the graph: /api/workflows answers
   // with node_count and edge_count, and the canvas asks for the draft when it
   // needs the nodes themselves.
-  nodes?: WfNode[];
-  edges?: WfEdge[];
-  trigger_kind?: string;
-  trigger_detail?: string;
-  node_count?: number;
-  last_run?: WorkflowListResponseWorkflowsItemLastRun;
+  nodes?: WfNode[] | null;
+  edges?: WfEdge[] | null;
+  trigger_kind?: WorkflowDraftResponseWorkflow["trigger_kind"];
+  trigger_detail?: WorkflowDraftResponseWorkflow["trigger_detail"];
+  node_count?: WorkflowDraftResponseWorkflow["node_count"];
+  last_run?: WorkflowDraftResponseWorkflow["last_run"];
 };
+
 export interface WorkflowChainKind {
   label: string;
   /** One short sentence the badge itself cannot say. Rendered as a tooltip. */
@@ -56,38 +68,41 @@ export interface WorkflowChainKind {
   tone: Tone;
 }
 export type WfTemplate = {
-  name: string;
-  title: string;
-  description: string;
-  category: string;
-  node_count?: number;
+  name: WorkflowTemplatesResponseTemplatesItem["name"];
+  title: WorkflowTemplatesResponseTemplatesItem["title"];
+  description: WorkflowTemplatesResponseTemplatesItem["description"];
+  category: WorkflowTemplatesResponseTemplatesItem["category"];
+  node_count?: WorkflowTemplatesResponseTemplatesItem["node_count"];
   workflow: Wf;
 };
-export interface WfRunNodeEvent {
-  node: string;
-  ok?: boolean;
-  handled?: boolean;
-  port?: string;
-  label?: string;
-  error?: string;
-  // Per-node data snippets (M808): what the node consumed and produced.
-  input?: string;
-  output?: string;
-  output_truncated?: boolean;
-  attempts?: number;
-}
+
+// WfRunNodeEvent is a run's node event as the view reads it.
+// WfRunNodeEvent is a run's node event as the view reads it.
+export type WfRunNodeEvent = {
+  node: WorkflowRunsResponseRunsItemNodeEventsItem["node"];
+  ok?: WorkflowRunsResponseRunsItemNodeEventsItem["ok"];
+  handled?: WorkflowRunsResponseRunsItemNodeEventsItem["handled"];
+  port?: WorkflowRunsResponseRunsItemNodeEventsItem["port"];
+  label?: WorkflowRunsResponseRunsItemNodeEventsItem["label"];
+  error?: WorkflowRunsResponseRunsItemNodeEventsItem["error"];
+  input?: WorkflowRunsResponseRunsItemNodeEventsItem["input"];
+  output?: WorkflowRunsResponseRunsItemNodeEventsItem["output"];
+  output_truncated?: WorkflowRunsResponseRunsItemNodeEventsItem["output_truncated"];
+  attempts?: WorkflowRunsResponseRunsItemNodeEventsItem["attempts"];
+};
+
 export type WfRun = {
-  correlation_id: string;
-  status: string;
-  started_ms?: number;
-  finished_ms?: number;
-  node_events?: WfRunNodeEvent[];
-  error?: string;
-  source?: string;
-  runner?: string;
-  agent?: string;
-  schedule_id?: string;
-  standing_id?: string;
-  trigger_subject?: string;
-  parent_correlation_id?: string;
+  correlation_id: WorkflowRunsResponseRunsItem["correlation_id"];
+  status: WorkflowRunsResponseRunsItem["status"];
+  started_ms?: WorkflowRunsResponseRunsItem["started_ms"];
+  finished_ms?: WorkflowRunsResponseRunsItem["finished_ms"];
+  node_events?: WfRunNodeEvent[] | null;
+  error?: WorkflowRunsResponseRunsItem["error"];
+  source?: WorkflowRunsResponseRunsItem["source"];
+  runner?: WorkflowRunsResponseRunsItem["runner"];
+  agent?: WorkflowRunsResponseRunsItem["agent"];
+  schedule_id?: WorkflowRunsResponseRunsItem["schedule_id"];
+  standing_id?: WorkflowRunsResponseRunsItem["standing_id"];
+  trigger_subject?: WorkflowRunsResponseRunsItem["trigger_subject"];
+  parent_correlation_id?: WorkflowRunsResponseRunsItem["parent_correlation_id"];
 };

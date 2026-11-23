@@ -2,27 +2,29 @@ import { fmtDateTime, clip } from "@/app/utils";
 import { agentLifecycleSummary, agentRemovalCascadePreset, agentTaskProgressSummary, type AgentProfile, type AgentRemoveResult, type AgentRetireResult, type AgentReviveResult } from "@/features/agents/components/Roster";
 import { type ApiSchedule } from "@/lib/fleet";
 import { incidentLineageLabel, type AgentRepairEvent, type AgentRepairStatus } from "@/lib/agentdetail";
+import type { AgentImpactResponse } from "@/app/api/types.generated";
 
+// AgentImpactSummary is the impact block as the Lifecycle panel reads it.
 export type AgentImpactSummary = {
-  standing_orders?: string[];
-  schedules?: string[];
-  memories?: string[];
-  authored_shared_memories?: string[];
-  skills?: string[];
-  configs?: string[];
-  workspaces?: string[];
-  workflow_refs?: string[];
-  mailbox_messages?: string[];
-  subagents?: string[];
-  subagent_standing_orders?: string[];
-  subagent_schedules?: string[];
-  subagent_memories?: string[];
-  subagent_authored_shared_memories?: string[];
-  subagent_skills?: string[];
-  subagent_configs?: string[];
-  subagent_workspaces?: string[];
-  subagent_workflow_refs?: string[];
-  subagent_mailbox_messages?: string[];
+  standing_orders?: AgentImpactResponse["standing_orders"];
+  schedules?: AgentImpactResponse["schedules"];
+  memories?: AgentImpactResponse["memories"];
+  authored_shared_memories?: AgentImpactResponse["authored_shared_memories"];
+  skills?: AgentImpactResponse["skills"];
+  configs?: AgentImpactResponse["configs"];
+  workspaces?: AgentImpactResponse["workspaces"];
+  workflow_refs?: AgentImpactResponse["workflow_refs"];
+  mailbox_messages?: AgentImpactResponse["mailbox_messages"];
+  subagents?: AgentImpactResponse["subagents"];
+  subagent_standing_orders?: AgentImpactResponse["subagent_standing_orders"];
+  subagent_schedules?: AgentImpactResponse["subagent_schedules"];
+  subagent_memories?: AgentImpactResponse["subagent_memories"];
+  subagent_authored_shared_memories?: AgentImpactResponse["subagent_authored_shared_memories"];
+  subagent_skills?: AgentImpactResponse["subagent_skills"];
+  subagent_configs?: AgentImpactResponse["subagent_configs"];
+  subagent_workspaces?: AgentImpactResponse["subagent_workspaces"];
+  subagent_workflow_refs?: AgentImpactResponse["subagent_workflow_refs"];
+  subagent_mailbox_messages?: AgentImpactResponse["subagent_mailbox_messages"];
 };
 
 export interface AgentRemovalCascade {

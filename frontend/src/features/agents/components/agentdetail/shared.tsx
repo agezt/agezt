@@ -9,6 +9,13 @@ import { useUI } from "@/components/ui/feedback";
 import { type AgentProfile } from "@/features/agents/components/Roster";
 import { type FleetState, type ApiOrder, type ApiSchedule } from "@/lib/fleet";
 import { type AgentConfigOverrideSummary, type MemoryRecord, type SkillLite } from "@/lib/agentdetail";
+import type {
+  AgentCapabilitiesResponseConfigEntriesItem,
+  AgentCapabilitiesResponseGovernance,
+  AgentCapabilitiesResponsePermissionsItem,
+  AgentCapabilitiesResponseWakeAccess,
+  RoutingGetResponse,
+} from "@/app/api/types.generated";
 
 // Diagnostics row shapes (mirrors of /api/policy_log + /api/tool_log rows).
 export type PolicyDecision = {
@@ -54,85 +61,95 @@ export type ToolCatalogRow = {
   description?: string;
   capability?: string;
 };
+// AgentPermissionRow is a capability row as the Diagnostics tab reads it.
+// AgentPermissionRow is a capability row as the Diagnostics tab reads it.
 export type AgentPermissionRow = {
-  name: string;
-  description?: string;
-  capability?: string;
-  allowed?: boolean;
-  ask?: boolean;
-  status?: string;
-  source?: string;
-  reason?: string;
-  level?: string;
+  name: AgentCapabilitiesResponsePermissionsItem["name"];
+  description?: AgentCapabilitiesResponsePermissionsItem["description"];
+  capability?: AgentCapabilitiesResponsePermissionsItem["capability"];
+  allowed?: AgentCapabilitiesResponsePermissionsItem["allowed"];
+  ask?: AgentCapabilitiesResponsePermissionsItem["ask"];
+  status?: AgentCapabilitiesResponsePermissionsItem["status"];
+  source?: AgentCapabilitiesResponsePermissionsItem["source"];
+  reason?: AgentCapabilitiesResponsePermissionsItem["reason"];
+  level?: AgentCapabilitiesResponsePermissionsItem["level"];
 };
+
 export type AgentPermissionsSnapshot = {
-  permissions?: AgentPermissionRow[];
-  config_entries?: AgentConfigPermissionRow[];
+  permissions?: AgentPermissionRow[] | null;
+  config_entries?: AgentConfigPermissionRow[] | null;
   wake_access?: AgentWakeAccess;
   governance?: AgentGovernanceSnapshot;
   allowed_count?: number;
   count?: number;
 };
+
+// AgentGovernanceSnapshot is the governance block as the Diagnostics tab reads it.
 type AgentGovernanceSnapshot = {
-  summary?: string;
-  risk?: string;
-  system_enforced?: boolean;
-  authority_boundary?: string;
-  execution_boundary?: string;
-  permission_passport?: string;
-  tool_policy?: string;
-  memory_policy?: string;
-  memory_writes?: string;
-  trust_ceiling?: string;
-  tool_count?: number;
-  allowed_count?: number;
-  ask_count?: number;
-  blocked_count?: number;
-  direct_tools?: string[];
-  ask_tools?: string[];
-  blocked_tools?: string[];
-  tool_allow_count?: number;
-  tool_deny_count?: number;
-  config_count?: number;
-  config_visible_count?: number;
-  config_owned_count?: number;
-  config_hidden_count?: number;
-  visible_configs?: string[];
-  hidden_configs?: string[];
-  memory_scope?: string;
-  max_cost_mc?: number;
-  max_daily_mc?: number;
-  noise_silent_on_success?: boolean;
-  noise_disable_memory_writes?: boolean;
-  noise_min_notify_severity?: string;
-  noise_min_notify_interval_sec?: number;
+  summary?: AgentCapabilitiesResponseGovernance["summary"];
+  risk?: AgentCapabilitiesResponseGovernance["risk"];
+  system_enforced?: AgentCapabilitiesResponseGovernance["system_enforced"];
+  authority_boundary?: AgentCapabilitiesResponseGovernance["authority_boundary"];
+  execution_boundary?: AgentCapabilitiesResponseGovernance["execution_boundary"];
+  permission_passport?: AgentCapabilitiesResponseGovernance["permission_passport"];
+  tool_policy?: AgentCapabilitiesResponseGovernance["tool_policy"];
+  memory_policy?: AgentCapabilitiesResponseGovernance["memory_policy"];
+  memory_writes?: AgentCapabilitiesResponseGovernance["memory_writes"];
+  trust_ceiling?: AgentCapabilitiesResponseGovernance["trust_ceiling"];
+  tool_count?: AgentCapabilitiesResponseGovernance["tool_count"];
+  allowed_count?: AgentCapabilitiesResponseGovernance["allowed_count"];
+  ask_count?: AgentCapabilitiesResponseGovernance["ask_count"];
+  blocked_count?: AgentCapabilitiesResponseGovernance["blocked_count"];
+  direct_tools?: AgentCapabilitiesResponseGovernance["direct_tools"];
+  ask_tools?: AgentCapabilitiesResponseGovernance["ask_tools"];
+  blocked_tools?: AgentCapabilitiesResponseGovernance["blocked_tools"];
+  tool_allow_count?: AgentCapabilitiesResponseGovernance["tool_allow_count"];
+  tool_deny_count?: AgentCapabilitiesResponseGovernance["tool_deny_count"];
+  config_count?: AgentCapabilitiesResponseGovernance["config_count"];
+  config_visible_count?: AgentCapabilitiesResponseGovernance["config_visible_count"];
+  config_owned_count?: AgentCapabilitiesResponseGovernance["config_owned_count"];
+  config_hidden_count?: AgentCapabilitiesResponseGovernance["config_hidden_count"];
+  visible_configs?: AgentCapabilitiesResponseGovernance["visible_configs"];
+  hidden_configs?: AgentCapabilitiesResponseGovernance["hidden_configs"];
+  memory_scope?: AgentCapabilitiesResponseGovernance["memory_scope"];
+  max_cost_mc?: AgentCapabilitiesResponseGovernance["max_cost_mc"];
+  max_daily_mc?: AgentCapabilitiesResponseGovernance["max_daily_mc"];
+  noise_silent_on_success?: AgentCapabilitiesResponseGovernance["noise_silent_on_success"];
+  noise_disable_memory_writes?: AgentCapabilitiesResponseGovernance["noise_disable_memory_writes"];
+  noise_min_notify_severity?: AgentCapabilitiesResponseGovernance["noise_min_notify_severity"];
+  noise_min_notify_interval_sec?: AgentCapabilitiesResponseGovernance["noise_min_notify_interval_sec"];
 };
-export interface AgentWakeAccess {
-  status?: string;
-  reason?: string;
-  direct_callable?: boolean;
-  direct_allowed?: boolean;
-  schedule_allowed?: boolean;
-  channel_allowed?: boolean;
-  operator_allowed?: boolean;
-  delegation_allowed?: boolean;
-  delegation_scope?: "any" | "manager" | string;
-  delegation_sources?: string[];
-  manager?: string;
-  owner_agent?: string;
-  parent_agent?: string;
-}
+
+// AgentWakeAccess is the wake-permission block as the Diagnostics tab reads it.
+export type AgentWakeAccess = {
+  status?: AgentCapabilitiesResponseWakeAccess["status"];
+  reason?: AgentCapabilitiesResponseWakeAccess["reason"];
+  direct_callable?: AgentCapabilitiesResponseWakeAccess["direct_callable"];
+  direct_allowed?: AgentCapabilitiesResponseWakeAccess["direct_allowed"];
+  schedule_allowed?: AgentCapabilitiesResponseWakeAccess["schedule_allowed"];
+  channel_allowed?: AgentCapabilitiesResponseWakeAccess["channel_allowed"];
+  operator_allowed?: AgentCapabilitiesResponseWakeAccess["operator_allowed"];
+  delegation_allowed?: AgentCapabilitiesResponseWakeAccess["delegation_allowed"];
+  delegation_scope?: AgentCapabilitiesResponseWakeAccess["delegation_scope"];
+  delegation_sources?: AgentCapabilitiesResponseWakeAccess["delegation_sources"];
+  manager?: AgentCapabilitiesResponseWakeAccess["manager"];
+  owner_agent?: AgentCapabilitiesResponseWakeAccess["owner_agent"];
+  parent_agent?: AgentCapabilitiesResponseWakeAccess["parent_agent"];
+};
+
+// AgentConfigPermissionRow is a config-visibility row as the Diagnostics tab reads it.
 export type AgentConfigPermissionRow = {
-  key: string;
-  rating?: string;
-  visible?: boolean;
-  owned?: boolean;
-  source?: string;
-  reason?: string;
-  allowed_agents?: string[];
-  excluded_agents?: string[];
-  description?: string;
+  key: AgentCapabilitiesResponseConfigEntriesItem["key"];
+  rating?: AgentCapabilitiesResponseConfigEntriesItem["rating"];
+  visible?: AgentCapabilitiesResponseConfigEntriesItem["visible"];
+  owned?: AgentCapabilitiesResponseConfigEntriesItem["owned"];
+  source?: AgentCapabilitiesResponseConfigEntriesItem["source"];
+  reason?: AgentCapabilitiesResponseConfigEntriesItem["reason"];
+  allowed_agents?: AgentCapabilitiesResponseConfigEntriesItem["allowed_agents"];
+  excluded_agents?: AgentCapabilitiesResponseConfigEntriesItem["excluded_agents"];
+  description?: AgentCapabilitiesResponseConfigEntriesItem["description"];
 };
+
 export type AgentWakeResult = {
   accepted?: boolean;
   agent?: string;
@@ -155,7 +172,7 @@ export type BoardMessage = {
 export const EMPTY_BOARD_MESSAGES: BoardMessage[] = [];
 // Routing snapshot (mirror of /api/routing) for the Model tab.
 export type RoutingInfo = {
-  chains?: Record<string, string[]>;
+  chains?: RoutingGetResponse["chains"];
 };
 // Six grouped tabs (declutter law): Wiring absorbs triggers+comms, Mind absorbs
 // soul+memory+skills+files, Diagnostics absorbs diag+repair.

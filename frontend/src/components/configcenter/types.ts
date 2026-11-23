@@ -5,21 +5,25 @@
 // page.tsx internals. Internal-only types (Section, ReloadBoundary,
 // ConfigSchemaResponse, SetResult, AgentConfigEntry, Category) stay in
 // page.tsx. Public surface (page.tsx re-exports) unchanged.
+//
+// The field shape is the daemon's own schema row, narrowed to the fields the
+// page reads — the browser names the fields, the daemon names what they are.
+import type { ConfigSchemaResponseSectionsItemFieldsItem } from "@/app/api/types.generated";
 
 export type FieldType = "text" | "password" | "number" | "bool" | "csv" | "select";
 export type ApplyMode = "live" | "restart";
 
 export type Field = {
-  env: string;
-  label: string;
-  type: string;
-  secret: boolean;
-  required: boolean;
-  help?: string;
-  apply: string;
-  options?: string[];
-  read_only?: boolean;
-  locked?: boolean;
+  env: ConfigSchemaResponseSectionsItemFieldsItem["env"];
+  label: ConfigSchemaResponseSectionsItemFieldsItem["label"];
+  type: ConfigSchemaResponseSectionsItemFieldsItem["type"];
+  secret: ConfigSchemaResponseSectionsItemFieldsItem["secret"];
+  required: ConfigSchemaResponseSectionsItemFieldsItem["required"];
+  help?: ConfigSchemaResponseSectionsItemFieldsItem["help"];
+  apply: ConfigSchemaResponseSectionsItemFieldsItem["apply"];
+  options?: ConfigSchemaResponseSectionsItemFieldsItem["options"];
+  read_only?: ConfigSchemaResponseSectionsItemFieldsItem["read_only"];
+  locked?: ConfigSchemaResponseSectionsItemFieldsItem["locked"];
 };
 export type ValueEntry = {
   env: string;

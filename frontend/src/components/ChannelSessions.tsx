@@ -34,7 +34,7 @@ export function ChannelSessions() {
   async function reload() {
     try {
       const d = await getJSON("/api/inbox", { limit: "100" });
-      setSessions(sessionsFromInboxThreads(d.threads ?? []));
+      setSessions(sessionsFromInboxThreads(d.threads?.filter((t) => t != null) ?? []));
     } catch {
       // Non-fatal: the section just stays empty if the inbox isn't reachable.
     }

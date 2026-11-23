@@ -1,5 +1,66 @@
 # NEXT — handoff for the next coding agent
 
+## Current checkpoint — W5.6 the browser's view of the daemon's rows, 2026-11-22
+
+The W0–W5 objective remains open. W5.1 gave the browser its **payload** types
+from the registry; this slice gives it the **view** types too: what the
+browser reads after a payload arrives is the daemon's own row, narrowed.
+
+### What was on the tree
+
+- The browser's view types are now narrowings of the daemon's rows — a
+  `Pick<Row, …>` or fields whose types are indexed accesses into the row
+  (`Row["field"]`). The browser names the fields it reads; the daemon says
+  what they are. The optionality stays the browser's; the type is the
+  daemon's.
+- `tools/openapi/types.go` — the renderer keeps the registry's null arm
+  **only on a member the daemon always sends**. Such a member carries no `?`,
+  so without the arm the browser would read a null as a value; a member the
+  daemon may omit carries the `?` already and needs no second warning. The
+  rule also fixed a precedence bug: a nullable array item was rendered
+  `X | null[]` (an array of nulls) instead of `(X | null)[]`.
+- A nullable list is normalised **at the boundary** (`?? []`): the page reads
+  a list, never a null, and the compiler insists that the normalisation is
+  there.
+- A test fixture is a **row the daemon can produce** — the setup and catalog
+  fixtures build the daemon's row field for field, no casts.
+- `kernel/app/workflow/runs.go` — the daemon's run list now carries the
+  `output_truncated` flag its own journal carried (it was dropped, so the
+  canvas's "output (truncated)" hint could never fire).
+
+### What the measurement said
+
+- **470** hand-written types in the browser; **126** copied a daemon row.
+- **91** of them conflicted with the daemon over **570** fields: **568**
+  defensive (the browser marked a field the daemon always sends as optional),
+  **2** false promises.
+- Restoring the null arm cost **56** compile errors — the compiler's list of
+  the places the two disagreed. The older global rule ("fold null into
+  absent") cost **111** errors across **38** files.
+- The browser changed in **39** files; the typecheck went from **56** errors
+  to **0**.
+
+### The evidence
+
+`architecture/326-w56-the-browsers-view-of-the-daemons-rows-evidence.md` — the
+measurement, the two guards (`tools/openapi/types_ratchet_test.go`, three
+tests on the renderer's rules; `frontend/src/app/api/viewtypes.ratchet.test.ts`,
+**35** compile-time assertions that the daemon's field type must fit the
+browser's view of it), the four mutations (the renderer losing the null arm;
+the renderer losing the array parentheses; the browser narrowing a view; the
+browser dropping a field the page reads) and the gates.
+
+### What the next slice should do
+
+The **91** types the first measurement blocked on optionality are now
+unblocked — the conflict was measured against a catalog that had folded null
+into absent. A fresh measurement over the **470** browser types will say how
+many copies of a daemon row are left, and the remaining hand-written views
+(the browser's own form models, the run-gallery rows, the board rows) can be
+classified against that number. The **4** locally built types and the **2**
+false promises (`ScheduleWorkflow.name`, `QueuedMsg.id`) have no daemon row
+to bind to and want a decision, not a conversion.
+
 ## Current checkpoint — W5.5 the console's own endpoints get one home, 2026-11-22
 
 The W0–W5 objective remains open. This slice closes the last open end W5.1

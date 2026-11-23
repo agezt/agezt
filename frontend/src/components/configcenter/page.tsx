@@ -48,6 +48,10 @@ import { SectionPanel } from "@/components/ui/section-panel";
 
 // ---- types (extracted to ./types) ----
 import type { Field, ValueEntry, ApplyMode } from "./types";
+import type {
+  ConfigSchemaResponseReloadBoundariesItem,
+  ConfigSchemaResponseSectionsItem,
+} from "@/app/api/types.generated";
 // The Config Center is the editable companion to the read-only Config view:
 // schema-driven forms (one section per channel/area) backed by the daemon's
 // config store + vault. The schema is dynamic — built-in sections plus any a
@@ -58,19 +62,17 @@ import type { Field, ValueEntry, ApplyMode } from "./types";
 // the real process environment wins. Each save reports live (provider/model) vs restart.
 
 type Section = {
-  id: string;
-  name: string;
-  help?: string;
-  source?: string;
+  id: ConfigSchemaResponseSectionsItem["id"];
+  name: ConfigSchemaResponseSectionsItem["name"];
+  help?: ConfigSchemaResponseSectionsItem["help"];
+  source?: ConfigSchemaResponseSectionsItem["source"];
+  // The daemon may send a null field list; the page normalizes it to [] where
+  // it reads the schema, so the section shape the page works with is total.
   fields: Field[];
 };
 type ReloadBoundary = {
-  apply: string;
+  apply: ConfigSchemaResponseReloadBoundariesItem["apply"];
   envs: string[];
-};
-type ConfigSchemaResponse = {
-  sections?: Section[];
-  reload_boundaries?: ReloadBoundary[];
 };
 type SetResult = {
   env: string;
@@ -196,9 +198,19 @@ export function ConfigCenter() {
     setLoading(true);
     try {
       const [sch] = await Promise.all([getJSON("/api/config/schema"), loadValues()]);
-      const nextSections = sch.sections || [];
+      const nextSections: Section[] = (sch.sections ?? []).map((s) => ({
+        id: s.id,
+        name: s.name,
+        help: s.help,
+        source: s.source,
+        fields: s.fields ?? [],
+      }));
       setSections(nextSections);
-      setReloadBoundaries(sch.reload_boundaries?.length ? sch.reload_boundaries : reloadBoundariesFromSections(nextSections));
+      const boundaries: ReloadBoundary[] = (sch.reload_boundaries ?? []).map((b) => ({
+        apply: b.apply,
+        envs: b.envs ?? [],
+      }));
+      setReloadBoundaries(boundaries.length ? boundaries : reloadBoundariesFromSections(nextSections));
       setErr(null);
     } catch (e) {
       setErr((e as Error).message);

@@ -1,21 +1,20 @@
-export type SetupModel = {
-  id: string;
-  name?: string;
-};
+import type {
+  CatalogListResponse,
+  CatalogListResponseProvidersItem,
+  CatalogListResponseProvidersItemModelsItem,
+} from "@/app/api/types.generated";
 
-export type SetupProvider = {
-  id: string;
-  name?: string;
-  env?: string[];
-  credentialed?: boolean;
-  model_count?: number;
-  models?: SetupModel[];
-};
+// The setup wizard reads the daemon's catalog. Its types are the daemon's own
+// rows, narrowed to what the wizard looks at — the browser names the fields,
+// the daemon names what they are.
+export type SetupModel = Pick<CatalogListResponseProvidersItemModelsItem, "id" | "name">;
 
-export type SetupCatalog = {
-  providers?: SetupProvider[];
-  provider_count?: number;
-};
+export type SetupProvider = Pick<
+  CatalogListResponseProvidersItem,
+  "id" | "name" | "env" | "credentialed" | "model_count" | "models"
+>;
+
+export type SetupCatalog = Pick<CatalogListResponse, "providers" | "provider_count">;
 
 export interface SetupFallbackCandidate extends SetupModel {
   provider_id: string;
@@ -27,7 +26,7 @@ const SETUP_CORE_TASKS = ["chat", "plan", "code", "delegate", "verify"];
 
 // providerKeyEnv picks a provider's API-key env var (the keyring target),
 // preferring a *_API_KEY / *_KEY / *_TOKEN name. null = keyless (local).
-export function providerKeyEnv(p: SetupProvider): string | null {
+export function providerKeyEnv(p: Pick<SetupProvider, "env">): string | null {
   const envs = p.env || [];
   if (!envs.length) return null;
   return envs.find((e) => /(_API_KEY|_KEY|_TOKEN)$/i.test(e)) || envs[0];
@@ -35,7 +34,7 @@ export function providerKeyEnv(p: SetupProvider): string | null {
 
 // anyCredentialed mirrors the backend's readiness bit. API-key providers set it
 // when a key exists; keyless/local providers set it when they are runnable.
-export function anyCredentialed(cat: SetupCatalog | null | undefined): boolean {
+export function anyCredentialed(cat: Pick<SetupCatalog, "providers"> | null | undefined): boolean {
   return !!cat?.providers?.some((p) => p.credentialed);
 }
 
@@ -107,7 +106,10 @@ export function defaultSetupFallbacks(candidates: SetupFallbackCandidate[], max 
   return candidates.slice(0, max).map((c) => c.id);
 }
 
-export function uniqueSetupChainName(existing: Record<string, string[]> | undefined, base = "main"): string {
+export function uniqueSetupChainName(
+  existing: Record<string, string[] | null> | null | undefined,
+  base = "main",
+): string {
   const chains = existing || {};
   if (!(base in chains)) return base;
   for (let i = 2; i < 1000; i++) {
@@ -117,18 +119,23 @@ export function uniqueSetupChainName(existing: Record<string, string[]> | undefi
   return `${base}-${Date.now()}`;
 }
 
-export function setupTaskSelection(taskTypes: string[] | undefined): string[] {
+export function setupTaskSelection(taskTypes: string[] | null | undefined): string[] {
   const available = new Set(taskTypes && taskTypes.length ? taskTypes : SETUP_CORE_TASKS);
   const core = SETUP_CORE_TASKS.filter((t) => available.has(t));
   return core.length ? core : [...available].slice(0, 5);
 }
 
 export function mergeSetupTaskRouting(
-  existing: Record<string, string[]> | undefined,
+  existing: Record<string, string[] | null> | null | undefined,
   tasks: string[],
   chainRef: string,
 ): Record<string, string[]> {
-  const next: Record<string, string[]> = { ...(existing || {}) };
+  // The daemon's routing map allows a null chain list per task; the wizard only
+  // ever writes chains it owns, so a null entry is dropped rather than carried.
+  const next: Record<string, string[]> = {};
+  for (const [key, chain] of Object.entries(existing || {})) {
+    if (chain) next[key] = chain;
+  }
   for (const task of tasks) {
     const key = task.trim();
     if (key) next[key] = [chainRef];

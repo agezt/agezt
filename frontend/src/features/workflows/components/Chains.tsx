@@ -11,7 +11,7 @@ import { EmptyState } from "@/components/ui/empty";
 import { Badge } from "@/components/ui/badge";
 import { ModelPicker } from "@/components/ModelPicker";
 import { ModelChip } from "@/components/ModelChip";
-import { validateChainName, moveItem, removeAt, renameChain, deleteChain } from "@/lib/chains";
+import { validateChainName, moveItem, removeAt, renameChain, deleteChain, type ChainMap } from "@/lib/chains";
 import { modelHealth, type ModelCatalog } from "@/lib/models";
 
 // Chains is the registry of named, reusable fallback ladders (M963). A chain is
@@ -29,16 +29,10 @@ export interface ChainUsage {
   default?: boolean;
 }
 
-type ChainsResp = {
-  chains?: Record<string, string[]>;
-  default?: string;
-  usage?: Record<string, any>;
-};
-
 export function Chains() {
   const { toast, confirm, prompt } = useUI();
-  const [chains, setChains] = useState<Record<string, string[]>>({});
-  const [savedChains, setSavedChains] = useState<Record<string, string[]>>({});
+  const [chains, setChains] = useState<ChainMap>({});
+  const [savedChains, setSavedChains] = useState<ChainMap>({});
   const [def, setDef] = useState("");
   const [savedDef, setSavedDef] = useState("");
   const [usage, setUsage] = useState<Record<string, ChainUsage | string[]>>({});
@@ -51,8 +45,8 @@ export function Chains() {
     setLoading(true);
     try {
       const r = await getJSON("/api/chains");
-      setChains(r.chains || {});
-      setSavedChains(r.chains || {});
+      setChains(r.chains ?? {});
+      setSavedChains(r.chains ?? {});
       setDef(r.default || "");
       setSavedDef(r.default || "");
       setUsage(r.usage || {});

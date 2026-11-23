@@ -17,6 +17,7 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { AnimatedNumber } from "@/components/AnimatedNumber";
 import { useUI } from "@/components/ui/feedback";
 import { ApiKeyField } from "@/components/apikeys/index";
+import type { CatalogListResponseProvidersItem } from "@/app/api/types.generated";
 
 // Connections — one cockpit for "what's actually wired up". Read-only on the
 // Status tab (AI providers, channels, MCP servers, peer nodes), and the
@@ -26,7 +27,16 @@ import { ApiKeyField } from "@/components/apikeys/index";
 // the keyring → catalog lookup; the new flow sources env names from the
 // catalog itself so the wiring is canonical. (See providerPresets removal.)
 
-interface Provider { id: string; name?: string; credentialed?: boolean; env?: string[]; family?: string; api?: string; models?: { id: string; name?: string }[]; model_count?: number }
+interface Provider {
+  id: CatalogListResponseProvidersItem["id"];
+  name?: CatalogListResponseProvidersItem["name"];
+  credentialed?: CatalogListResponseProvidersItem["credentialed"];
+  env?: CatalogListResponseProvidersItem["env"];
+  family?: CatalogListResponseProvidersItem["family"];
+  api?: CatalogListResponseProvidersItem["api"];
+  models?: CatalogListResponseProvidersItem["models"];
+  model_count?: CatalogListResponseProvidersItem["model_count"];
+}
 type ChannelRow = {
   kind: string;
   display?: string;

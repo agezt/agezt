@@ -274,7 +274,7 @@ export function Agents() {
     if (o.status === "fulfilled") setOrders(o.value.orders || []);
     if (s.status === "fulfilled") setSchedules(s.value.schedules || []);
     if (w.status === "fulfilled") setWorkflows(w.value.workflows || []);
-    if (p.status === "fulfilled") setPulse(p.value);
+    if (p.status === "fulfilled") setPulse(p.value ?? undefined);
     setCatalogLoaded(true);
   }
 

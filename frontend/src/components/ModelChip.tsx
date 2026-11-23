@@ -1,6 +1,6 @@
 import { Waypoints } from "lucide-react";
 import { cn } from "@/app/utils";
-import { isChainRef, chainName } from "@/lib/chains";
+import { isChainRef, chainName, type ChainMap } from "@/lib/chains";
 import { modelHealth, type ModelCatalog, type ModelHealth } from "@/lib/models";
 
 // ModelChip renders a single model slot consistently wherever chains can appear
@@ -15,7 +15,7 @@ export function ModelChip({
   className,
 }: {
   id: string;
-  chains?: Record<string, string[]>; // chain registry, for resolving "@name"
+  chains?: ChainMap; // chain registry, for resolving "@name"
   cat?: ModelCatalog | null; // catalog, for the per-model health dot
   className?: string;
 }) {
@@ -23,6 +23,7 @@ export function ModelChip({
     const name = chainName(id);
     const models = chains?.[name];
     const known = models !== undefined;
+    const listed = models?.join(" → ") || "empty";
     return (
       <span
         className={cn(
@@ -30,11 +31,11 @@ export function ModelChip({
           known ? "bg-accent/15 text-accent" : "bg-bad/15 text-bad",
           className,
         )}
-        title={known ? `Fallback chain → ${models!.join(" → ") || "empty"}` : `@${name} — no such chain (falls through to default)`}
+        title={known ? `Fallback chain → ${listed}` : `@${name} — no such chain (falls through to default)`}
       >
         <Waypoints className="size-2.5" />
         {name}
-        {known && <span className="opacity-70">· {models!.length}</span>}
+        {known && <span className="opacity-70">· {models?.length ?? 0}</span>}
       </span>
     );
   }

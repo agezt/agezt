@@ -26,8 +26,51 @@ import {
   type SetupProvider,
 } from "@/features/setup/components/Setup";
 import { UIProvider } from "@/components/ui/feedback";
+import type {
+  CatalogListResponseProvidersItem,
+  CatalogListResponseProvidersItemModelsItem,
+} from "@/app/api/types.generated";
 
 const withUI = (node: ReactNode) => <UIProvider>{node}</UIProvider>;
+
+// provider builds a COMPLETE catalog row — the daemon always sends every
+// field of a provider, so a fixture that leaves one out would be a fixture
+// the daemon cannot produce.
+function provider(
+  over: Partial<CatalogListResponseProvidersItem> = {},
+): CatalogListResponseProvidersItem {
+  return {
+    id: "x",
+    api: "",
+    doc: "",
+    family: "",
+    name: "",
+    credentialed: false,
+    model_count: 0,
+    env: [],
+    models: [],
+    ...over,
+  };
+}
+
+// model builds a COMPLETE catalog model row — same rule as provider().
+function model(
+  over: Partial<CatalogListResponseProvidersItemModelsItem> = {},
+): CatalogListResponseProvidersItemModelsItem {
+  return {
+    id: "m",
+    name: "m",
+    family: "",
+    context: 0,
+    output: 0,
+    reasoning: false,
+    tool_call: false,
+    strict_tool_args: false,
+    grammar_constrained_decoding: false,
+    schema_constrained_decoding: false,
+    ...over,
+  };
+}
 
 afterEach(cleanup);
 beforeEach(() => {
@@ -46,24 +89,24 @@ async function keepDefaultPassword() {
 
 describe("pure helpers", () => {
   it("providerKeyEnv prefers a *_API_KEY / *_KEY / *_TOKEN name, null when keyless", () => {
-    expect(providerKeyEnv({ id: "x", env: ["X_BASE", "X_API_KEY"] })).toBe("X_API_KEY");
-    expect(providerKeyEnv({ id: "x", env: ["X_TOKEN"] })).toBe("X_TOKEN");
-    expect(providerKeyEnv({ id: "x", env: [] })).toBeNull();
-    expect(providerKeyEnv({ id: "ollama-local" })).toBeNull();
+    expect(providerKeyEnv(provider({ env: ["X_BASE", "X_API_KEY"] }))).toBe("X_API_KEY");
+    expect(providerKeyEnv(provider({ env: ["X_TOKEN"] }))).toBe("X_TOKEN");
+    expect(providerKeyEnv(provider({ env: [] }))).toBeNull();
+    expect(providerKeyEnv(provider({ id: "ollama-local" }))).toBeNull();
   });
 
   it("anyCredentialed reflects the auto-open signal", () => {
-    expect(anyCredentialed({ providers: [{ id: "a" }, { id: "b", credentialed: true }] })).toBe(true);
-    expect(anyCredentialed({ providers: [{ id: "ollama-local", env: [], credentialed: true }] })).toBe(true);
-    expect(anyCredentialed({ providers: [{ id: "a" }] })).toBe(false);
+    expect(anyCredentialed({ providers: [provider({ id: "a" }), provider({ id: "b", credentialed: true })] })).toBe(true);
+    expect(anyCredentialed({ providers: [provider({ id: "ollama-local", env: [], credentialed: true })] })).toBe(true);
+    expect(anyCredentialed({ providers: [provider({ id: "a" })] })).toBe(false);
     expect(anyCredentialed(null)).toBe(false);
   });
 
   it("rankProviders surfaces credentialed, then keyed, then local; query filters", () => {
     const ps: SetupProvider[] = [
-      { id: "local", env: [] },
-      { id: "openai", env: ["OPENAI_API_KEY"] },
-      { id: "minimax", env: ["MINIMAX_API_KEY"], credentialed: true },
+      provider({ id: "local", env: [] }),
+      provider({ id: "openai", env: ["OPENAI_API_KEY"] }),
+      provider({ id: "minimax", env: ["MINIMAX_API_KEY"], credentialed: true }),
     ];
     expect(rankProviders(ps, "").map((p) => p.id)).toEqual(["minimax", "openai", "local"]);
     expect(rankProviders(ps, "open").map((p) => p.id)).toEqual(["openai"]);
@@ -83,10 +126,20 @@ describe("pure helpers", () => {
   it("suggests fallback candidates from the picked/keyed providers", () => {
     const cat = {
       providers: [
-        { id: "minimax", env: ["MINIMAX_API_KEY"], models: [{ id: "primary" }, { id: "local-fallback" }] },
-        { id: "openai", env: ["OPENAI_API_KEY"], credentialed: true, models: [{ id: "remote-fallback" }] },
-        { id: "closed", env: ["CLOSED_API_KEY"], models: [{ id: "not-runnable" }] },
+        provider({
+          id: "minimax",
+          env: ["MINIMAX_API_KEY"],
+          models: [model({ id: "primary" }), model({ id: "local-fallback" })],
+        }),
+        provider({
+          id: "openai",
+          env: ["OPENAI_API_KEY"],
+          credentialed: true,
+          models: [model({ id: "remote-fallback" })],
+        }),
+        provider({ id: "closed", env: ["CLOSED_API_KEY"], models: [model({ id: "not-runnable" })] }),
       ],
+      provider_count: 3,
     };
     const candidates = setupFallbackCandidates(cat, "minimax", "primary");
     expect(candidates.map((c) => c.id)).toEqual(["local-fallback", "remote-fallback"]);
@@ -97,13 +150,13 @@ describe("pure helpers", () => {
 describe("Setup wizard", () => {
   const catalog = {
     providers: [
-      {
+      provider({
         id: "minimax",
         env: ["MINIMAX_API_KEY"],
         credentialed: false,
         model_count: 2,
-        models: [{ id: "MiniMax-M2" }, { id: "MiniMax-M2-Light" }],
-      },
+        models: [model({ id: "MiniMax-M2" }), model({ id: "MiniMax-M2-Light" })],
+      }),
     ],
     provider_count: 1,
   };
@@ -197,13 +250,13 @@ describe("Setup wizard", () => {
   it("uses an already credentialed provider without asking for the key again", async () => {
     getJSON.mockResolvedValue({
       providers: [
-        {
+        provider({
           id: "minimax",
           env: ["MINIMAX_API_KEY"],
           credentialed: true,
           model_count: 1,
-          models: [{ id: "MiniMax-M2" }],
-        },
+          models: [model({ id: "MiniMax-M2" })],
+        }),
       ],
     });
     render(withUI(<Setup />));
@@ -224,13 +277,13 @@ describe("Setup wizard", () => {
   it("finishes keyless/local providers without saying an API key was saved", async () => {
     getJSON.mockResolvedValue({
       providers: [
-        {
+        provider({
           id: "ollama-local",
           env: [],
           credentialed: false,
           model_count: 1,
-          models: [{ id: "llama3.2" }],
-        },
+          models: [model({ id: "llama3.2" })],
+        }),
       ],
     });
     render(withUI(<Setup />));

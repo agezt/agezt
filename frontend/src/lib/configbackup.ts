@@ -52,7 +52,13 @@ export async function fetchConfigBundle(): Promise<{ version: number; config: Re
     getJSON("/api/prompts"),
     getJSON("/api/routing"),
   ]);
-  return { version: 1, config: { persona: p.system || "", prompts: pr.prompts || [], chains: r.chains || {} } };
+  // The daemon's routing map allows a null chain list per task; the bundle
+  // carries only the chains that have one.
+  const chains: Record<string, string[]> = {};
+  for (const [task, list] of Object.entries(r.chains || {})) {
+    if (list) chains[task] = list;
+  }
+  return { version: 1, config: { persona: p.system || "", prompts: pr.prompts || [], chains } };
 }
 
 // applyConfigBundle restores each section a bundle carries via the existing /set

@@ -9,7 +9,7 @@ import { ModelPicker } from "@/components/ModelPicker";
 import { ModelChip } from "@/components/ModelChip";
 import { type AgentProfile } from "@/features/agents/components/Roster";
 import { summarizeProviderRoutingRow, type ProviderRoutingRow } from "@/lib/agentdetail";
-import { isChainRef, chainName, type ChainsState } from "@/lib/chains";
+import { isChainRef, chainName, type ChainMap, type ChainsState } from "@/lib/chains";
 import { type ModelCatalog } from "@/lib/models";
 import { RoutingInfo, Row, editableAgentProfile } from "@/features/agents/components/agentdetail/shared";
 
@@ -43,12 +43,12 @@ export function ModelTab({
   // A named fallback chain (M963): if this agent's model is "@name", expand it to
   // the chain's real models so the page shows what it will actually run, with a
   // health dot per model (M965). Best-effort fetches — absence just hides them.
-  const [chains, setChains] = useState<Record<string, string[]>>({});
+  const [chains, setChains] = useState<ChainMap>({});
   const [cat, setCat] = useState<ModelCatalog | null>(null);
   useEffect(() => {
     let live = true;
     getJSON("/api/chains")
-      .then((c) => live && setChains(c.chains || {}))
+      .then((c) => live && setChains(c.chains ?? {}))
       .catch(() => {});
     getJSON("/api/catalog")
       .then((c) => live && setCat(c))

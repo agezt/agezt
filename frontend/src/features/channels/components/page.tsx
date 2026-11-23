@@ -105,7 +105,7 @@ export const POPULAR_CHANNELS = ["telegram", "email", "slack", "discord", "whats
 // account built from the top-level fields (back-compat with an older daemon).
 function accountsOf(r: ChannelRow): ChannelAccount[] {
   if (r.accounts && r.accounts.length) return r.accounts;
-  return [{ label: "", configured: r.configured, live: r.live, fields: r.fields }];
+  return [{ label: "", configured: r.configured, live: r.live, fields: r.fields ?? [] }];
 }
 
 // ConnectForm — the guided "what you'll need" + field entry for one account.
@@ -129,7 +129,7 @@ export function ConnectForm({
   const [label, setLabel] = useState(account.label);
   const [draft, setDraft] = useState<Record<string, string>>(() => {
     const seed: Record<string, string> = {};
-    for (const f of account.fields) if (!f.secret && f.value) seed[f.env] = f.value;
+    for (const f of account.fields ?? []) if (!f.secret && f.value) seed[f.env] = f.value;
     return seed;
   });
   const [saving, setSaving] = useState(false);
@@ -144,7 +144,7 @@ export function ConnectForm({
   const isOAuth = row.connect_method === "oauth";
   const oauthInstanceField = row.kind === "mastodon" ? "AGEZT_MASTODON_SERVER" : "";
   const [oauth, setOAuth] = useState<{ clientId: string; clientSecret: string; instance: string; busy?: boolean; status?: string; error?: string }>(
-    () => ({ clientId: "", clientSecret: "", instance: account.fields.find((f) => f.env === oauthInstanceField)?.value || "" }),
+    () => ({ clientId: "", clientSecret: "", instance: (account.fields ?? []).find((f) => f.env === oauthInstanceField)?.value || "" }),
   );
   const redirectURI = typeof window !== "undefined" ? window.location.origin + "/oauth/callback" : "/oauth/callback";
 
@@ -227,7 +227,7 @@ export function ConnectForm({
     setSaving(true);
     try {
       let wrote = 0;
-      for (const f of account.fields) {
+      for (const f of account.fields ?? []) {
         if (f.env_pinned) continue;
         const v = draft[f.env];
         if (v === undefined) continue; // untouched
@@ -350,8 +350,8 @@ export function ConnectForm({
       )}
 
       {/* Step 2 — fields */}
-      {account.fields.length === 0 && <p className="text-[11px] text-muted">No configurable fields.</p>}
-      {account.fields.map((f) => (
+      {(account.fields ?? []).length === 0 && <p className="text-[11px] text-muted">No configurable fields.</p>}
+      {(account.fields ?? []).map((f) => (
         <label key={f.env} className="block">
           <span className="flex items-center gap-1 text-[11px] text-muted">
             {f.label}
@@ -510,7 +510,7 @@ function AccountManager({ row, onChanged }: { row: ChannelRow; onChanged: () => 
         );
       })}
 
-      <Button variant="ghost" size="sm" onClick={() => setActiveForm({ account: { label: "", fields: row.fields.map((f) => ({ ...f, value: "", set: false })) }, isNew: true })}>
+      <Button variant="ghost" size="sm" onClick={() => setActiveForm({ account: { label: "", fields: (row.fields ?? []).map((f) => ({ ...f, value: "", set: false })) }, isNew: true })}>
         <Plus className="size-3.5" /> Add account
       </Button>
 

@@ -11,7 +11,7 @@ import {
   type ModelCatalog,
   type ModelOption,
 } from "@/lib/models";
-import { isChainRef, chainName, chainRef, type ChainsState } from "@/lib/chains";
+import { isChainRef, chainName, chainRef, type ChainMap, type ChainsState } from "@/lib/chains";
 
 // PinnedModels is an ordered id list shown as the picker's FIRST group (M931) —
 // e.g. the chat task's routing chain, so the models the run will actually fall
@@ -106,7 +106,7 @@ function ModelModal({
   onPick: (id: string) => void;
 }) {
   const [cat, setCat] = useState<ModelCatalog | null>(null);
-  const [chains, setChains] = useState<Record<string, string[]>>({});
+  const [chains, setChains] = useState<ChainMap>({});
   const [defaultChain, setDefaultChain] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [q, setQ] = useState("");
@@ -134,7 +134,7 @@ function ModelModal({
     if (!allowChains) return;
     getJSON("/api/chains")
       .then((c) => {
-        setChains(c.chains || {});
+        setChains(c.chains ?? {});
         setDefaultChain(c.default || "");
       })
       .catch(() => {
@@ -146,7 +146,10 @@ function ModelModal({
   const chainEntries = useMemo(() => {
     const ql = q.trim().toLowerCase();
     return Object.entries(chains)
-      .filter(([name, models]) => !ql || name.toLowerCase().includes(ql) || models.some((m) => m.toLowerCase().includes(ql)))
+      .filter(
+        ([name, models]) =>
+          !ql || name.toLowerCase().includes(ql) || (models ?? []).some((m) => m.toLowerCase().includes(ql)),
+      )
       .sort(([a], [b]) => a.localeCompare(b));
   }, [chains, q]);
 
@@ -323,11 +326,12 @@ function ChainRowOption({
   onClick,
 }: {
   name: string;
-  models: string[];
+  models: string[] | null;
   isDefault: boolean;
   selected: boolean;
   onClick: () => void;
 }) {
+  const listed = models ?? [];
   return (
     <button
       onClick={onClick}
@@ -343,10 +347,10 @@ function ChainRowOption({
           <span className="truncate text-sm font-medium">{name}</span>
           {isDefault && <span className="rounded bg-accent/15 px-1 text-[9px] font-medium uppercase text-accent">default</span>}
         </div>
-        <div className="truncate font-mono text-xs text-muted">{models.join(" → ") || "empty"}</div>
+        <div className="truncate font-mono text-xs text-muted">{listed.join(" → ") || "empty"}</div>
       </div>
       <span className="shrink-0 text-xs text-muted">
-        {models.length} model{models.length === 1 ? "" : "s"}
+        {listed.length} model{listed.length === 1 ? "" : "s"}
       </span>
     </button>
   );

@@ -21,11 +21,12 @@ import { getJSON, postAction, postJSON, type WritePath, type NativeWritePath } f
 import { byDescValue, pct } from "@/app/format";
 import { cn, fmtTime } from "@/app/utils";
 import type { EdictShowResponseHardDenyItem } from "@/app/api/types.generated";
+import type { EdictShowResponse, RedactTestResponse } from "@/app/api/types.generated";
 
 type EdictShow = {
-  ask_policy?: string;
-  levels?: Record<string, string>;
-  hard_deny?: EdictShowResponseHardDenyItem[];
+  ask_policy?: EdictShowResponse["ask_policy"];
+  levels?: EdictShowResponse["levels"];
+  hard_deny?: EdictShowResponse["hard_deny"];
 };
 
 // The trust ladder (edict L0..L4). Lower = more restrictive.
@@ -717,11 +718,11 @@ export function PolicyTestForm({ capabilities }: { capabilities: string[] }) {
 }
 
 type RedactResult = {
-  enabled?: boolean;
-  would_redact?: boolean;
-  redacted?: string;
-  categories?: string[];
-  literal_hit?: boolean;
+  enabled?: RedactTestResponse["enabled"];
+  would_redact?: RedactTestResponse["would_redact"];
+  redacted?: RedactTestResponse["redacted"];
+  categories?: RedactTestResponse["categories"];
+  literal_hit?: RedactTestResponse["literal_hit"];
 };
 
 // RedactionCheckForm dry-runs the LIVE secret redactor (M754): paste text and see
