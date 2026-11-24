@@ -237,13 +237,13 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 	if err != nil {
 		return nil, err
 	}
-	file, err := app.NewOperation(opapi.Spec{Name: opapi.SandboxFile, ReadOnly: true, OutputSchema: fileOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"project":{},"file":{}}}`)}, func(ctx context.Context, in FileRequest) (FileOutput, error) {
+	file, err := app.NewOperation(opapi.Spec{Name: opapi.SandboxFile, ReadOnly: true, OutputSchema: fileOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"project":{"type":"string"},"file":{"type":"string"}}}`)}, func(ctx context.Context, in FileRequest) (FileOutput, error) {
 		return provider(ctx).File(ctx, in)
 	})
 	if err != nil {
 		return nil, err
 	}
-	del, err := app.NewOperation(opapi.Spec{Name: opapi.SandboxDelete, OutputSchema: deleteOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"project":{}}}`)}, func(ctx context.Context, in DeleteRequest) (DeleteOutput, error) {
+	del, err := app.NewOperation(opapi.Spec{Name: opapi.SandboxDelete, OutputSchema: deleteOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"project":{"type":"string"}}}`)}, func(ctx context.Context, in DeleteRequest) (DeleteOutput, error) {
 		return provider(ctx).Delete(ctx, in)
 	})
 	if err != nil {

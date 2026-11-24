@@ -60,7 +60,7 @@ func TestTenantNativeDisabled(t *testing.T) {
 		a.SetDeadline(time.Now().Add(3 * time.Second))
 		done := make(chan struct{})
 		go func() { defer close(done); s.handleConn(context.Background(), b) }()
-		raw, _ := json.Marshal(Request{ID: "t", Cmd: cmd, Token: "primary", Args: map[string]any{"id": 3}})
+		raw, _ := json.Marshal(Request{ID: "t", Cmd: cmd, Token: "primary", Args: map[string]any{"id": "owned"}})
 		if _, err := a.Write(append(raw, 10)); err != nil {
 			t.Fatal(err)
 		}

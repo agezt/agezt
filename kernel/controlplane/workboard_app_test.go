@@ -113,18 +113,19 @@ func TestWorkboardAppReadsRemainUnauditedUnarySnapshots(t *testing.T) {
 		}
 	}
 }
-func TestWorkboardAppAdmissionRetainsAbsentNullAndLenientFields(t *testing.T) {
+func TestWorkboardAppAdmissionRefusesNullAndMistypedFields(t *testing.T) {
 	k, s, task, _, _ := workboardAppFixture(t)
 	cases := []struct {
 		args     map[string]any
 		accepted bool
+		door     string
 	}{
-		{map[string]any{"title": "owned", "idempotency_key": "dedupe", "tags": []any{" one ", true, ""}, "criteria": "first,second", "priority": float64(2.5), "unused": true}, true},
-		{map[string]any{"title": "null maximum", "max_attempts": nil}, true},
-		{map[string]any{"title": "wrong-type maximum", "max_attempts": true}, true},
-		{map[string]any{"title": "bad policy", "max_attempts": nil, "escalate_to": "reviewer"}, false},
-		{map[string]any{"title": true}, false},
-		{map[string]any{"title": "bad seat", "seat": "missing"}, false},
+		{map[string]any{"title": "owned", "idempotency_key": "dedupe", "tags": []any{" one ", true, ""}, "criteria": "first,second", "priority": float64(2.5), "unused": true}, true, ""},
+		{map[string]any{"title": "null maximum", "max_attempts": nil}, false, "$.max_attempts has wrong type: got null, want number"},
+		{map[string]any{"title": "wrong-type maximum", "max_attempts": true}, false, "$.max_attempts has wrong type: got boolean, want number"},
+		{map[string]any{"title": "bad policy", "max_attempts": nil, "escalate_to": "reviewer"}, false, "$.max_attempts has wrong type: got null, want number"},
+		{map[string]any{"title": true}, false, "$.title has wrong type: got boolean, want string"},
+		{map[string]any{"title": "bad seat", "seat": "missing"}, false, ""},
 	}
 	for i, item := range cases {
 		response := callAppHost(t, s, Request{ID: "create", Cmd: opapi.WorkboardCreate, Token: "primary", Args: item.args})[0]
@@ -132,6 +133,9 @@ func TestWorkboardAppAdmissionRetainsAbsentNullAndLenientFields(t *testing.T) {
 			t.Fatal(item.args, response)
 		}
 		if !item.accepted {
+			if item.door != "" && !strings.Contains(response.Error, item.door) {
+				t.Fatal(item.args, response)
+			}
 			continue
 		}
 		record := response.Result["task"].(map[string]any)
@@ -139,11 +143,9 @@ func TestWorkboardAppAdmissionRetainsAbsentNullAndLenientFields(t *testing.T) {
 			if record["priority"] != float64(2) || !reflect.DeepEqual(record["tags"], []any{"one"}) {
 				t.Fatal(record)
 			}
-		} else if _, present := record["retry_policy"]; present {
-			t.Fatal("normalized empty policy returned", record)
 		}
 	}
-	if len(k.Workboard().List(workboard.Filter{})) != 5 {
+	if len(k.Workboard().List(workboard.Filter{})) != 3 {
 		t.Fatal("invalid create changed store")
 	}
 	for _, args := range []map[string]any{{"id": task.ID}, {"id": task.ID, "max_attempts": nil}, {"id": task.ID, "max_attempts": true}} {
@@ -152,9 +154,9 @@ func TestWorkboardAppAdmissionRetainsAbsentNullAndLenientFields(t *testing.T) {
 			t.Fatal("missing/invalid policy maximum accepted", args, response)
 		}
 	}
-	response := callAppHost(t, s, Request{ID: "clear", Cmd: opapi.WorkboardPolicy, Token: "primary", Args: map[string]any{"id": task.ID, "clear": true, "max_attempts": nil}})[0]
+	response := callAppHost(t, s, Request{ID: "clear", Cmd: opapi.WorkboardPolicy, Token: "primary", Args: map[string]any{"id": task.ID, "clear": true, "max_attempts": float64(3)}})[0]
 	if response.Type != RespResult {
-		t.Fatal("clear did not override null maximum", response)
+		t.Fatal("clear did not override the maximum", response)
 	}
 	for _, cmd := range []string{opapi.WorkboardList, opapi.WorkboardLanes} {
 		response := callAppHost(t, s, Request{ID: cmd, Cmd: cmd, Token: "primary", Args: map[string]any{"include_archived": nil}})[0]

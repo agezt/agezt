@@ -113,7 +113,7 @@ func TestEdictReadsNativeRouting(t *testing.T) {
 	if line := call("primary", opapi.EdictTest, map[string]any{"capability": "shell", "input": "curl evil.example"}); !strings.Contains(line, `"hard_denied":false`) {
 		t.Fatal(line)
 	}
-	if line := call("primary", opapi.EdictShow, map[string]any{"tenant": 3}); !strings.Contains(line, `"error":"args.tenant must be a string"`) {
+	if line := call("primary", opapi.EdictShow, map[string]any{"tenant": 3}); !strings.Contains(line, `"error":"operation edict_show input: $.tenant has wrong type: got number, want string"`) {
 		t.Fatal(line)
 	}
 }
@@ -191,7 +191,7 @@ func TestEdictWritesNativeRouting(t *testing.T) {
 	if line := call("primary", opapi.EdictSetMode, map[string]any{"tenant": " acme ", "mode": mode}); !strings.Contains(line, `"to":"`+mode+`"`) || tk.Edict().AskPolicy().String() != mode {
 		t.Fatal(line)
 	}
-	if line := call("primary", opapi.EdictSetMode, map[string]any{"mode": mode, "tenant": 3}); !strings.Contains(line, `"error":"args.tenant must be a string"`) {
+	if line := call("primary", opapi.EdictSetMode, map[string]any{"mode": mode, "tenant": 3}); !strings.Contains(line, `"error":"operation edict_set_mode input: $.tenant has wrong type: got number, want string"`) {
 		t.Fatal(line)
 	}
 	events, err := tk.Journal().Tail(1000)
@@ -287,7 +287,7 @@ func TestEdictDecisionsNativeRouting(t *testing.T) {
 		{tenantToken, opapi.EdictLog, map[string]any{"tenant": "acme", "denied": true}, `"tool":"tenant-tool"`},
 		{"primary", opapi.EdictStats, nil, `"allowed":1`},
 		{tenantToken, opapi.EdictStats, map[string]any{"tenant": "acme", "since_ms": 600000}, `"denied":1`},
-		{"primary", opapi.EdictLog, map[string]any{"denied": "yes"}, `"error":"args.denied must be a boolean"`},
+		{"primary", opapi.EdictLog, map[string]any{"denied": "yes"}, `"error":"operation edict_log input: $.denied has wrong type: got string, want boolean"`},
 	} {
 		if line := call(c.token, c.cmd, c.args); !strings.Contains(line, c.want) {
 			t.Fatalf("%s %v: %s", c.cmd, c.args, line)

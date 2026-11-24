@@ -97,10 +97,10 @@ func bind[I, O any](ops *[]app.Operation, spec opapi.Spec, handler func(context.
 	return err
 }
 
-var getRequestSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{}}}`)
-var deleteRequestSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"id":{}}}`)
-var listRequestSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"kind":{},"source":{},"corr":{}}}`)
-var collectRequestSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"older_than_days":{},"dry_run":{}}}`)
+var getRequestSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{"type":"string"}}}`)
+var deleteRequestSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"id":{"type":"string"}}}`)
+var listRequestSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"kind":{"type":"string"},"source":{"type":"string"},"corr":{"type":"string"}}}`)
+var collectRequestSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"older_than_days":{"type":["number","string"]},"dry_run":{"type":["boolean","string"]}}}`)
 
 func Operations(provider func(context.Context) *Service) ([]app.Operation, error) {
 	if provider == nil {

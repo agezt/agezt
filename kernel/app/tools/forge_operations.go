@@ -14,7 +14,7 @@ type ForgeShowRequest struct {
 	Ref json.RawMessage `json:"ref,omitempty"`
 }
 
-var forgeShowSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{}}}`)
+var forgeShowSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{"type":"string"}}}`)
 
 func forgeRequiredRef(raw json.RawMessage) (string, error) {
 	if len(raw) == 0 {

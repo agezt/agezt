@@ -137,7 +137,7 @@ func LifecycleOperations(provider func(context.Context) *Lifecycle) ([]app.Opera
 	if provider == nil {
 		return nil, errors.New("lifecycle provider required")
 	}
-	reasonSchema := json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"reason":{}}}`)
+	reasonSchema := json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"reason":{"type":"string"}}}`)
 	none := json.RawMessage(`{"type":"object","additionalProperties":true}`)
 	var ops []app.Operation
 	for _, b := range []func() error{

@@ -15,7 +15,7 @@ type FeedRequest struct {
 	Limit json.RawMessage `json:"limit,omitempty"`
 }
 
-var feedRequestSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"limit":{}}}`)
+var feedRequestSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"limit":{"type":"number"}}}`)
 
 func nativeFeedLimit(raw json.RawMessage) int {
 	var value any

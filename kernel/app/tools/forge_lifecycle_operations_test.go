@@ -10,6 +10,7 @@ import (
 	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
 	"github.com/agezt/agezt/kernel/platform/schema"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -157,10 +158,22 @@ func TestForgeLifecycleNativeCodecErrorsBeforeFactoryAndOrder(t *testing.T) {
 	factory := 0
 	d, _ := forgeLifecycleDispatcher(t, p, a, &factory, opapi.Operator)
 	cases := []struct{ name, raw, want string }{
-		{"toolforge_draft", `{}`, "args.tool required"}, {"toolforge_draft", `{"tool":false}`, "args.tool: json: cannot unmarshal bool into Go value of type toolforgeapi.ScriptTool"},
-		{"toolforge_edit", `{"ref":false,"tool":false}`, "args.ref must be a string"}, {"toolforge_edit", `{"ref":"owned"}`, "args.tool required"}, {"toolforge_edit", `{"ref":"owned","tool":[]}`, "args.tool: json: cannot unmarshal array into Go value of type toolforgeapi.ScriptTool"},
-		{"toolforge_test", `{"ref":null,"input":false}`, "args.ref must be a string"}, {"toolforge_test", `{"ref":"owned","input":null}`, "args.input must be a string"}, {"toolforge_test", `{"ref":"owned","input":false}`, "args.input must be a string"},
-		{"toolforge_promote", `{"ref":" \t "}`, "args.ref required"}, {"toolforge_quarantine", `{"ref":1,"reason":false}`, "args.ref must be a string"}, {"toolforge_quarantine", `{"ref":"owned","reason":null}`, "args.reason must be a string"}, {"toolforge_remove", `{}`, "args.ref required"},
+		{"toolforge_draft", `{}`, "args.tool required"},
+		{"toolforge_edit", `{"ref":"owned"}`, "args.tool required"},
+		{"toolforge_promote", `{"ref":" \t "}`, "args.ref required"},
+		{"toolforge_remove", `{}`, "args.ref required"},
+	}
+	// A mistyped field is refused at the door, before the handler reads it and
+	// before the audit sees it.
+	door := []struct{ name, raw, want string }{
+		{"toolforge_draft", `{"tool":false}`, "$.tool has wrong type: got boolean, want object"},
+		{"toolforge_edit", `{"ref":false}`, "$.ref has wrong type: got boolean, want string"},
+		{"toolforge_edit", `{"ref":"owned","tool":[]}`, "$.tool has wrong type: got array, want object"},
+		{"toolforge_test", `{"ref":null}`, "$.ref has wrong type: got null, want string"},
+		{"toolforge_test", `{"ref":"owned","input":null}`, "$.input has wrong type: got null, want string"},
+		{"toolforge_test", `{"ref":"owned","input":false}`, "$.input has wrong type: got boolean, want string"},
+		{"toolforge_quarantine", `{"ref":1}`, "$.ref has wrong type: got number, want string"},
+		{"toolforge_quarantine", `{"ref":"owned","reason":null}`, "$.reason has wrong type: got null, want string"},
 	}
 	for _, tc := range cases {
 		_, err := d.Dispatch(context.Background(), opapi.Caller{}, tc.name, json.RawMessage(tc.raw), nil)
@@ -168,16 +181,31 @@ func TestForgeLifecycleNativeCodecErrorsBeforeFactoryAndOrder(t *testing.T) {
 			t.Fatal(tc, err)
 		}
 	}
+	audited := a.begins
+	for _, tc := range door {
+		_, err := d.Dispatch(context.Background(), opapi.Caller{}, tc.name, json.RawMessage(tc.raw), nil)
+		if err == nil || !strings.Contains(err.Error(), tc.want) {
+			t.Fatal(tc, err)
+		}
+	}
+	if a.begins != audited {
+		t.Fatal("a refused body was audited", a.begins, audited)
+	}
 	if factory != 0 || len(p.calls) != 0 || a.begins != len(cases) || a.ends != len(cases) {
 		t.Fatal(factory, p, a)
 	}
+	// A null tool is not a tool: the door refuses it before the factory is
+	// asked for one (the forge's own decoder would have read it as an empty
+	// tool and drafted one).
 	for _, name := range []string{opapi.ToolforgeDraft, "toolforge_edit"} {
 		raw := `{"tool":null,"ref":" raw-ref "}`
-		if _, err := d.Dispatch(context.Background(), opapi.Caller{}, name, json.RawMessage(raw), nil); err != nil {
-			t.Fatal(err)
+		if _, err := d.Dispatch(context.Background(), opapi.Caller{}, name, json.RawMessage(raw), nil); err == nil {
+			t.Fatal(name, "a null tool was admitted")
+		} else if !strings.Contains(err.Error(), "$.tool has wrong type: got null, want object") {
+			t.Fatal(name, err)
 		}
 	}
-	if factory != 2 || p.received != (toolforge.ScriptTool{}) || p.edited != (toolforge.ScriptTool{}) {
+	if factory != 0 || p.received != (toolforge.ScriptTool{}) || p.edited != (toolforge.ScriptTool{}) {
 		t.Fatal(factory, p)
 	}
 }

@@ -263,7 +263,7 @@ func TestUpdateNativeNilSetterReportsDisabledBeforeCodec(t *testing.T) {
 		done := make(chan struct{})
 		go func() {
 			defer close(done)
-			req := Request{ID: "owned", Cmd: cmd, Args: map[string]any{"version": false}}
+			req := Request{ID: "owned", Cmd: cmd, Args: map[string]any{"version": "v"}}
 			defer s.recoverConn(b, &req)
 			handleUpdateSnapshot(s, b, req)
 		}()

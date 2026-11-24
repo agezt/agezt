@@ -275,16 +275,23 @@ func TestUpdateOperationsAdmissionAndCodecPriority(t *testing.T) {
 			t.Fatal("canceled effect", name, err)
 		}
 	}
-	for _, tc := range []struct{ raw, key string }{{`{"version":null}`, "version"}, {`{"version":false,"sha256":false}`, "version"}, {`{"version":"v","sha256":3}`, "sha256"}, {`{"version":"v","sha256":"s","url":[]}`, "url"}, {`{"version":"v","sha256":"s","url":"u","notes":null}`, "notes"}} {
+	for _, tc := range []struct{ raw, key, got string }{
+		{`{"version":null}`, "version", "null"},
+		{`{"version":false}`, "version", "boolean"},
+		{`{"version":"v","sha256":3}`, "sha256", "number"},
+		{`{"version":"v","sha256":"s","url":[]}`, "url", "array"},
+		{`{"version":"v","sha256":"s","url":"u","notes":null}`, "notes", "null"},
+	} {
 		raw := tc.raw
 		before := backendCalls
 		_, err := d.Dispatch(context.Background(), opapi.Caller{}, "update_apply", json.RawMessage(raw), nil)
-		if err == nil || err.Error() != "args."+tc.key+" must be a string" || backendCalls != before {
+		want := "operation update_apply input: $." + tc.key + " has wrong type: got " + tc.got + ", want string"
+		if err == nil || err.Error() != want || backendCalls != before {
 			t.Fatal(raw, err)
 		}
 	}
 	service.backend = nil
-	_, err := d.Dispatch(context.Background(), opapi.Caller{}, "update_apply", json.RawMessage(`{"version":null}`), nil)
+	_, err := d.Dispatch(context.Background(), opapi.Caller{}, "update_apply", json.RawMessage(`{"version":"v"}`), nil)
 	if err == nil || err.Error() != "update is disabled" {
 		t.Fatal("disabled priority", err)
 	}

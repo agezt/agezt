@@ -44,7 +44,7 @@ func TestAutonomyAppNativeLimitsReadsUnauditedAndRowSchema(t *testing.T) {
 	for _, tc := range []struct {
 		args  map[string]any
 		count int
-	}{{nil, 60}, {map[string]any{"limit": "1"}, 60}, {map[string]any{"limit": nil}, 60}, {map[string]any{"limit": false}, 60}, {map[string]any{"limit": float64(0)}, 1}, {map[string]any{"limit": float64(-10)}, 1}, {map[string]any{"limit": float64(1.9)}, 1}, {map[string]any{"limit": float64(500)}, 75}, {map[string]any{"limit": float64(1), "unused": true, "tenant": "spoof"}, 1}} {
+	}{{nil, 60}, {map[string]any{"limit": float64(0)}, 1}, {map[string]any{"limit": float64(-10)}, 1}, {map[string]any{"limit": float64(1.9)}, 1}, {map[string]any{"limit": float64(500)}, 75}, {map[string]any{"limit": float64(1), "unused": true, "tenant": "spoof"}, 1}} {
 		out := callAppHost(t, s, Request{ID: "feed", Cmd: opapi.AutonomyFeed, Token: "primary", Args: tc.args})
 		if len(out) != 1 || out[0].Type != RespResult || out[0].Result["count"] != float64(tc.count) {
 			t.Fatal(tc, out)
@@ -56,6 +56,14 @@ func TestAutonomyAppNativeLimitsReadsUnauditedAndRowSchema(t *testing.T) {
 		item := out[0].Result["items"].([]any)[0].(map[string]any)
 		if item["seq"] != float64(head) || item["correlation_id"] != "" {
 			t.Fatal(item, head)
+		}
+	}
+	// A limit that is not a number is a usage error the door names, not a
+	// page size the caller never asked for.
+	for _, args := range []map[string]any{{"limit": "1"}, {"limit": nil}, {"limit": false}} {
+		out := callAppHost(t, s, Request{ID: "feed", Cmd: opapi.AutonomyFeed, Token: "primary", Args: args})
+		if len(out) != 1 || out[0].Type != RespError || !strings.Contains(out[0].Error, "$.limit has wrong type") {
+			t.Fatal(args, out)
 		}
 	}
 	after, afterHash := k.Journal().Head()

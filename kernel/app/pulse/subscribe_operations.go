@@ -33,7 +33,10 @@ type SubscribeHost struct {
 }
 type SubscribeOutput struct{}
 
-var subscribeSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"pattern":{},"kinds":{},"since":{},"since_ts_ms":{},"until":{},"until_ts_ms":{},"correlation":{},"replay_rate":{}}}`)
+// The subscription's contract names every field the decoder below accepts: the
+// pattern and the correlation are text, the kinds are a list of kind names,
+// and the four window bounds and the replay rate are numbers.
+var subscribeSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"pattern":{"type":"string"},"kinds":{"type":"array","items":{"type":"string"}},"since":{"type":"number"},"since_ts_ms":{"type":"number"},"until":{"type":"number"},"until_ts_ms":{"type":"number"},"correlation":{"type":"string"},"replay_rate":{"type":"number"}}}`)
 var eventSchema = json.RawMessage(event.WireSchema)
 
 func subscribeNumber(raw json.RawMessage, key string, missing float64) (float64, error) {

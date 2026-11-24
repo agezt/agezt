@@ -21,7 +21,7 @@ type ObservationRequest struct {
 	Cursor  json.RawMessage `json:"cursor,omitempty"`
 }
 
-var observationSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"errors":{},"tool":{},"slow_ms":{},"limit":{},"since_ms":{},"cursor":{}}}`)
+var observationSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"errors":{"type":"boolean"},"tool":{"type":"string"},"slow_ms":{"type":"number"},"limit":{"type":"number"},"since_ms":{"type":"number"},"cursor":{"type":"string"}}}`)
 
 func observationValue(raw json.RawMessage) any {
 	var value any

@@ -110,10 +110,14 @@ func rememberSchema(supersede bool) json.RawMessage {
 func maintenanceSchema(prune bool) json.RawMessage {
 	schema := `{"type":"object","additionalProperties":true,"properties":{"dry_run":{"type":["boolean","string"]}}}`
 	if prune {
-		schema = strings.Replace(schema, `"dry_run":`, `"older_than_days":{},"dry_run":`, 1)
+		schema = strings.Replace(schema, `"dry_run":`, `"older_than_days":{"type":["number","string"]},"dry_run":`, 1)
 	}
 	return json.RawMessage(schema)
 }
+
+// logSchema names the log page's three arguments: the limit and the window are
+// numbers, the cursor is the opaque page token.
+var logSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"cursor":{"type":"string"},"limit":{"type":"number"},"op":{"type":"string"},"since_ms":{"type":"number"}}}`)
 
 func bind[I, O any](operations *[]app.Operation, spec opapi.Spec, handler func(context.Context, I) (O, error)) error {
 	spec.AllowUnknownInput = true
@@ -242,7 +246,7 @@ func Operations(service func(context.Context) *Service, distillation func(contex
 			})
 		},
 		func() error {
-			return bind(&operations, opapi.Spec{Name: opapi.MemoryLog, ReadOnly: true, Authz: opapi.OwnTenant, Tenancy: opapi.CallerTenant}, func(ctx context.Context, in LogRequestInput) (LogOutput, error) {
+			return bind(&operations, opapi.Spec{Name: opapi.MemoryLog, ReadOnly: true, Authz: opapi.OwnTenant, Tenancy: opapi.CallerTenant, InputSchema: logSchema}, func(ctx context.Context, in LogRequestInput) (LogOutput, error) {
 				return logs(ctx).Log(ctx, admittedLog(in))
 			})
 		},

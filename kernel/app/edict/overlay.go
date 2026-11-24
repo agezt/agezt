@@ -127,7 +127,7 @@ func OverlayOperations(provider func(context.Context) *Overlay) ([]app.Operation
 	if provider == nil {
 		return nil, errors.New("edict overlay provider required")
 	}
-	input := json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"tenant":{}}}`)
+	input := json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"tenant":{"type":"string"}}}`)
 	var ops []app.Operation
 	for _, b := range []func() error{
 		func() error {

@@ -42,7 +42,7 @@ func TestAutonomyTypedOperationDefaultsSchemaAndCanceledAdmission(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, raw := range []string{`{}`, `{"limit":null}`, `{"limit":true}`, `{"limit":"1"}`, `{"limit":{}}`, `{"limit":[]}`, `{"limit":0}`, `{"limit":1.9}`, `{"limit":1000}`, `{"unused":true}`} {
+	for _, raw := range []string{`{}`, `{"limit":0}`, `{"limit":1.9}`, `{"limit":1000}`, `{"unused":true}`} {
 		out, err := d.Dispatch(context.Background(), opapi.Caller{}, spec.Name, json.RawMessage(raw), nil)
 		encoded, _ := json.Marshal(out)
 		if err != nil {
@@ -52,7 +52,20 @@ func TestAutonomyTypedOperationDefaultsSchemaAndCanceledAdmission(t *testing.T) 
 			t.Fatal(string(encoded), err)
 		}
 	}
-	if providers != 10 || len(port.calls) != 10 {
+	// The typed door refuses a wrong-typed limit before the handler: the
+	// argument never reaches the feed, so the provider is never called.
+	for _, tc := range []struct{ raw, want string }{
+		{`{"limit":null}`, "operation autonomy_feed input: $.limit has wrong type: got null, want number"},
+		{`{"limit":true}`, "operation autonomy_feed input: $.limit has wrong type: got boolean, want number"},
+		{`{"limit":"1"}`, "operation autonomy_feed input: $.limit has wrong type: got string, want number"},
+		{`{"limit":{}}`, "operation autonomy_feed input: $.limit has wrong type: got object, want number"},
+		{`{"limit":[]}`, "operation autonomy_feed input: $.limit has wrong type: got array, want number"},
+	} {
+		if _, err := d.Dispatch(context.Background(), opapi.Caller{}, spec.Name, json.RawMessage(tc.raw), nil); err == nil || err.Error() != tc.want {
+			t.Fatal(tc.raw, err)
+		}
+	}
+	if providers != 5 || len(port.calls) != 5 {
 		t.Fatal(providers, port.calls)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -64,7 +77,7 @@ func TestAutonomyTypedOperationDefaultsSchemaAndCanceledAdmission(t *testing.T) 
 	if _, err := tenantDispatcher.Dispatch(context.Background(), opapi.Caller{Tenant: "acme"}, spec.Name, json.RawMessage(`{}`), nil); err == nil {
 		t.Fatal("tenant admitted")
 	}
-	if providers != 10 || len(port.calls) != 10 {
+	if providers != 5 || len(port.calls) != 5 {
 		t.Fatal(providers, port.calls)
 	}
 	cause := errors.New("owned tail error")

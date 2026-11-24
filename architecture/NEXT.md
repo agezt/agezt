@@ -1,5 +1,63 @@
 # NEXT — handoff for the next coding agent
 
+## Current checkpoint — W5.9 the registry's own request side gets its types, 2026-11-25
+
+The W0–W5 objective remains open. W5.8 gave the **browser's** request bodies
+their types; this slice gives the **daemon's own** request side the same
+truth — every request body the daemon accepts names the type its handler
+reads — and a guard holds that line for the whole registry.
+
+### What was on the tree
+
+- **Every property of every request body the daemon accepts declares its
+  type.** The registry's own surface — the operations a CLI or an SDK calls,
+  the ones no console route names — was the last one still reading "anything
+  goes". **122** operations declared **418** request properties with no type
+  at all, across **29** daemon packages. The rule is W5.8's, unchanged: the
+  type is the field's **read** type; a union only where the handler accepts
+  two meaningful shapes; **no** null and no junk arms.
+- **The door moved to the whole registry, and its message is the same.** A
+  mistyped body is refused at **admission** — before the handler runs, before
+  the audit sees it — and the refusal names the field and both types:
+  `operation workboard_create input: $.max_attempts has wrong type: got
+  string, want number`. The dispatcher was not touched and the wire protocol
+  is unchanged: only the *declared* type of a field moved.
+- **The types were checked against the real callers first.** The CLI sends
+  numbers as numbers and the pulse approval as a boolean; the Go SDK sends the
+  board's limit as a number; the console's query proxy coerces the numeric
+  route arguments before forwarding them.
+- **One gap that binding found is closed.** The proxy did not coerce the
+  **day windows** the reaper and the skill hygiene read (`idle_days`,
+  `stale_days`), so a query-carried day count arrived as text and was
+  silently the default — the console's own filter was the default window. The
+  proxy coerces those two keys now, and the door names a day count that is not
+  a number.
+- **Two guards**: the daemon's own rule (every property of every request body
+  the daemon accepts declares a type) and the door's own test (a mistyped body
+  on the CLI/SDK surface never reaches the handler or the audit — 24 bodies
+  over **13** packages).
+
+### What the measurement said
+
+- The registry's request surface: **122** operations with an untyped request
+  property / **418** untyped properties → **0** / **0**.
+- The registry's operations with a fully typed request body: **202 → 324** of
+  **324**.
+
+### The evidence
+
+`architecture/329-w59-the-registrys-own-request-side-gets-its-types-evidence.md`
+— the measurement, the rule, the guards, the three mutations and the gates.
+
+### What the next slice should do
+
+The daemon's request side is now typed **and** guarded on both halves: the
+browser's bodies (W5.8) and the registry's own (W5.9). What is left of "the
+dictionary gets one home" is the **SDK's** own request rows: the Go SDK sends
+the daemon's rows, but the TypeScript, Python and Rust SDKs still spell their
+request bodies by hand — the same hole the browser had before W5.8, in the
+clients this slice's types are meant to reach.
+
 ## Current checkpoint — W5.8 the request side gets one home, 2026-11-24
 
 The W0–W5 objective remains open. W5.6–W5.7 gave the browser the daemon's

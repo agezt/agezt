@@ -141,7 +141,7 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 	if err != nil {
 		return nil, err
 	}
-	op, err := app.NewOperation(opapi.Spec{Name: opapi.ReaperScan, ReadOnly: true, OutputSchema: output, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"idle_days":{},"stale_days":{}}}`)}, func(ctx context.Context, in ScanRequest) (ScanOutput, error) {
+	op, err := app.NewOperation(opapi.Spec{Name: opapi.ReaperScan, ReadOnly: true, OutputSchema: output, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"idle_days":{"type":"number"},"stale_days":{"type":"number"}}}`)}, func(ctx context.Context, in ScanRequest) (ScanOutput, error) {
 		return provider(ctx).Scan(ctx, in)
 	})
 	if err != nil {

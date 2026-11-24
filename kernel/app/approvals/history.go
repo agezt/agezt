@@ -304,12 +304,12 @@ func Operations(provider func(context.Context) *History) ([]app.Operation, error
 	var ops []app.Operation
 	for _, b := range []func() error{
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.ApprovalsLog, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"limit":{},"cursor":{},"denied":{},"since_ms":{}}}`)}, func(ctx context.Context, in LogRequest) (LogOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.ApprovalsLog, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"limit":{"type":"number"},"cursor":{"type":"string"},"denied":{"type":"boolean"},"since_ms":{"type":"number"}}}`)}, func(ctx context.Context, in LogRequest) (LogOutput, error) {
 				return provider(ctx).Log(ctx, in)
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.ApprovalsStats, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"since_ms":{}}}`)}, func(ctx context.Context, in StatsRequest) (StatsOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.ApprovalsStats, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"since_ms":{"type":"number"}}}`)}, func(ctx context.Context, in StatsRequest) (StatsOutput, error) {
 				return provider(ctx).Stats(ctx, in)
 			})
 		},

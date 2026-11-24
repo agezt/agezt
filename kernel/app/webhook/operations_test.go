@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/agezt/agezt/kernel/app"
@@ -35,7 +36,7 @@ func TestWebhookOperationRawNumberCompatibility(t *testing.T) {
 		window int64
 		total  int
 	}{
-		{`{"since_ms":100.9}`, 100, 1}, {`{"since_ms":-7}`, -7, 2}, {`{"since_ms":"100"}`, 0, 2}, {`{"since_ms":null}`, 0, 2}, {`{"since_ms":true}`, 0, 2},
+		{`{"since_ms":100.9}`, 100, 1}, {`{"since_ms":-7}`, -7, 2},
 	} {
 		out, err := d.Dispatch(context.Background(), opapi.Caller{}, "webhook_stats", json.RawMessage(tc.raw), nil)
 		if err != nil {
@@ -50,11 +51,26 @@ func TestWebhookOperationRawNumberCompatibility(t *testing.T) {
 		raw   string
 		count int
 	}{
-		{`{"limit":0}`, 1}, {`{"limit":1.9}`, 1}, {`{"limit":2.9}`, 2}, {`{"limit":"ignored"}`, 2}, {`{"limit":null}`, 2}, {`{"failed":true}`, 1}, {`{"failed":false}`, 2},
+		{`{"limit":0}`, 1}, {`{"limit":1.9}`, 1}, {`{"limit":2.9}`, 2}, {`{"failed":true}`, 1}, {`{"failed":false}`, 2},
 	} {
 		out, err := d.Dispatch(context.Background(), opapi.Caller{}, "webhook_log", json.RawMessage(tc.raw), nil)
 		if err != nil || out.(LogOutput).Count != tc.count {
 			t.Fatal(tc.raw, out, err)
+		}
+	}
+	// A page size, a window, a cursor or the failure flag that is not the type
+	// the contract names is a usage error the door reports.
+	for _, tc := range []struct{ raw, want string }{
+		{`{"limit":"ignored"}`, "$.limit has wrong type: got string, want number"},
+		{`{"limit":null}`, "$.limit has wrong type: got null, want number"},
+		{`{"since_ms":"100"}`, "$.since_ms has wrong type: got string, want number"},
+		{`{"cursor":42}`, "$.cursor has wrong type: got number, want string"},
+		{`{"failed":"true"}`, "$.failed has wrong type: got string, want boolean"},
+	} {
+		if _, err := d.Dispatch(context.Background(), opapi.Caller{}, "webhook_log", json.RawMessage(tc.raw), nil); err == nil {
+			t.Fatal(tc.raw, "admitted")
+		} else if !strings.Contains(err.Error(), tc.want) {
+			t.Fatal(tc.raw, err)
 		}
 	}
 }
@@ -156,11 +172,11 @@ func TestWebhookOperationsTypedMetadataAndAdmission(t *testing.T) {
 	for _, raw := range []string{`{"failed":null}`, `{"failed":"true"}`, `{"failed":1}`, `{"failed":[]}`} {
 		before := calls
 		_, err := d.Dispatch(context.Background(), opapi.Caller{}, "webhook_log", json.RawMessage(raw), nil)
-		if err == nil || err.Error() != "args.failed must be a boolean" || calls != before {
+		if err == nil || !strings.Contains(err.Error(), "$.failed has wrong type") || calls != before {
 			t.Fatal(raw, err, calls)
 		}
 	}
-	for _, raw := range []string{`{"failed":false,"limit":"ignored","since_ms":null,"cursor":42}`, `{"failed":true,"limit":1.9,"since_ms":-2}`, `{"limit":0,"unknown":{"nested":true}}`} {
+	for _, raw := range []string{`{"failed":true,"limit":1.9,"since_ms":-2}`, `{"limit":0,"unknown":{"nested":true}}`} {
 		if _, err := d.Dispatch(context.Background(), opapi.Caller{}, "webhook_log", json.RawMessage(raw), nil); err != nil {
 			t.Fatal(raw, err)
 		}

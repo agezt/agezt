@@ -178,7 +178,7 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 	if provider == nil {
 		return nil, errors.New("edict provider required")
 	}
-	tenantSchema := json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"tenant":{}}}`)
+	tenantSchema := json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"tenant":{"type":"string"}}}`)
 	var ops []app.Operation
 	for _, b := range []func() error{
 		func() error {
@@ -192,7 +192,7 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.EdictTest, ReadOnly: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"capability":{},"input":{},"tenant":{}}}`)}, func(ctx context.Context, in TestRequest) (TestOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.EdictTest, ReadOnly: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"capability":{"type":"string"},"input":{"type":"string"},"tenant":{"type":"string"}}}`)}, func(ctx context.Context, in TestRequest) (TestOutput, error) {
 				return provider(ctx).Test(ctx, in)
 			})
 		},

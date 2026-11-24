@@ -4,6 +4,7 @@ package taste
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 
@@ -75,23 +76,32 @@ func bind[I, O any](operations *[]app.Operation, spec opapi.Spec, handler func(c
 	return err
 }
 func Operations(service func(context.Context) *Service) ([]app.Operation, error) {
+	// The taste request contract names every field the readers below accept: the
+	// title, the body, the scope and the tag are text, the page size is a number,
+	// and the tags are a list (or the one comma-separated text the reader splits).
+	var (
+		tasteListSchema   = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"limit":{"type":"number"},"scope":{"type":"string"},"tag":{"type":"string"}}}`)
+		tasteCreateSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"body":{"type":"string"},"scope":{"type":"string"},"tags":{"type":["array","string"]},"title":{"type":"string"}}}`)
+		tasteDeleteSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"id":{"type":"string"}}}`)
+	)
+
 	if service == nil {
 		return nil, errors.New("taste service provider required")
 	}
 	var operations []app.Operation
 	bindings := []func() error{
 		func() error {
-			return bind(&operations, opapi.Spec{Name: opapi.TasteList, ReadOnly: true}, func(ctx context.Context, in ListRequestInput) (ListOutput, error) {
+			return bind(&operations, opapi.Spec{Name: opapi.TasteList, InputSchema: tasteListSchema, ReadOnly: true}, func(ctx context.Context, in ListRequestInput) (ListOutput, error) {
 				return service(ctx).List(ctx, ListInput{Scope: text(in.Scope), Tag: text(in.Tag), Limit: listLimit(in.Limit)})
 			})
 		},
 		func() error {
-			return bind(&operations, opapi.Spec{Name: opapi.TasteCreate}, func(ctx context.Context, in CreateRequestInput) (CreateOutput, error) {
+			return bind(&operations, opapi.Spec{Name: opapi.TasteCreate, InputSchema: tasteCreateSchema}, func(ctx context.Context, in CreateRequestInput) (CreateOutput, error) {
 				return service(ctx).Create(ctx, CreateInput{Title: text(in.Title), Body: text(in.Body), Scope: text(in.Scope), Tags: tags(in.Tags)})
 			})
 		},
 		func() error {
-			return bind(&operations, opapi.Spec{Name: opapi.TasteDelete}, func(ctx context.Context, in DeleteRequestInput) (DeleteOutput, error) {
+			return bind(&operations, opapi.Spec{Name: opapi.TasteDelete, InputSchema: tasteDeleteSchema}, func(ctx context.Context, in DeleteRequestInput) (DeleteOutput, error) {
 				return service(ctx).Delete(ctx, DeleteInput{ID: text(in.ID)})
 			})
 		},

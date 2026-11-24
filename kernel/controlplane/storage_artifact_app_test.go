@@ -114,14 +114,14 @@ func TestStorageArtifactAppReadsRetainUnauditedUnaryAvailability(t *testing.T) {
 }
 func TestArtifactAppAdmissionPreservesPresenceStrictStringsAndDryRunForms(t *testing.T) {
 	k, s, entry, _ := artifactAppFixture(t)
-	for _, item := range []struct{ cmd, key, want string }{{opapi.ArtifactGet, "ref", "args.ref"}, {opapi.ArtifactDelete, "id", "args.id"}, {opapi.ArtifactList, "kind", "args.kind"}, {opapi.ArtifactCollect, "dry_run", "args.dry_run"}} {
+	for _, item := range []struct{ cmd, key, want string }{{opapi.ArtifactGet, "ref", "$.ref has wrong type: got null, want string"}, {opapi.ArtifactDelete, "id", "$.id has wrong type: got null, want string"}, {opapi.ArtifactList, "kind", "$.kind has wrong type: got null, want string"}, {opapi.ArtifactCollect, "dry_run", "$.dry_run has wrong type: got null, want boolean|string"}} {
 		for _, raw := range []any{nil, float64(1)} {
 			response := callAppHost(t, s, Request{ID: item.cmd, Cmd: item.cmd, Token: "primary", Args: map[string]any{item.key: raw}})[0]
-			want := item.want + " must be a string"
-			if item.key == "dry_run" {
-				want = item.want + " must be a boolean"
+			want := item.want
+			if raw != nil {
+				want = strings.Replace(want, "got null", "got number", 1)
 			}
-			if response.Type != RespError || response.Error != want {
+			if response.Type != RespError || !strings.Contains(response.Error, want) {
 				t.Fatal(item, raw, response)
 			}
 		}

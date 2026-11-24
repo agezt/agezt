@@ -95,7 +95,7 @@ func TestObservationDispatchPreservesLimitAdmissionAndRejectsBeforeRead(t *testi
 	for _, tc := range []struct {
 		raw   string
 		count int
-	}{{`{}`, 20}, {`{"limit":null}`, 20}, {`{"limit":0}`, 1}, {`{"limit":-5}`, 1}, {`{"limit":2.9}`, 2}, {`{"limit":2000}`, 1000}, {`{"limit":2,"cursor":"10:3"}`, 2}, {`{"fallbacks":true}`, 0}} {
+	}{{`{}`, 20}, {`{"limit":0}`, 1}, {`{"limit":-5}`, 1}, {`{"limit":2.9}`, 2}, {`{"limit":2000}`, 1000}, {`{"limit":2,"cursor":"10:3"}`, 2}, {`{"fallbacks":true}`, 0}} {
 		out, err := dispatcher.Dispatch(context.Background(), opapi.Caller{}, "provider_log", json.RawMessage(tc.raw), nil)
 		if err != nil {
 			t.Fatal(err)
@@ -106,6 +106,8 @@ func TestObservationDispatchPreservesLimitAdmissionAndRejectsBeforeRead(t *testi
 	}
 	for _, tc := range []struct{ name, raw string }{
 		{"provider_log", `{"limit":"bad"}`},
+		{"provider_log", `{"limit":null}`},
+		{"provider_log", `{"cursor":42}`},
 		{"provider_log", `{"fallbacks":null}`},
 		{"provider_log", `{"fallbacks":"bad"}`},
 		{"provider_stats", `{"since_ms":"bad"}`},

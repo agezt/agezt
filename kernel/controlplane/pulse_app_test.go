@@ -205,7 +205,7 @@ func TestPulseControlAppAvailabilityIsSelectedAtEachDispatch(t *testing.T) {
 	s.pulseProvider = nil
 	s.observersProvider = nil
 	for _, cmd := range []string{opapi.PulseAskResolve, opapi.PulseCadence, opapi.PulseDial, opapi.PulseQuiet, opapi.PulseUnwatch, opapi.PulseWatch, opapi.PulseProbe} {
-		out := callAppHost(t, s, Request{ID: cmd, Cmd: cmd, Token: "primary", Args: map[string]any{"issue_key": true, "dial": true, "name": true, "path": true, "command": true, "hours": true}})
+		out := callAppHost(t, s, Request{ID: cmd, Cmd: cmd, Token: "primary", Args: map[string]any{"issue_key": "owned", "dial": "owned", "name": "owned", "path": "owned", "command": "owned", "hours": "owned"}})
 		want := "pulse is disabled (AGEZT_PULSE=off)"
 		if cmd == opapi.PulseWatch || cmd == opapi.PulseProbe {
 			want = "watches are unavailable (pulse is disabled)"
@@ -254,29 +254,36 @@ func TestPulseControlAppArgumentPresenceAndAppliedPersistence(t *testing.T) {
 	}{
 		{opapi.PulseAskResolve, map[string]any{"issue_key": " raw ", "approve": "TRUE"}, "", []string{"resolve"}, []any{" raw ", false}, map[string]any{"resolved": true, "approved": false, "acted": false}},
 		{opapi.PulseAskResolve, map[string]any{"issue_key": "owned", "approve": "1"}, "", []string{"resolve"}, []any{"owned", true}, map[string]any{"resolved": true, "approved": true, "acted": false}},
-		{opapi.PulseAskResolve, map[string]any{"issue_key": "owned", "approve": float64(1)}, "", []string{"resolve"}, []any{"owned", false}, map[string]any{"resolved": true, "approved": false, "acted": false}},
-		{opapi.PulseAskResolve, map[string]any{"issue_key": nil}, "args.issue_key must be a string", nil, nil, nil},
+		{opapi.PulseAskResolve, map[string]any{"issue_key": "owned", "approve": float64(1)}, "$.approve has wrong type: got number, want boolean|string", nil, nil, nil},
+		{opapi.PulseAskResolve, map[string]any{"issue_key": nil}, "$.issue_key has wrong type: got null, want string", nil, nil, nil},
 		{opapi.PulseUnwatch, map[string]any{"name": "  "}, "args.name required", nil, nil, nil},
 		{opapi.PulseCadence, map[string]any{"seconds": "0.1234567899"}, "", []string{"cadence"}, []any{time.Duration(123456789)}, map[string]any{"cadence_ms": float64(5000)}},
 		{opapi.PulseCadence, map[string]any{"seconds": "wrong"}, "args.seconds must be > 0", nil, nil, nil},
-		{opapi.PulseCadence, map[string]any{"seconds": true}, "args.seconds must be > 0", nil, nil, nil},
-		{opapi.PulseDial, map[string]any{"dial": nil}, "args.dial must be a string", nil, nil, nil},
+		{opapi.PulseCadence, map[string]any{"seconds": true}, "$.seconds has wrong type: got boolean, want number|string", nil, nil, nil},
+		{opapi.PulseDial, map[string]any{"dial": nil}, "$.dial has wrong type: got null, want string", nil, nil, nil},
 		{opapi.PulseDial, nil, "", []string{"dial"}, []any{""}, map[string]any{"dial": "applied-dial"}},
 		{opapi.PulseQuiet, map[string]any{"hours": " raw "}, "", []string{"quiet"}, []any{" raw "}, map[string]any{"quiet": "applied-quiet"}},
-		{opapi.PulseQuiet, map[string]any{"hours": true}, "args.hours must be a string", nil, nil, nil},
+		{opapi.PulseQuiet, map[string]any{"hours": true}, "$.hours has wrong type: got boolean, want string", nil, nil, nil},
 		{opapi.PulseWatch, map[string]any{"path": " raw path ", "min_pct": "17.25"}, "", []string{"watch"}, []any{" raw path ", 17.25}, map[string]any{"added": true, "observer": "disk-result"}},
 		{opapi.PulseWatch, map[string]any{"path": "owned", "min_pct": float64(100)}, "args.min_pct must be between 0 and 100", nil, nil, nil},
-		{opapi.PulseWatch, map[string]any{"path": nil, "min_pct": "wrong"}, "args.path must be a string", nil, nil, nil},
+		{opapi.PulseWatch, map[string]any{"path": nil, "min_pct": "wrong"}, "$.path has wrong type: got null, want string", nil, nil, nil},
 		{opapi.PulseProbe, map[string]any{"name": " raw ", "command": " echo 'two words' --flag "}, "", []string{"probe"}, []any{" raw ", []string{"echo", "'two", "words'", "--flag"}}, map[string]any{"added": true, "observer": "probe-result"}},
-		{opapi.PulseProbe, map[string]any{"name": true, "command": true}, "args.name must be a string", nil, nil, nil},
-		{opapi.PulseProbe, map[string]any{"name": "owned", "command": nil}, "args.command must be a string", nil, nil, nil},
+		{opapi.PulseProbe, map[string]any{"name": true}, "$.name has wrong type: got boolean, want string", nil, nil, nil},
+		{opapi.PulseProbe, map[string]any{"command": true}, "$.command has wrong type: got boolean, want string", nil, nil, nil},
+		{opapi.PulseProbe, map[string]any{"name": "owned", "command": nil}, "$.command has wrong type: got null, want string", nil, nil, nil},
 		{opapi.PulseProbe, map[string]any{"name": "owned", "command": "  "}, "args.name and args.command required", nil, nil, nil},
 	}
 	for _, tc := range cases {
 		port.calls = nil
 		port.values = nil
 		out := callAppHost(t, s, Request{ID: tc.cmd, Cmd: tc.cmd, Token: "primary", Args: tc.args})
-		if len(out) != 1 || out[0].Error != tc.error || !reflect.DeepEqual(port.calls, tc.calls) || !reflect.DeepEqual(port.values, tc.values) || !reflect.DeepEqual(out[0].Result, tc.result) {
+		// The door names the refused field before the handler runs, so the
+		// message is a substring of the response, not the whole of it.
+		matched := false
+		if len(out) == 1 {
+			matched = (tc.error == "" && out[0].Error == "") || (tc.error != "" && strings.Contains(out[0].Error, tc.error))
+		}
+		if len(out) != 1 || !matched || !reflect.DeepEqual(port.calls, tc.calls) || !reflect.DeepEqual(port.values, tc.values) || !reflect.DeepEqual(out[0].Result, tc.result) {
 			t.Fatal(tc, out, port.calls, port.values)
 		}
 	}

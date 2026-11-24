@@ -165,9 +165,16 @@ func TestOperations(t *testing.T) {
 		if s.Name != want.name || !s.ReadOnly || s.Authz != opapi.OwnTenant || s.Tenancy != opapi.CallerTenant || s.Stream != opapi.StreamNone || !s.AllowUnknownInput || s.Input != want.input || s.Output != want.output || string(s.OutputSchema) != string(out) {
 			t.Fatalf("%s spec: %+v", want.name, s)
 		}
-		for _, in := range []string{`{}`, `{"id":null,"tenant":"acme","x":1}`} {
+		for _, in := range []string{`{}`, `{"id":"warden","tenant":"acme","x":1}`} {
 			if err := schema.ValidateJSON(s.InputSchema, json.RawMessage(in)); err != nil {
 				t.Fatal(want.name, in, err)
+			}
+		}
+		// The typed door owns the type error now: a wrong-typed id is refused
+		// before the handler reads it.
+		if want.name == opapi.ExecutionProfileShow {
+			if err := schema.ValidateJSON(s.InputSchema, json.RawMessage(`{"id":null}`)); err == nil || !strings.Contains(err.Error(), "$.id has wrong type: got null, want string") {
+				t.Fatal(want.name, err)
 			}
 		}
 	}

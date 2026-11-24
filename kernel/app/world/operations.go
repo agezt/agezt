@@ -40,6 +40,12 @@ func curationSchema(edit bool) json.RawMessage {
 	}
 	return json.RawMessage(schema)
 }
+
+// The log read's contract names every field the adapter below reads: the kind
+// filter is text, the page size and the window are numbers, and the cursor is
+// the text the journal encodes it as.
+var logSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"kind":{"type":"string"},"limit":{"type":"number"},"since_ms":{"type":"number"},"cursor":{"type":"string"}}}`)
+
 func logPage(in LogRequestInput) LogInput {
 	limit := 20
 	if in.Limit != nil {
@@ -157,7 +163,7 @@ func Operations(service func(context.Context) *Service, logs func(context.Contex
 			})
 		},
 		func() error {
-			return bind(&operations, opapi.Spec{Name: opapi.WorldLog, ReadOnly: true, Authz: opapi.OwnTenant, Tenancy: opapi.CallerTenant}, func(ctx context.Context, in LogRequestInput) (LogOutput, error) {
+			return bind(&operations, opapi.Spec{Name: opapi.WorldLog, ReadOnly: true, Authz: opapi.OwnTenant, Tenancy: opapi.CallerTenant, InputSchema: logSchema}, func(ctx context.Context, in LogRequestInput) (LogOutput, error) {
 				return logs(ctx).Log(ctx, logPage(in))
 			})
 		},

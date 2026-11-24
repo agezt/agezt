@@ -283,7 +283,7 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 	if provider == nil {
 		return nil, errors.New("tenants provider required")
 	}
-	idSchema := json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"id":{}}}`)
+	idSchema := json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"id":{"type":"string"}}}`)
 	none := json.RawMessage(`{"type":"object","additionalProperties":true}`)
 	var ops []app.Operation
 	for _, b := range []func() error{

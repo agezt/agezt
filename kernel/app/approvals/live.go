@@ -155,7 +155,7 @@ func LiveOperations(provider func(context.Context) *Live) ([]app.Operation, erro
 			})
 		},
 		func() error {
-			return bindPrimary(&ops, opapi.Spec{Name: opapi.Decide, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"id":{},"decision":{},"reason":{}}}`)}, func(ctx context.Context, in DecideRequest) (DecideOutput, error) {
+			return bindPrimary(&ops, opapi.Spec{Name: opapi.Decide, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"id":{"type":"string"},"decision":{"type":"string"},"reason":{"type":"string"}}}`)}, func(ctx context.Context, in DecideRequest) (DecideOutput, error) {
 				return provider(ctx).Decide(ctx, in)
 			})
 		},

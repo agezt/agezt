@@ -223,22 +223,22 @@ func WriteOperations(provider func(context.Context) *Writes) ([]app.Operation, e
 	var ops []app.Operation
 	for _, b := range []func() error{
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.EdictDenyAdd, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"rule":{},"tenant":{}}}`)}, func(ctx context.Context, in DenyAddRequest) (DenyAddOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.EdictDenyAdd, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"rule":{"type":"string"},"tenant":{"type":"string"}}}`)}, func(ctx context.Context, in DenyAddRequest) (DenyAddOutput, error) {
 				return provider(ctx).DenyAdd(ctx, in)
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.EdictDenyRemove, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"name":{},"tenant":{}}}`)}, func(ctx context.Context, in DenyRemoveRequest) (DenyRemoveOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.EdictDenyRemove, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"name":{"type":"string"},"tenant":{"type":"string"}}}`)}, func(ctx context.Context, in DenyRemoveRequest) (DenyRemoveOutput, error) {
 				return provider(ctx).DenyRemove(ctx, in)
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.EdictSetLevel, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"capability":{},"level":{},"tenant":{}}}`)}, func(ctx context.Context, in SetLevelRequest) (SetLevelOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.EdictSetLevel, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"capability":{"type":"string"},"level":{"type":"string"},"tenant":{"type":"string"}}}`)}, func(ctx context.Context, in SetLevelRequest) (SetLevelOutput, error) {
 				return provider(ctx).SetLevel(ctx, in)
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.EdictSetMode, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"mode":{},"tenant":{}}}`)}, func(ctx context.Context, in SetModeRequest) (SetModeOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.EdictSetMode, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"mode":{"type":"string"},"tenant":{"type":"string"}}}`)}, func(ctx context.Context, in SetModeRequest) (SetModeOutput, error) {
 				return provider(ctx).SetMode(ctx, in)
 			})
 		},

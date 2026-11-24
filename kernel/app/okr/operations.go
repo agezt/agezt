@@ -3,6 +3,7 @@ package okr
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/agezt/agezt/kernel/app"
@@ -92,23 +93,36 @@ func bind[I, O any](ops *[]app.Operation, spec opapi.Spec, handler func(context.
 	return err
 }
 func Operations(reads func(context.Context) *Service, writes func(context.Context) *Lifecycle) ([]app.Operation, error) {
+	// The OKR request contract names every field the readers below accept: the
+	// identifiers, the titles, the owner, the tenant and the correlation are
+	// text, the key result's target and the page size are numbers, and the
+	// archived flag is a boolean.
+	var (
+		okrListSchema      = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"include_archived":{"type":"boolean"},"limit":{"type":"number"},"status":{"type":"string"},"tenant":{"type":"string"}}}`)
+		okrShowSchema      = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"id":{"type":"string"}}}`)
+		okrCreateSchema    = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"correlation_id":{"type":"string"},"description":{"type":"string"},"owner":{"type":"string"},"tenant":{"type":"string"},"title":{"type":"string"}}}`)
+		okrKeyResultSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"correlation_id":{"type":"string"},"id":{"type":"string"},"target":{"type":"number"},"title":{"type":"string"}}}`)
+		okrLinkSchema      = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"correlation_id":{"type":"string"},"id":{"type":"string"},"key_result":{"type":"string"},"task":{"type":"string"}}}`)
+		okrArchiveSchema   = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"correlation_id":{"type":"string"},"id":{"type":"string"}}}`)
+	)
+
 	if reads == nil || writes == nil {
 		return nil, errors.New("OKR service providers required")
 	}
 	var ops []app.Operation
 	bindings := []func() error{
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.OKRList, ReadOnly: true}, func(ctx context.Context, in ListRequestInput) (ListOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.OKRList, InputSchema: okrListSchema, ReadOnly: true}, func(ctx context.Context, in ListRequestInput) (ListOutput, error) {
 				return reads(ctx).List(ctx, ListInput{Status: okrapi.Status(requestText(in.Status)), Tenant: requestText(in.Tenant), IncludeArchived: in.IncludeArchived, Limit: requestLimit(in.Limit)})
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.OKRShow, ReadOnly: true}, func(ctx context.Context, in ShowRequestInput) (ShowOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.OKRShow, InputSchema: okrShowSchema, ReadOnly: true}, func(ctx context.Context, in ShowRequestInput) (ShowOutput, error) {
 				return reads(ctx).Show(ctx, ShowInput{ID: requestText(in.ID)})
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.OKRCreate}, func(ctx context.Context, in CreateRequestInput) (ObjectiveOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.OKRCreate, InputSchema: okrCreateSchema}, func(ctx context.Context, in CreateRequestInput) (ObjectiveOutput, error) {
 				title := requestText(in.Title)
 				if title == "" {
 					return ObjectiveOutput{}, errors.New("okr_create requires title")
@@ -117,7 +131,7 @@ func Operations(reads func(context.Context) *Service, writes func(context.Contex
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.OKRKeyResult}, func(ctx context.Context, in KeyResultRequestInput) (ObjectiveOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.OKRKeyResult, InputSchema: okrKeyResultSchema}, func(ctx context.Context, in KeyResultRequestInput) (ObjectiveOutput, error) {
 				id, title := requestText(in.ID), requestText(in.Title)
 				if id == "" || title == "" {
 					return ObjectiveOutput{}, errors.New("okr_keyresult requires id and title")
@@ -127,19 +141,19 @@ func Operations(reads func(context.Context) *Service, writes func(context.Contex
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.OKRLink}, func(ctx context.Context, in LinkRequestInput) (ObjectiveOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.OKRLink, InputSchema: okrLinkSchema}, func(ctx context.Context, in LinkRequestInput) (ObjectiveOutput, error) {
 				out, err := writes(ctx).Link(ctx, LinkInput{CorrelationID: requestCorrelation(ctx, in.CorrelationID), ID: requestText(in.ID), KeyResult: requestText(in.KeyResult), Task: requestText(in.Task)})
 				return nativeResult(in.ID, out, err)
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.OKRUnlink}, func(ctx context.Context, in LinkRequestInput) (ObjectiveOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.OKRUnlink, InputSchema: okrLinkSchema}, func(ctx context.Context, in LinkRequestInput) (ObjectiveOutput, error) {
 				out, err := writes(ctx).Unlink(ctx, LinkInput{CorrelationID: requestCorrelation(ctx, in.CorrelationID), ID: requestText(in.ID), KeyResult: requestText(in.KeyResult), Task: requestText(in.Task)})
 				return nativeResult(in.ID, out, err)
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.OKRArchive}, func(ctx context.Context, in ArchiveRequestInput) (ObjectiveOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.OKRArchive, InputSchema: okrArchiveSchema}, func(ctx context.Context, in ArchiveRequestInput) (ObjectiveOutput, error) {
 				out, err := writes(ctx).Archive(ctx, ArchiveInput{CorrelationID: requestCorrelation(ctx, in.CorrelationID), ID: requestText(in.ID)})
 				return nativeResult(in.ID, out, err)
 			})

@@ -28,9 +28,15 @@ func TestToolObservationTypedAdmissionCodecsClockAndNoAudit(t *testing.T) {
 		t.Fatal(err)
 	}
 	caller := opapi.Caller{Tenant: "acme"}
-	for _, tc := range []struct{ name, raw, error string }{{"tool_log", `{"errors":"true","tool":true}`, "args.errors must be a boolean"}, {"tool_log", `{"errors":null}`, "args.errors must be a boolean"}, {"tool_log", `{"tool":null}`, "args.tool must be a string"}, {"tool_stats", `{"errors":"true","tool":true}`, "args.tool must be a string"}} {
+	for _, tc := range []struct{ name, raw, error string }{
+		{"tool_log", `{"errors":"true"}`, "$.errors has wrong type: got string, want boolean"},
+		{"tool_log", `{"errors":null}`, "$.errors has wrong type: got null, want boolean"},
+		{"tool_log", `{"tool":null}`, "$.tool has wrong type: got null, want string"},
+		{"tool_log", `{"tool":true}`, "$.tool has wrong type: got boolean, want string"},
+		{"tool_stats", `{"tool":true}`, "$.tool has wrong type: got boolean, want string"},
+	} {
 		_, err := d.Dispatch(context.Background(), caller, tc.name, json.RawMessage(tc.raw), nil)
-		if err == nil || err.Error() != tc.error {
+		if err == nil || !strings.Contains(err.Error(), tc.error) {
 			t.Fatal(tc, err)
 		}
 	}
@@ -40,7 +46,7 @@ func TestToolObservationTypedAdmissionCodecsClockAndNoAudit(t *testing.T) {
 	for _, tc := range []struct {
 		name, raw string
 		count     int
-	}{{"tool_log", `{}`, 6}, {"tool_log", `{"limit":0}`, 1}, {"tool_log", `{"limit":1.9}`, 1}, {"tool_log", `{"limit":"1"}`, 6}, {"tool_log", `{"errors":true}`, 2}, {"tool_log", `{"tool":" foo "}`, 0}, {"tool_log", `{"slow_ms":"20"}`, 6}, {"tool_stats", `{"errors":null,"limit":false,"slow_ms":null,"cursor":true}`, 6}} {
+	}{{"tool_log", `{}`, 6}, {"tool_log", `{"limit":0}`, 1}, {"tool_log", `{"limit":1.9}`, 1}, {"tool_log", `{"errors":true}`, 2}, {"tool_log", `{"tool":" foo "}`, 0}, {"tool_stats", `{}`, 6}} {
 		out, err := d.Dispatch(context.Background(), caller, tc.name, json.RawMessage(tc.raw), nil)
 		if err != nil {
 			t.Fatal(tc, err)
