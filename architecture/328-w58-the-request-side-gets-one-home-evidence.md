@@ -123,6 +123,12 @@ not spell a request row of its own.
 a mistyped body is refused before the handler runs and before the audit sees
 it, for the board, the council and the research harness.
 
+The payoff is the **compiler**: the browser's `postJSON` takes
+`RequestOf<P>` — the request row the daemon declares for that path — so
+**46** of the **48** body paths are now checked at build time against the
+daemon's own contract. Only two paths stay free-form (the provider's OAuth
+logout and the provider reload, whose bodies the daemon does not describe).
+
 ## 4. The mutation evidence
 
 Three mutations, three caught, all reverted:
