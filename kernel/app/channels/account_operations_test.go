@@ -6,12 +6,33 @@ import (
 	"encoding/json"
 	"errors"
 	"reflect"
+	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/agezt/agezt/kernel/app"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/platform/schema"
 )
+
+// jsonTypeName names a JSON value the way the schema validator does, so a
+// test can state the exact type error the door answers with.
+func jsonTypeName(value any) string {
+	switch value.(type) {
+	case nil:
+		return "null"
+	case bool:
+		return "boolean"
+	case float64, float32, int, int64, json.Number:
+		return "number"
+	case []any:
+		return "array"
+	case map[string]any:
+		return "object"
+	default:
+		return "string"
+	}
+}
 
 type accountAudit struct {
 	begin, end    int
@@ -72,8 +93,11 @@ func TestChannelAccountOperationTypedSpecsAndOutputPresence(t *testing.T) {
 		if schema.ValidateJSON(s.OutputSchema, raw) == nil {
 			t.Fatal("output schema erased")
 		}
-		if schema.ValidateJSON(s.InputSchema, json.RawMessage(`{"kind":null,"label":false,"unknown":true}`)) != nil {
-			t.Fatal("type errors moved before audit")
+		// The typed schema refuses a wrong type at the door now: the argument
+		// never reaches the handler, so the door owns the type error.
+		err := schema.ValidateJSON(s.InputSchema, json.RawMessage(`{"kind":null,"label":false,"unknown":true}`))
+		if err == nil || !strings.Contains(err.Error(), "has wrong type: got ") || !strings.Contains(err.Error(), "want string") {
+			t.Fatal("input schema admits a non-string argument", err)
 		}
 	}
 }
@@ -94,7 +118,10 @@ func TestChannelAccountOperationArgumentOrderAndAuditedValidation(t *testing.T) 
 				args := map[string]any{key: invalid, "unknown": true}
 				raw, _ := json.Marshal(args)
 				_, err := d.Dispatch(context.Background(), opapi.Caller{}, command, raw, nil)
-				if err == nil || err.Error() != "args."+key+" must be a string" || providers != 0 || len(p.calls) != 0 || audit.begin != 1 || audit.end != 1 || !errors.Is(err, audit.terminal) {
+				// The door refuses the wrong type before the audit admission and
+				// before the service provider can reach a store.
+				want := "operation " + command + " input: $." + key + " has wrong type: got " + jsonTypeName(invalid) + ", want string"
+				if err == nil || err.Error() != want || providers != 0 || len(p.calls) != 0 || audit.begin != 0 || audit.end != 0 {
 					t.Fatal(command, key, err, providers, p.calls, audit)
 				}
 			}
@@ -104,8 +131,11 @@ func TestChannelAccountOperationArgumentOrderAndAuditedValidation(t *testing.T) 
 		ops, _ := AccountOperations(func(context.Context) *Accounts { return NewAccounts(p) })
 		d, _ := app.NewDispatcher(ops, app.Dependencies{Auth: ownedACPAuth{principal: opapi.Principal{Kind: opapi.Operator}}, Router: ownedACPRoute{}, Audit: audit})
 		_, err := d.Dispatch(context.Background(), opapi.Caller{}, command, json.RawMessage(`{"kind":false,"label":null,"name":3,"value":false}`), nil)
-		if err == nil || err.Error() != "args.kind must be a string" || len(p.calls) != 0 {
-			t.Fatal(err, p.calls)
+		// Every argument of this body is a wrong type, so the door names the one
+		// it sees first.
+		want := regexp.MustCompile(`^operation ` + command + ` input: \$\.(kind|label|name|value) has wrong type: got (boolean|null|number), want string$`)
+		if err == nil || !want.MatchString(err.Error()) || len(p.calls) != 0 || audit.begin != 0 || audit.end != 0 {
+			t.Fatal(err, p.calls, audit)
 		}
 	}
 }

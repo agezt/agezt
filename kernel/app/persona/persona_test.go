@@ -196,9 +196,9 @@ func TestOperations(t *testing.T) {
 		prop               string
 	}{
 		{opapi.PersonaGet, "GET", "/api/persona", true, reflect.TypeFor[GetRequest](), reflect.TypeFor[GetOutput](), ""},
-		{opapi.PersonaSet, "POST", "/api/persona/set", false, reflect.TypeFor[SetRequest](), reflect.TypeFor[SetOutput](), "system"},
+		{opapi.PersonaSet, "POST", "/api/persona/set", false, reflect.TypeFor[SetRequest](), reflect.TypeFor[SetOutput](), `"system":{"type":"string"}`},
 		{opapi.PromptsGet, "GET", "/api/prompts", true, reflect.TypeFor[PromptsRequest](), reflect.TypeFor[PromptsOutput](), ""},
-		{opapi.PromptsSet, "POST", "/api/prompts/set", false, reflect.TypeFor[PromptsSetRequest](), reflect.TypeFor[PromptsSetOutput](), "prompts"},
+		{opapi.PromptsSet, "POST", "/api/prompts/set", false, reflect.TypeFor[PromptsSetRequest](), reflect.TypeFor[PromptsSetOutput](), `"prompts":{"type":"array","items":{"type":"object"}}`},
 	} {
 		s := ops[i].Spec()
 		out, err := schema.FromType(want.output, false)
@@ -208,10 +208,10 @@ func TestOperations(t *testing.T) {
 		if s.Name != want.name || s.ReadOnly != want.read || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Stream != opapi.StreamNone || !s.AllowUnknownInput || s.Input != want.input || s.Output != want.output || string(s.OutputSchema) != string(out) {
 			t.Fatalf("%s spec: %+v", want.name, s)
 		}
-		if want.prop != "" && !strings.Contains(string(s.InputSchema), `"properties":{"`+want.prop+`":{}}`) {
+		if want.prop != "" && !strings.Contains(string(s.InputSchema), `"properties":{`+want.prop+`}`) {
 			t.Fatal(want.name, string(s.InputSchema))
 		}
-		for _, in := range []string{`{}`, `{"system":7,"prompts":null,"tenant":"t"}`} {
+		for _, in := range []string{`{}`, `{"system":"owned","prompts":[{"title":"t","text":"b"}],"tenant":"t"}`} {
 			if err := schema.ValidateJSON(s.InputSchema, json.RawMessage(in)); err != nil {
 				t.Fatal(want.name, in, err)
 			}

@@ -1,5 +1,73 @@
 # NEXT — handoff for the next coding agent
 
+## Current checkpoint — W5.8 the request side gets one home, 2026-11-24
+
+The W0–W5 objective remains open. W5.6–W5.7 gave the browser the daemon's
+**response** rows; this slice gives the daemon's **request** side the same
+one home — and a guard holds the line on both sides of the wire.
+
+### What was on the tree
+
+- **Every property of every body the browser can send declares its type.**
+  **19** daemon packages (board, channels, chat, configcenter, council, data,
+  market, persona, redaction, research, roster, routing, runs, schedule,
+  settings, skill, standing, tools, workflow) carry the change. The rule: the
+  type is the field's **read** type; a union only where the handler accepts
+  two meaningful shapes; **no** null or junk arms.
+- **The door moved, and its message is better.** A mistyped body is refused at
+  **admission** — before the handler runs, before the audit sees it — and the
+  refusal names the field and both types:
+  `operation board_send input: $.from has wrong type: got boolean, want
+  string`. The dispatcher was not touched: the door was already there, the
+  contract simply says now what the door should check.
+- **`tools/openapi/types.go` — the renderer was dropping half a union.** A
+  schema that declares several types was rendered with the first arm it
+  understood (`["string","array"]` → `string[]`), so every union in the
+  request surface was published with one arm missing. Every arm is rendered
+  now, and the `null` arm is detected by the schema rather than by looking
+  for the word "null" in the rendered text.
+- **The browser became null-aware.** The daemon's chain map is
+  `Record<string, string[] | null> | null`; the browser read it as if it
+  could not happen — **17** compile errors in **6** files are the compiler's
+  list of the places where it did. The browser's view of the map is the
+  narrowed map it works with, and the null arm is normalised at the fetch
+  boundary.
+- **One daemon bug the binding found**: `plan_json` was published as an
+  **object**, while the daemon reads it as a JSON **string** ("args.plan_json
+  must be a JSON string"). With the object published, the door would have
+  refused every plan submission.
+- **Three guards**: the daemon's rule (every property of every body route
+  declares a type), the browser's rule (no request row carries a bare `any`;
+  the browser may not spell a request row of its own), and the door's own test
+  (a mistyped body never reaches the handler or the audit).
+
+### What the measurement said
+
+- The console's request surface: **56** bodies with untyped properties /
+  **337** untyped properties → **0** / **0**.
+- The browser's request rows: **57** rows, **205** fields, **162** of them
+  `any` → **57** rows, **204** fields, **0** `any` (one row is now published
+  as an alias of an identical row, so it is counted once).
+- The OpenAPI document: **382** request properties, all typed.
+- The registry's **122** operations that still carry an untyped request
+  property are **none of them on the console's route catalogue** — they are
+  the CLI/SDK's surface.
+
+### The evidence
+
+`architecture/328-w58-the-request-side-gets-one-home-evidence.md` — the
+measurement, the rule, the three guards, the three mutations and the gates.
+
+### What the next slice should do
+
+The console's body contract is typed and guarded on both sides; the
+**registry's own surface** is not. The **122** operations the browser cannot
+reach still declare their request properties as `any` — the CLI and the SDK
+send them, and the SDK's own request rows have the same hole the browser's had
+before this slice. The same treatment (the registry's schema for the request
+side, a client that sends the row the daemon declares, and a guard that holds
+the line) is the next end of "the dictionary gets one home".
+
 ## Current checkpoint — W5.7 the browser's last hand-written views, 2026-11-23
 
 The W0–W5 objective remains open. W5.6 gave the browser the **view** types;

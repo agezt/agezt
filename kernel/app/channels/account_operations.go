@@ -44,7 +44,7 @@ func AccountOperations(provider func(context.Context) *Accounts) ([]app.Operatio
 		return nil, errors.New("channel account service provider required")
 	}
 	set, err := app.NewOperation(opapi.Spec{Name: opapi.ChannelAccountSet, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true,
-		InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"kind":{},"label":{},"name":{},"value":{}}}`),
+		InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"kind":{"type":"string"},"label":{"type":"string"},"name":{"type":"string"},"value":{"type":"string"}}}`),
 	}, func(ctx context.Context, in SetAccountRequest) (SetAccountOutput, error) {
 		kind, err := accountText(in.Kind, "kind")
 		if err != nil {
@@ -68,7 +68,7 @@ func AccountOperations(provider func(context.Context) *Accounts) ([]app.Operatio
 		return nil, err
 	}
 	remove, err := app.NewOperation(opapi.Spec{Name: opapi.ChannelAccountRemove, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true,
-		InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"kind":{},"label":{}}}`),
+		InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"kind":{"type":"string"},"label":{"type":"string"}}}`),
 	}, func(ctx context.Context, in RemoveAccountRequest) (RemoveAccountOutput, error) {
 		kind, err := accountText(in.Kind, "kind")
 		if err != nil {

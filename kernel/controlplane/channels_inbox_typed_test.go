@@ -106,23 +106,25 @@ func TestChannelInboxNativeWireMemberOrderExactIntegersAndCanceledRange(t *testi
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	line = inboxBindingWire(t, s, ctx, map[string]any{"cursor": false})
+	line = inboxBindingWire(t, s, ctx, map[string]any{"cursor": "owned"})
 	var reply Response
 	json.Unmarshal(line, &reply)
 	if reply.Type != RespError || reply.Error != "context canceled" || providers != 1 || j.calls != 1 {
 		t.Fatal("canceled reader entered", reply, providers, j.calls)
 	}
 	j.err = errors.New("owned range failure")
-	line = inboxBindingWire(t, s, context.Background(), map[string]any{"cursor": false})
+	line = inboxBindingWire(t, s, context.Background(), map[string]any{"cursor": "owned"})
 	json.Unmarshal(line, &reply)
 	if reply.Type != RespError || reply.Error != "owned range failure" || j.calls != 2 {
 		t.Fatal("range error precedence changed", reply, j.calls)
 	}
 	j.err = nil
+	// A mistyped cursor is refused at admission: the request contract names
+	// the cursor's type, so the journal is never read for it.
 	line = inboxBindingWire(t, s, context.Background(), map[string]any{"cursor": nil})
 	json.Unmarshal(line, &reply)
-	if reply.Type != RespError || reply.Error != "args.cursor must be a string" || j.calls != 3 {
-		t.Fatal("cursor error skipped range", reply, j.calls)
+	if reply.Type != RespError || reply.Error != "operation inbox input: $.cursor has wrong type: got null, want string" || j.calls != 2 {
+		t.Fatal("mistyped cursor skipped range", reply, j.calls)
 	}
 	after, afterHash := k.Journal().Head()
 	if head != after || hash != afterHash || p.CallCount() != 0 {

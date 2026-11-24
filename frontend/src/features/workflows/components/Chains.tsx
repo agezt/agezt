@@ -11,7 +11,7 @@ import { EmptyState } from "@/components/ui/empty";
 import { Badge } from "@/components/ui/badge";
 import { ModelPicker } from "@/components/ModelPicker";
 import { ModelChip } from "@/components/ModelChip";
-import { validateChainName, moveItem, removeAt, renameChain, deleteChain, type ChainMap } from "@/lib/chains";
+import { validateChainName, moveItem, removeAt, renameChain, deleteChain, type ChainRegistry } from "@/lib/chains";
 import { modelHealth, type ModelCatalog } from "@/lib/models";
 
 // Chains is the registry of named, reusable fallback ladders (M963). A chain is
@@ -31,8 +31,8 @@ export interface ChainUsage {
 
 export function Chains() {
   const { toast, confirm, prompt } = useUI();
-  const [chains, setChains] = useState<ChainMap>({});
-  const [savedChains, setSavedChains] = useState<ChainMap>({});
+  const [chains, setChains] = useState<ChainRegistry>({});
+  const [savedChains, setSavedChains] = useState<ChainRegistry>({});
   const [def, setDef] = useState("");
   const [savedDef, setSavedDef] = useState("");
   const [usage, setUsage] = useState<Record<string, ChainUsage | string[]>>({});

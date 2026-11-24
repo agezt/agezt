@@ -82,10 +82,10 @@ func TestConfigCenterTypedNineMetadataContextAndAdmission(t *testing.T) {
 		{"configcenter.get", `{"key":"owned","unknown":true}`, reflect.TypeFor[KeyRequest](), reflect.TypeFor[GetOutput](), true},
 		{"configcenter.list", `{"rating":"PUBLIC","unused":true}`, reflect.TypeFor[ListRequest](), reflect.TypeFor[ListOutput](), true},
 		{"configcenter.access-log", `{"key":" raw ","agent_id":" Agent ","since":"-1h"}`, reflect.TypeFor[AccessLogRequest](), reflect.TypeFor[AccessLogOutput](), true},
-		{"configcenter.audit", `{"since":"0","key":false}`, reflect.TypeFor[SinceRequest](), reflect.TypeFor[AuditOutput](), true},
-		{"configcenter.health", `{"key":null,"rating":false}`, reflect.TypeFor[HealthInput](), reflect.TypeFor[HealthOutput](), true},
-		{"configcenter.set", `{"key":" raw ","value":" raw value ","rating":"PUBLIC","description":" raw ","allowed_agents":"First,first; Second","excluded_agents":["denied",false]}`, reflect.TypeFor[SetRequest](), reflect.TypeFor[SetOutput](), false},
-		{"configcenter.delete", `{"key":" raw ","rating":false}`, reflect.TypeFor[KeyRequest](), reflect.TypeFor[DeleteOutput](), false},
+		{"configcenter.audit", `{"since":"0","key":"ignored"}`, reflect.TypeFor[SinceRequest](), reflect.TypeFor[AuditOutput](), true},
+		{"configcenter.health", `{"key":"ignored","rating":"ignored"}`, reflect.TypeFor[HealthInput](), reflect.TypeFor[HealthOutput](), true},
+		{"configcenter.set", `{"key":" raw ","value":" raw value ","rating":"PUBLIC","description":" raw ","allowed_agents":"First,first; Second","excluded_agents":["denied"]}`, reflect.TypeFor[SetRequest](), reflect.TypeFor[SetOutput](), false},
+		{"configcenter.delete", `{"key":" raw ","rating":"ignored"}`, reflect.TypeFor[KeyRequest](), reflect.TypeFor[DeleteOutput](), false},
 		{"configcenter.set-rating", `{"key":" raw ","rating":"PUBLIC"}`, reflect.TypeFor[SetRatingRequest](), reflect.TypeFor[SetRatingOutput](), false},
 		{"configcenter.access", `{"key":" raw ","allowed_agents":[],"excluded_agents":" Raw "}`, reflect.TypeFor[SetAccessRequest](), reflect.TypeFor[SetAccessOutput](), false},
 	}
@@ -164,37 +164,71 @@ func TestConfigCenterTypedCodecsStrictTextOrderAndPermissiveACL(t *testing.T) {
 		t.Fatal(err)
 	}
 	d := centerDispatcher(t, ops, opapi.Operator, &centerAudit{})
-	for _, tc := range []struct{ name, raw, want string }{
-		{"configcenter.set", `{}`, "args.key required"},
-		{"configcenter.set", `{"key":null,"value":false}`, "args.key must be a string"},
-		{"configcenter.set", `{"key":" ","value":"v"}`, "args.key required"},
-		{"configcenter.set", `{"key":"k"}`, "args.value required"},
-		{"configcenter.set", `{"key":"k","value":null}`, "args.value must be a string"},
-		{"configcenter.set", `{"key":"k","value":" "}`, "args.value required"},
-		{"configcenter.set", `{"key":"k","value":"v","rating":false,"description":null}`, "args.rating must be a string"},
-		{"configcenter.set", `{"key":"k","value":"v","rating":"invalid","description":null}`, "args.description must be a string"},
-		{"configcenter.set", `{"key":"k","value":"v","rating":" PUBLIC "}`, "invalid rating:  PUBLIC "},
-		{"configcenter.get", `{"key":false}`, "args.key must be a string"},
-		{"configcenter.get", `{}`, "args.key required"},
-		{"configcenter.get", `{"key":" "}`, "args.key required"},
-		{"configcenter.delete", `{}`, "args.key required"},
-		{"configcenter.delete", `{"key":null}`, "args.key must be a string"},
-		{"configcenter.set-rating", `{"key":"k"}`, "args.rating required"},
-		{"configcenter.set-rating", `{"key":"k","rating":null}`, "args.rating must be a string"},
-		{"configcenter.set-rating", `{"key":"k","rating":" PUBLIC "}`, "invalid rating:  PUBLIC  (expected: public, internal, restricted, secret)"},
-		{"configcenter.access", `{}`, "args.key required"},
-		{"configcenter.list", `{"rating":null}`, "args.rating must be a string"},
-		{"configcenter.access-log", `{"key":null,"agent_id":false}`, "args.key must be a string"},
-		{"configcenter.access-log", `{"agent_id":null,"since":false}`, "args.agent_id must be a string"},
-		{"configcenter.access-log", `{"since":null}`, "args.since must be a string"},
-		{"configcenter.audit", `{"since":false}`, "args.since must be a string"},
+	// A body whose TYPE is wrong is refused at the door: it never reaches the
+	// audit and never reaches the handler. A body that is type-correct but
+	// semantically wrong still reaches the codec, and the codec's own message
+	// is what the daemon answers.
+	for _, tc := range []struct {
+		name, raw, want string
+		door            bool
+		read            bool
+	}{
+		{"configcenter.set", `{}`, "args.key required", false, false},
+		{"configcenter.set", `{"key":null}`, "$.key has wrong type: got null, want string", true, false},
+		{"configcenter.set", `{"value":false}`, "$.value has wrong type: got boolean, want string", true, false},
+		{"configcenter.set", `{"key":" ","value":"v"}`, "args.key required", false, false},
+		{"configcenter.set", `{"key":"k"}`, "args.value required", false, false},
+		{"configcenter.set", `{"key":"k","value":null}`, "$.value has wrong type: got null, want string", true, false},
+		{"configcenter.set", `{"key":"k","value":" "}`, "args.value required", false, false},
+		{"configcenter.set", `{"key":"k","value":"v","rating":false}`, "$.rating has wrong type: got boolean, want string", true, false},
+		{"configcenter.set", `{"key":"k","value":"v","description":null}`, "$.description has wrong type: got null, want string", true, false},
+		{"configcenter.set", `{"key":"k","value":"v","rating":"invalid"}`, "invalid rating: invalid", false, false},
+		{"configcenter.set", `{"key":"k","value":"v","rating":" PUBLIC "}`, "invalid rating:  PUBLIC ", false, false},
+		{"configcenter.get", `{"key":false}`, "$.key has wrong type: got boolean, want string", true, true},
+		{"configcenter.get", `{}`, "args.key required", false, true},
+		{"configcenter.get", `{"key":" "}`, "args.key required", false, true},
+		{"configcenter.delete", `{}`, "args.key required", false, false},
+		{"configcenter.delete", `{"key":null}`, "$.key has wrong type: got null, want string", true, false},
+		{"configcenter.set-rating", `{"key":"k"}`, "args.rating required", false, false},
+		{"configcenter.set-rating", `{"key":"k","rating":null}`, "$.rating has wrong type: got null, want string", true, false},
+		{"configcenter.set-rating", `{"key":"k","rating":" PUBLIC "}`, "invalid rating:  PUBLIC  (expected: public, internal, restricted, secret)", false, false},
+		{"configcenter.access", `{}`, "args.key required", false, false},
+		{"configcenter.list", `{"rating":null}`, "$.rating has wrong type: got null, want string", true, true},
+		{"configcenter.access-log", `{"key":null}`, "$.key has wrong type: got null, want string", true, true},
+		{"configcenter.access-log", `{"agent_id":false}`, "$.agent_id has wrong type: got boolean, want string", true, true},
+		{"configcenter.access-log", `{"since":null}`, "$.since has wrong type: got null, want string", true, true},
+		{"configcenter.audit", `{"since":false}`, "$.since has wrong type: got boolean, want string", true, true},
 	} {
 		before := len(rp.calls) + len(wp.calls)
-		if _, err := d.Dispatch(context.Background(), opapi.Caller{}, tc.name, json.RawMessage(tc.raw), nil); err == nil || err.Error() != tc.want {
+		audit := &centerAudit{}
+		one := centerDispatcher(t, ops, opapi.Operator, audit)
+		_, err := one.Dispatch(context.Background(), opapi.Caller{}, tc.name, json.RawMessage(tc.raw), nil)
+		if err == nil {
 			t.Fatal(tc.name, tc.raw, err)
 		}
 		if len(rp.calls)+len(wp.calls) != before {
 			t.Fatal("invalid codec touched manager")
+		}
+		if tc.door {
+			// Refused at admission: nothing was audited and the codec never
+			// ran.
+			if !strings.Contains(err.Error(), tc.want) || audit.begin != 0 || audit.end != 0 {
+				t.Fatal(tc.name, tc.raw, err, audit)
+			}
+			continue
+		}
+		if err.Error() != tc.want {
+			t.Fatal(tc.name, tc.raw, err)
+		}
+		if tc.read {
+			// A read is never audited; the codec's own error is the answer.
+			if audit.begin != 0 || audit.end != 0 {
+				t.Fatal(tc.name, tc.raw, err, audit)
+			}
+			continue
+		}
+		if audit.begin != 1 || audit.end != 1 || audit.causes[0] == nil {
+			t.Fatal(tc.name, tc.raw, err, audit)
 		}
 	}
 	for _, tc := range []struct {
@@ -213,9 +247,23 @@ func TestConfigCenterTypedCodecsStrictTextOrderAndPermissiveACL(t *testing.T) {
 	if stringList(nil) != nil {
 		t.Fatal("missing ACL changed")
 	}
-	_, err = d.Dispatch(context.Background(), opapi.Caller{}, "configcenter.set", json.RawMessage(`{"key":" raw ","value":" value ","description":" desc ","allowed_agents":["First","first",false],"excluded_agents":true}`), nil)
+	_, err = d.Dispatch(context.Background(), opapi.Caller{}, "configcenter.set", json.RawMessage(`{"key":" raw ","value":" value ","description":" desc ","allowed_agents":["First","first"]}`), nil)
 	if err != nil || wp.saved.Key != " raw " || wp.saved.Value != " value " || wp.saved.Description != " desc " || !reflect.DeepEqual(wp.saved.AllowedAgents, []string{"First"}) || wp.saved.ExcludedAgents != nil {
 		t.Fatal(wp, err)
+	}
+	// A mistyped access list is a usage error: the door refuses the body, the
+	// codec never runs, nothing is audited and the manager is never touched.
+	for _, tc := range []struct{ raw, want string }{
+		{`{"key":" raw ","value":" value ","excluded_agents":true}`, "$.excluded_agents has wrong type: got boolean, want string|array"},
+		{`{"key":" raw ","value":" value ","allowed_agents":["First",false]}`, "$.allowed_agents[1] has wrong type: got boolean, want string"},
+	} {
+		before := len(wp.calls)
+		audit := &centerAudit{}
+		refused := centerDispatcher(t, ops, opapi.Operator, audit)
+		_, err = refused.Dispatch(context.Background(), opapi.Caller{}, "configcenter.set", json.RawMessage(tc.raw), nil)
+		if err == nil || !strings.Contains(err.Error(), tc.want) || len(wp.calls) != before || audit.begin != 0 || audit.end != 0 {
+			t.Fatal(tc.raw, err, wp, audit)
+		}
 	}
 }
 

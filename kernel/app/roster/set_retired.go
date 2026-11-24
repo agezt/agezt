@@ -176,13 +176,13 @@ func SetRetiredOperations(provider func(context.Context) *SetRetiredService) ([]
 	if err != nil {
 		return nil, err
 	}
-	retire, err := app.NewOperation(opapi.Spec{Name: opapi.AgentRetire, OutputSchema: retireOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{},"reason":{}}}`)}, func(ctx context.Context, in SetRetiredRequest) (RetireOutput, error) {
+	retire, err := app.NewOperation(opapi.Spec{Name: opapi.AgentRetire, OutputSchema: retireOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{"type":"string"},"reason":{"type":"string"}}}`)}, func(ctx context.Context, in SetRetiredRequest) (RetireOutput, error) {
 		return provider(ctx).Retire(ctx, in)
 	})
 	if err != nil {
 		return nil, err
 	}
-	revive, err := app.NewOperation(opapi.Spec{Name: opapi.AgentRevive, OutputSchema: reviveOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{},"reason":{}}}`)}, func(ctx context.Context, in SetRetiredRequest) (ReviveOutput, error) {
+	revive, err := app.NewOperation(opapi.Spec{Name: opapi.AgentRevive, OutputSchema: reviveOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{"type":"string"},"reason":{"type":"string"}}}`)}, func(ctx context.Context, in SetRetiredRequest) (ReviveOutput, error) {
 		return provider(ctx).Revive(ctx, in)
 	})
 	if err != nil {

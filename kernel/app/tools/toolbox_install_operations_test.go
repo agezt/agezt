@@ -56,7 +56,7 @@ func TestToolboxInstallTypedStreamPolicySchemaPayloadAndAudit(t *testing.T) {
 	}
 	emitter := &toolboxEmitterProbe{}
 	ctx := context.WithValue(context.Background(), struct{ owned bool }{true}, "owned")
-	out, err := d.Dispatch(ctx, opapi.Caller{}, spec.Name, json.RawMessage(`{"names":[false,"",null," raw "," raw ",1],"unknown":true,"tenant":"spoof"}`), emitter)
+	out, err := d.Dispatch(ctx, opapi.Caller{}, spec.Name, json.RawMessage(`{"names":[""," raw "," raw "],"unknown":true,"tenant":"spoof"}`), emitter)
 	raw, _ := json.Marshal(out)
 	if err != nil || schema.ValidateJSON(spec.OutputSchema, raw) != nil || factory != 1 || factoryCtx != ctx || a.begins != 1 || a.ends != 1 || a.cause != nil || len(emitter.frames) != 2 || !reflect.DeepEqual(p.names, []string{" raw ", " raw "}) {
 		t.Fatal(out, err, p, a, emitter)
@@ -134,15 +134,40 @@ func TestToolboxInstallStreamAdmissionStopsFactoryAndEffects(t *testing.T) {
 	}
 }
 func TestToolboxInstallNativeNamesCodecAndEmptyInputBeforeFactory(t *testing.T) {
-	for _, raw := range []string{`{}`, `{"names":null}`, `{"names":false}`, `{"names":1}`, `{"names":"owned"}`, `{"names":{}}`, `{"names":[]}`, `{"names":[false,null,1,""]}`} {
+	// The names argument is a list of strings: a mistyped list (or a mistyped
+	// entry) is refused at admission, before the factory runs.
+	for _, tc := range []struct {
+		raw, want string
+		refused   bool
+	}{
+		{`{}`, "args.names (non-empty list) required", false},
+		{`{"names":null}`, "operation toolbox_install input: $.names has wrong type: got null, want array", true},
+		{`{"names":false}`, "operation toolbox_install input: $.names has wrong type: got boolean, want array", true},
+		{`{"names":1}`, "operation toolbox_install input: $.names has wrong type: got number, want array", true},
+		{`{"names":"owned"}`, "operation toolbox_install input: $.names has wrong type: got string, want array", true},
+		{`{"names":{}}`, "operation toolbox_install input: $.names has wrong type: got object, want array", true},
+		{`{"names":[]}`, "args.names (non-empty list) required", false},
+		{`{"names":[false,null,1,""]}`, "operation toolbox_install input: $.names[0] has wrong type: got boolean, want string", true},
+	} {
 		p := &toolboxInstallProbe{}
 		a := &forgeAuditProbe{}
 		factory := 0
 		var factoryCtx context.Context
 		d, op := toolboxStreamDispatcher(t, p, a, opapi.Operator, &factory, &factoryCtx)
-		_, err := d.Dispatch(context.Background(), opapi.Caller{}, op.Spec().Name, json.RawMessage(raw), &toolboxEmitterProbe{})
-		if err == nil || err.Error() != "args.names (non-empty list) required" || factory != 0 || len(p.names) != 0 || a.begins != 1 || a.ends != 1 {
-			t.Fatal(raw, err, factory, p, a)
+		_, err := d.Dispatch(context.Background(), opapi.Caller{}, op.Spec().Name, json.RawMessage(tc.raw), &toolboxEmitterProbe{})
+		if err == nil || err.Error() != tc.want || factory != 0 || len(p.names) != 0 {
+			t.Fatal(tc.raw, err, factory, p, a)
+		}
+		if tc.refused {
+			// The body never matched the request contract: the operation was
+			// never admitted, so nothing was audited.
+			if a.begins != 0 || a.ends != 0 {
+				t.Fatal(tc.raw, err, factory, p, a)
+			}
+			continue
+		}
+		if a.begins != 1 || a.ends != 1 {
+			t.Fatal(tc.raw, err, factory, p, a)
 		}
 	}
 }

@@ -105,8 +105,14 @@ func TestScheduleAppReadsRetainUnauditedUnaryShapesAndMissingEditAdmission(t *te
 	if audits != 0 || provider.CallCount() != 0 {
 		t.Fatal(audits, provider.CallCount())
 	}
-	responses := callAppHost(t, s, Request{ID: "missing", Cmd: opapi.ScheduleEdit, Token: "primary", Args: map[string]any{"id": "missing", "target": true, "agent": true, "interval_sec": "bad"}})
+	responses := callAppHost(t, s, Request{ID: "missing", Cmd: opapi.ScheduleEdit, Token: "primary", Args: map[string]any{"id": "missing"}})
 	if len(responses) != 1 || responses[0].Type != RespResult || !reflect.DeepEqual(responses[0].Result, map[string]any{"updated": false}) {
+		t.Fatal(responses)
+	}
+	// A field that is not the type the request contract names is refused at the
+	// door: the schedule is never read, and the operator is told which field.
+	responses = callAppHost(t, s, Request{ID: "missing", Cmd: opapi.ScheduleEdit, Token: "primary", Args: map[string]any{"id": "missing", "interval_sec": "bad"}})
+	if len(responses) != 1 || responses[0].Type != RespError || !strings.Contains(responses[0].Error, "$.interval_sec has wrong type: got string, want number") {
 		t.Fatal(responses)
 	}
 }

@@ -713,13 +713,13 @@ func PermissionOperations(provider func(context.Context) *PermissionService) ([]
 	if err != nil {
 		return nil, err
 	}
-	read, err := app.NewOperation(opapi.Spec{Name: opapi.AgentPermissions, ReadOnly: true, OutputSchema: readOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{}}}`)}, func(ctx context.Context, in PermissionsRequest) (PermissionsOutput, error) {
+	read, err := app.NewOperation(opapi.Spec{Name: opapi.AgentPermissions, ReadOnly: true, OutputSchema: readOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{"type":"string"}}}`)}, func(ctx context.Context, in PermissionsRequest) (PermissionsOutput, error) {
 		return provider(ctx).Permissions(ctx, in)
 	})
 	if err != nil {
 		return nil, err
 	}
-	write, err := app.NewOperation(opapi.Spec{Name: opapi.AgentCapabilities, OutputSchema: writeOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{},"trust_ceiling":{},"tool_allow":{},"tool_deny":{},"noise_policy":{},"config_overrides":{},"memory_scope":{},"workdir":{},"max_cost_mc":{},"max_daily_mc":{}}}`)}, func(ctx context.Context, in CapabilitiesRequest) (CapabilitiesOutput, error) {
+	write, err := app.NewOperation(opapi.Spec{Name: opapi.AgentCapabilities, OutputSchema: writeOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{"type":"string"},"trust_ceiling":{"type":"string"},"tool_allow":{"type":"array","items":{"type":"string"}},"tool_deny":{"type":"array","items":{"type":"string"}},"noise_policy":{"type":"object"},"config_overrides":{"type":"object"},"memory_scope":{"type":"string"},"workdir":{"type":"string"},"max_cost_mc":{"type":"integer"},"max_daily_mc":{"type":"integer"}}}`)}, func(ctx context.Context, in CapabilitiesRequest) (CapabilitiesOutput, error) {
 		return provider(ctx).Capabilities(ctx, in)
 	})
 	if err != nil {

@@ -167,13 +167,13 @@ func AskOperations(provider func(context.Context) Engines) ([]app.Operation, err
 		return nil, err
 	}
 	frames := json.RawMessage(event.WireSchema)
-	ask, err := app.NewStreamingOperation(opapi.Spec{Name: opapi.CouncilAsk, Stream: opapi.StreamLive, OutputSchema: askOut, EmissionSchema: frames, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"question":{},"rounds":{},"corr":{}}}`)}, func(ctx context.Context, in AskRequest, _ func(event.Event) error) (AskOutput, error) {
+	ask, err := app.NewStreamingOperation(opapi.Spec{Name: opapi.CouncilAsk, Stream: opapi.StreamLive, OutputSchema: askOut, EmissionSchema: frames, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"question":{"type":"string"},"rounds":{"type":["number","string"]},"corr":{"type":"string"}}}`)}, func(ctx context.Context, in AskRequest, _ func(event.Event) error) (AskOutput, error) {
 		return provider(ctx).Ask(ctx, in)
 	})
 	if err != nil {
 		return nil, err
 	}
-	conduct, err := app.NewStreamingOperation(opapi.Spec{Name: opapi.ConductorAsk, Stream: opapi.StreamLive, OutputSchema: conductOut, EmissionSchema: frames, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"task":{},"corr":{},"thinker":{},"worker":{},"verifier":{},"max_rounds":{},"plan":{}}}`)}, func(ctx context.Context, in ConductRequest, _ func(event.Event) error) (ConductOutput, error) {
+	conduct, err := app.NewStreamingOperation(opapi.Spec{Name: opapi.ConductorAsk, Stream: opapi.StreamLive, OutputSchema: conductOut, EmissionSchema: frames, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"task":{"type":"string"},"corr":{"type":"string"},"thinker":{"type":"string"},"worker":{"type":"string"},"verifier":{"type":"string"},"max_rounds":{"type":["number","string"]},"plan":{"type":["boolean","string"]}}}`)}, func(ctx context.Context, in ConductRequest, _ func(event.Event) error) (ConductOutput, error) {
 		return provider(ctx).Conduct(ctx, in)
 	})
 	if err != nil {

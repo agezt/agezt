@@ -30,7 +30,7 @@ func SendOperations(provider func(context.Context) *Outbound) ([]app.Operation, 
 		return nil, errors.New("channel sender service provider required")
 	}
 	op, err := app.NewOperation(opapi.Spec{Name: opapi.Send, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true,
-		InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"channel":{},"to":{},"text":{}}}`),
+		InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"channel":{"type":"string"},"to":{"type":"string"},"text":{"type":"string"}}}`),
 	}, func(ctx context.Context, in SendRequest) (output SendOutput, cause error) {
 		// Retain native panic opacity; Send releases sender resources on unwind.
 		defer func() {

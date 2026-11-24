@@ -110,7 +110,7 @@ func TestChannelSendOperationSpecAndTerminalOwnership(t *testing.T) {
 }
 
 func TestChannelSendOperationAdmissionAndLenientRequiredFields(t *testing.T) {
-	for _, mode := range []string{"canceled", "tenant", "audit-error", "audit-missing", "invalid"} {
+	for _, mode := range []string{"canceled", "tenant", "audit-error", "audit-missing", "invalid", "invalid-type"} {
 		providers, sends := 0, 0
 		ops, _ := SendOperations(func(context.Context) *Outbound {
 			providers++
@@ -135,7 +135,14 @@ func TestChannelSendOperationAdmissionAndLenientRequiredFields(t *testing.T) {
 		}
 		raw := json.RawMessage(`{"channel":"slack","to":"owned","text":"text"}`)
 		if mode == "invalid" {
-			raw = json.RawMessage(`{"channel":false,"to":{},"text":null}`)
+			// A type-correct body that decodes to empty fields: the handler
+			// refuses it, and the refusal is audited.
+			raw = json.RawMessage(`{"channel":"","to":"","text":""}`)
+		}
+		if mode == "invalid-type" {
+			// A mistyped field is a usage error: the door refuses it at
+			// admission, so nothing is audited and nothing runs.
+			raw = json.RawMessage(`{"channel":"slack","to":5,"text":"text"}`)
 		}
 		out, err := d.Dispatch(ctx, opapi.Caller{}, "send", raw, nil)
 		cancel()
@@ -144,6 +151,11 @@ func TestChannelSendOperationAdmissionAndLenientRequiredFields(t *testing.T) {
 		}
 		if mode == "invalid" {
 			if providers != 1 || err.Error() != "send requires channel, to, and text" || audit.begin != 1 || audit.end != 1 {
+				t.Fatal(mode, err, providers, audit)
+			}
+		} else if mode == "invalid-type" {
+			want := "operation send input: $.to has wrong type: got number, want string"
+			if err.Error() != want || providers != 0 || audit.begin != 0 || audit.end != 0 {
 				t.Fatal(mode, err, providers, audit)
 			}
 		} else if providers != 0 {

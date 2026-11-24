@@ -10,6 +10,7 @@ import (
 	"github.com/agezt/agezt/kernel/platform/schema"
 	core "github.com/agezt/agezt/kernel/settings"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -83,7 +84,7 @@ func TestSettingsTypedFiveOperationsMetadataAdmissionContextAndAudit(t *testing.
 		name, raw     string
 		input, output reflect.Type
 		read          bool
-	}{{"config_schema", `{"unknown":true,"name":null}`, reflect.TypeFor[SchemaInput](), reflect.TypeFor[SchemaOutput](), true}, {"config_values", `{"unknown":true,"value":false}`, reflect.TypeFor[ValuesInput](), reflect.TypeFor[ValuesOutput](), true}, {"config_set", `{"name":" owned ","value":" raw ","unknown":true}`, reflect.TypeFor[SetRequest](), reflect.TypeFor[SetOutput](), false}, {"config_schema_register", `{"section":{"id":" raw id ","name":" raw name ","fields":[]},"unknown":true}`, reflect.TypeFor[RegisterRequest](), reflect.TypeFor[RegisterOutput](), false}, {"config_schema_unregister", `{"id":" raw-id ","force":true,"unknown":true}`, reflect.TypeFor[UnregisterRequest](), reflect.TypeFor[UnregisterOutput](), false}}
+	}{{"config_schema", `{"unknown":true,"name":"ignored"}`, reflect.TypeFor[SchemaInput](), reflect.TypeFor[SchemaOutput](), true}, {"config_values", `{"unknown":true,"value":"ignored"}`, reflect.TypeFor[ValuesInput](), reflect.TypeFor[ValuesOutput](), true}, {"config_set", `{"name":" owned ","value":" raw ","unknown":true}`, reflect.TypeFor[SetRequest](), reflect.TypeFor[SetOutput](), false}, {"config_schema_register", `{"section":{"id":" raw id ","name":" raw name ","fields":[]},"unknown":true}`, reflect.TypeFor[RegisterRequest](), reflect.TypeFor[RegisterOutput](), false}, {"config_schema_unregister", `{"id":" raw-id ","force":true,"unknown":true}`, reflect.TypeFor[UnregisterRequest](), reflect.TypeFor[UnregisterOutput](), false}}
 	for _, tc := range cases {
 		sp := d.Specs()
 		found := false
@@ -148,14 +149,46 @@ func coreFieldForSettingsOps() core.Field {
 	return core.Field{Type: core.TypeText, Apply: core.ApplyRestart}
 }
 func TestSettingsTypedCodecsPreserveStrictErrorsAndOrdering(t *testing.T) {
-	for _, tc := range []struct{ op, raw, want string }{{"config_set", `{}`, "args.name required"}, {"config_set", `{"name":null,"value":false}`, "args.name must be a string"}, {"config_set", `{"name":false}`, "args.name must be a string"}, {"config_set", `{"name":" ","value":false}`, "args.name required"}, {"config_set", `{"name":"owned","value":null}`, "args.value must be a string"}, {"config_set", `{"name":"owned","value":false}`, "args.value must be a string"}, {"config_schema_register", `{}`, "args.section required"}, {"config_schema_register", `{"section":false}`, "decode section: json: cannot unmarshal bool into Go value of type settings.Section"}, {"config_schema_unregister", `{}`, "args.id required"}, {"config_schema_unregister", `{"id":null,"force":false}`, "args.id must be a string"}, {"config_schema_unregister", `{"id":" ","force":null}`, "args.id required"}, {"config_schema_unregister", `{"id":"owned","force":null}`, "args.force must be a boolean"}, {"config_schema_unregister", `{"id":"owned","force":"true"}`, "args.force must be a boolean"}} {
+	// A body whose TYPE is wrong is refused at the door: it never reaches the
+	// audit and never reaches the handler. A body that is type-correct but
+	// semantically wrong still reaches both, and the codec's own message is
+	// what the daemon answers.
+	for _, tc := range []struct {
+		op, raw, want string
+		door          bool
+	}{
+		{"config_set", `{}`, "args.name required", false},
+		{"config_set", `{"name":null}`, "$.name has wrong type: got null, want string", true},
+		{"config_set", `{"name":false}`, "$.name has wrong type: got boolean, want string", true},
+		{"config_set", `{"name":" "}`, "args.name required", false},
+		{"config_set", `{"name":"owned","value":null}`, "$.value has wrong type: got null, want string", true},
+		{"config_set", `{"name":"owned","value":false}`, "$.value has wrong type: got boolean, want string", true},
+		{"config_schema_register", `{}`, "args.section required", false},
+		{"config_schema_register", `{"section":false}`, "$.section has wrong type: got boolean, want object", true},
+		{"config_schema_unregister", `{}`, "args.id required", false},
+		{"config_schema_unregister", `{"id":null}`, "$.id has wrong type: got null, want string", true},
+		{"config_schema_unregister", `{"id":" "}`, "args.id required", false},
+		{"config_schema_unregister", `{"id":"owned","force":null}`, "$.force has wrong type: got null, want boolean", true},
+		{"config_schema_unregister", `{"id":"owned","force":"true"}`, "$.force has wrong type: got string, want boolean", true},
+	} {
 		t.Run(tc.op+tc.raw, func(t *testing.T) {
 			wf := 0
 			ops, _ := Operations(func(context.Context) *Reads { return NewReads(&settingsReadProbe{}) }, func(context.Context) *Writes { wf++; return NewWrites(&settingsWriteProbe{}) })
 			audit := &settingsAudit{}
 			d, _ := app.NewDispatcher(ops, app.Dependencies{Auth: settingsAuth{opapi.Operator}, Router: settingsRoute{}, Audit: audit})
 			_, err := d.Dispatch(context.Background(), opapi.Caller{}, tc.op, json.RawMessage(tc.raw), nil)
-			if err == nil || err.Error() != tc.want || wf != 0 || audit.begin != 1 || audit.end != 1 || audit.causes[0] == nil {
+			if err == nil || wf != 0 {
+				t.Fatal(err, wf, audit)
+			}
+			if tc.door {
+				// Refused at admission: nothing was audited and the codec
+				// never ran.
+				if !strings.Contains(err.Error(), tc.want) || audit.begin != 0 || audit.end != 0 {
+					t.Fatal(err, wf, audit)
+				}
+				return
+			}
+			if err.Error() != tc.want || audit.begin != 1 || audit.end != 1 || audit.causes[0] == nil {
 				t.Fatal(err, wf, audit)
 			}
 		})

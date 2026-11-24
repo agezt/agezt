@@ -126,17 +126,26 @@ func TestWorkflowAppPresenceAdmissionOrderAndCompatForms(t *testing.T) {
 	for _, test := range []struct {
 		value any
 		want  bool
-	}{{true, true}, {false, false}, {"TRUE", true}, {"1", true}, {" true ", false}, {float64(1), false}, {nil, false}} {
+	}{{true, true}, {false, false}, {"TRUE", true}, {"1", true}, {" true ", false}} {
 		out := callAppHost(t, s, Request{ID: "enable", Cmd: opapi.WorkflowSetEnabled, Token: "primary", Args: map[string]any{"ref": graph.ID, "enabled": test.value}})
 		if len(out) != 1 || out[0].Type != RespResult || out[0].Result["workflow"].(map[string]any)["enabled"] != test.want {
 			t.Fatal(test, out)
+		}
+	}
+	// A flag that is neither a boolean nor one of its text forms is refused at
+	// the door: the workflow is never read, so a mistyped flag cannot disable
+	// the wrong graph.
+	for _, value := range []any{float64(1), nil} {
+		out := callAppHost(t, s, Request{ID: "enable", Cmd: opapi.WorkflowSetEnabled, Token: "primary", Args: map[string]any{"ref": graph.ID, "enabled": value}})
+		if len(out) != 1 || out[0].Type != RespError || !strings.Contains(out[0].Error, "$.enabled has wrong type") {
+			t.Fatal(value, out)
 		}
 	}
 	cases := []struct {
 		cmd       string
 		args      map[string]any
 		errorText string
-	}{{opapi.WorkflowRestore, map[string]any{"workflow": nil, "reason": true}, "args.reason must be a string"}, {opapi.WorkflowRefine, map[string]any{"instruction": " ", "workflow": true}, "args.instruction required"}, {opapi.WorkflowRefine, map[string]any{"instruction": "revise", "workflow": "bad", "ref": true}, "args.workflow:"}, {opapi.WorkflowTestNode, map[string]any{"workflow": "bad", "node": true, "data": nil}, "args.workflow:"}, {opapi.WorkflowTestNode, map[string]any{"workflow": graph, "node": "work", "data": nil}, "args.data must be an object"}, {opapi.WorkflowWebhook, map[string]any{"ref": true, "secret": true}, "webhook refused"}}
+	}{{opapi.WorkflowRestore, map[string]any{"reason": true}, "$.reason has wrong type: got boolean, want string"}, {opapi.WorkflowRefine, map[string]any{"instruction": " "}, "args.instruction required"}, {opapi.WorkflowRefine, map[string]any{"instruction": "revise", "workflow": "bad"}, "$.workflow has wrong type: got string, want object"}, {opapi.WorkflowTestNode, map[string]any{"workflow": "bad"}, "$.workflow has wrong type: got string, want object"}, {opapi.WorkflowTestNode, map[string]any{"workflow": graph, "node": "work", "data": nil}, "$.data has wrong type: got null, want object"}, {opapi.WorkflowWebhook, map[string]any{"ref": graph.ID, "secret": "wrong"}, "webhook refused"}}
 	for _, test := range cases {
 		out := callAppHost(t, s, Request{ID: test.cmd, Cmd: test.cmd, Token: "primary", Args: test.args})
 		if len(out) != 1 || out[0].Type != RespError || !strings.Contains(out[0].Error, test.errorText) {
@@ -151,10 +160,18 @@ func TestWorkflowAppPresenceAdmissionOrderAndCompatForms(t *testing.T) {
 	for _, test := range []struct {
 		limit any
 		count float64
-	}{{"1", 20}, {float64(1.9), 1}, {nil, 20}} {
+	}{{float64(1.9), 1}} {
 		out := callAppHost(t, s, Request{ID: "history", Cmd: opapi.WorkflowRuns, Token: "primary", Args: map[string]any{"ref": graph.ID, "limit": test.limit}})
 		if len(out) != 1 || out[0].Type != RespResult || out[0].Result["count"] != test.count {
 			t.Fatal(test, out)
+		}
+	}
+	// A limit that is not a number is refused at the door: the history is
+	// never read for it.
+	for _, limit := range []any{"1", nil} {
+		out := callAppHost(t, s, Request{ID: "history", Cmd: opapi.WorkflowRuns, Token: "primary", Args: map[string]any{"ref": graph.ID, "limit": limit}})
+		if len(out) != 1 || out[0].Type != RespError || !strings.Contains(out[0].Error, "$.limit has wrong type") {
+			t.Fatal(limit, out)
 		}
 	}
 }

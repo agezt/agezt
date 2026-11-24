@@ -16,6 +16,12 @@ const CHAIN_PREFIX = "@";
 // carries that nullability instead of inventing a non-null promise.
 export type ChainMap = RoutingGetResponse["chains"];
 
+// ChainRegistry is the browser's VIEW of the chain map: the daemon's own
+// registry is normalised to an object before it leaves the daemon (a nil map
+// becomes an empty one), so the browser normalises the null arm away at the
+// fetch boundary and works with the map itself.
+export type ChainRegistry = NonNullable<ChainMap>;
+
 export type ChainsState = Pick<ChainsGetResponse, "chains" | "default">;
 
 // isChainRef reports whether a model value is actually a "@<name>" reference to
@@ -39,7 +45,7 @@ export function chainRef(name: string): string {
 export function chainLabel(value: string, chains: ChainMap): string {
   if (!isChainRef(value)) return value;
   const name = chainName(value);
-  const models = chains[name];
+  const models = chains?.[name];
   return models && models.length ? `⛓ ${name} (${models.length})` : `⛓ ${name}`;
 }
 
@@ -72,15 +78,15 @@ export function removeAt<T>(arr: T[], i: number): T[] {
 // renameChain returns a new chains map with key `from` renamed to `to`,
 // preserving its models. No-op when from===to. The default name should be
 // re-pointed by the caller if it referenced `from`.
-export function renameChain(chains: ChainMap, from: string, to: string): ChainMap {
+export function renameChain(chains: ChainRegistry, from: string, to: string): ChainRegistry {
   if (from === to || !(from in chains)) return chains;
-  const next: ChainMap = {};
+  const next: ChainRegistry = {};
   for (const [k, v] of Object.entries(chains)) next[k === from ? to : k] = v;
   return next;
 }
 
 // deleteChain returns a new chains map without `name`.
-export function deleteChain(chains: ChainMap, name: string): ChainMap {
+export function deleteChain(chains: ChainRegistry, name: string): ChainRegistry {
   const next = { ...chains };
   delete next[name];
   return next;

@@ -127,7 +127,7 @@ func TestSkillTypedImportAndHygieneRetainNativeAdmission(t *testing.T) {
 	for _, tc := range []struct {
 		raw  string
 		days int
-	}{{`{}`, 30}, {`{"idle_days":0.5}`, 30}, {`{"idle_days":-1}`, 30}, {`{"idle_days":"2"}`, 2}, {`{"idle_days":"1.2"}`, 30}, {`{"idle_days":true}`, 30}} {
+	}{{`{}`, 30}, {`{"idle_days":0.5}`, 30}, {`{"idle_days":-1}`, 30}, {`{"idle_days":"2"}`, 2}, {`{"idle_days":"1.2"}`, 30}} {
 		value, err := d.Dispatch(ctx, opapi.Caller{}, "skill_hygiene", json.RawMessage(tc.raw), nil)
 		if err != nil || value.(appskill.HygieneOutput).IdleDays != tc.days {
 			t.Fatalf("hygiene %s out=%+v err=%v", tc.raw, value, err)

@@ -219,7 +219,7 @@ func TaskUpdateOperations(provider func(context.Context) *TaskUpdateService) ([]
 	if err != nil {
 		return nil, err
 	}
-	op, err := app.NewOperation(opapi.Spec{Name: opapi.AgentTaskUpdate, OutputSchema: output, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{},"op":{},"task":{},"id":{},"title":{},"description":{},"scope":{},"status":{}}}`)}, func(ctx context.Context, in TaskUpdateRequest) (TaskUpdateOutput, error) {
+	op, err := app.NewOperation(opapi.Spec{Name: opapi.AgentTaskUpdate, OutputSchema: output, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{"type":"string"},"op":{"type":"string"},"task":{"type":"object"},"id":{"type":"string"},"title":{"type":"string"},"description":{"type":"string"},"scope":{"type":"string"},"status":{"type":"string"}}}`)}, func(ctx context.Context, in TaskUpdateRequest) (TaskUpdateOutput, error) {
 		return provider(ctx).TaskUpdate(ctx, in)
 	})
 	if err != nil {

@@ -35,7 +35,7 @@ type Providers struct {
 	Execution func(context.Context) *Execution
 }
 
-var requestSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{},"workflow":{},"reason":{},"enabled":{},"async":{},"payload":{},"with_runs":{},"limit":{},"name":{},"description":{},"instruction":{},"secret":{},"node":{},"data":{}}}`)
+var requestSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{"type":"string"},"workflow":{"type":"object"},"reason":{"type":"string"},"enabled":{"type":["boolean","string"]},"async":{"type":"boolean"},"payload":{"type":["object","array","string","number","boolean","null"]},"with_runs":{"type":["boolean","string"]},"limit":{"type":"number"},"name":{"type":"string"},"description":{"type":"string"},"instruction":{"type":"string"},"secret":{"type":"string"},"node":{"type":"string"},"data":{"type":"object"}}}`)
 
 func requestValue(raw json.RawMessage) any {
 	var out any

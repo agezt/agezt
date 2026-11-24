@@ -188,24 +188,25 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 		return nil, errors.New("persona provider required")
 	}
 	defs := []struct {
-		name   string
-		read   bool
-		output reflect.Type
-		input  string
-		build  func(opapi.Spec) (app.Operation, error)
+		name      string
+		read      bool
+		output    reflect.Type
+		input     string
+		inputType string
+		build     func(opapi.Spec) (app.Operation, error)
 	}{
-		{opapi.PersonaGet, true, reflect.TypeFor[GetOutput](), "", func(s opapi.Spec) (app.Operation, error) {
+		{opapi.PersonaGet, true, reflect.TypeFor[GetOutput](), "", "", func(s opapi.Spec) (app.Operation, error) {
 			return app.NewOperation(s, func(ctx context.Context, in GetRequest) (GetOutput, error) { return provider(ctx).Get(ctx, in) })
 		}},
-		{opapi.PersonaSet, false, reflect.TypeFor[SetOutput](), "system", func(s opapi.Spec) (app.Operation, error) {
+		{opapi.PersonaSet, false, reflect.TypeFor[SetOutput](), "system", `{"type":"string"}`, func(s opapi.Spec) (app.Operation, error) {
 			return app.NewOperation(s, func(ctx context.Context, in SetRequest) (SetOutput, error) { return provider(ctx).Set(ctx, in) })
 		}},
-		{opapi.PromptsGet, true, reflect.TypeFor[PromptsOutput](), "", func(s opapi.Spec) (app.Operation, error) {
+		{opapi.PromptsGet, true, reflect.TypeFor[PromptsOutput](), "", "", func(s opapi.Spec) (app.Operation, error) {
 			return app.NewOperation(s, func(ctx context.Context, in PromptsRequest) (PromptsOutput, error) {
 				return provider(ctx).Prompts(ctx, in)
 			})
 		}},
-		{opapi.PromptsSet, false, reflect.TypeFor[PromptsSetOutput](), "prompts", func(s opapi.Spec) (app.Operation, error) {
+		{opapi.PromptsSet, false, reflect.TypeFor[PromptsSetOutput](), "prompts", `{"type":"array","items":{"type":"object"}}`, func(s opapi.Spec) (app.Operation, error) {
 			return app.NewOperation(s, func(ctx context.Context, in PromptsSetRequest) (PromptsSetOutput, error) {
 				return provider(ctx).SetPrompts(ctx, in)
 			})
@@ -219,7 +220,7 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 		}
 		spec := opapi.Spec{Name: d.name, ReadOnly: d.read, OutputSchema: out, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true}
 		if d.input != "" {
-			spec.InputSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"` + d.input + `":{}}}`)
+			spec.InputSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"` + d.input + `":` + d.inputType + `}}`)
 		}
 		op, err := d.build(spec)
 		if err != nil {

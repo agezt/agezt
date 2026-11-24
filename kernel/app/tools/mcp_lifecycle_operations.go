@@ -23,7 +23,7 @@ type MCPSetEnabledRequest struct {
 	Enabled json.RawMessage `json:"enabled,omitempty"`
 }
 
-var mcpLifecycleInputSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"server":{},"ref":{},"enabled":{}}}`)
+var mcpLifecycleInputSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"server":{"type":"object"},"ref":{"type":"string"},"enabled":{"type":["boolean","string"]}}}`)
 
 func mcpDecodeServer(raw json.RawMessage) (mcpapi.Server, error) {
 	if len(raw) == 0 {

@@ -315,9 +315,9 @@ func TestOperations(t *testing.T) {
 		properties         string
 	}{
 		{opapi.RoutingGet, "GET", "/api/routing", true, reflect.TypeFor[RoutingRequest](), reflect.TypeFor[RoutingOutput](), ""},
-		{opapi.RoutingSet, "POST", "/api/routing/set", false, reflect.TypeFor[RoutingSetRequest](), reflect.TypeFor[RoutingSetOutput](), `"chains":{}`},
+		{opapi.RoutingSet, "POST", "/api/routing/set", false, reflect.TypeFor[RoutingSetRequest](), reflect.TypeFor[RoutingSetOutput](), `"chains":{"type":"object"}`},
 		{opapi.ChainsGet, "GET", "/api/chains", true, reflect.TypeFor[ChainsRequest](), reflect.TypeFor[ChainsOutput](), ""},
-		{opapi.ChainsSet, "POST", "/api/chains/set", false, reflect.TypeFor[ChainsSetRequest](), reflect.TypeFor[ChainsSetOutput](), `"chains":{},"default":{}`},
+		{opapi.ChainsSet, "POST", "/api/chains/set", false, reflect.TypeFor[ChainsSetRequest](), reflect.TypeFor[ChainsSetOutput](), `"chains":{"type":"object"},"default":{"type":"string"}`},
 	} {
 		s := ops[i].Spec()
 		out, err := schema.FromType(want.output, false)
@@ -330,7 +330,7 @@ func TestOperations(t *testing.T) {
 		if want.properties != "" && !strings.Contains(string(s.InputSchema), `"properties":{`+want.properties+`}`) {
 			t.Fatalf("%s input schema: %s", want.name, s.InputSchema)
 		}
-		for _, in := range []string{`{}`, `{"chains":null,"default":7,"tenant":"x"}`} {
+		for _, in := range []string{`{}`, `{"chains":{"task":["owned-model"]},"default":"task","tenant":"x"}`} {
 			if err := schema.ValidateJSON(s.InputSchema, json.RawMessage(in)); err != nil {
 				t.Fatal(want.name, in, err)
 			}

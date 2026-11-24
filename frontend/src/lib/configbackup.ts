@@ -5,10 +5,16 @@
 // Each section already has its own get/set command; this just bundles + restores them.
 
 import { getJSON, postJSON } from "@/app/api";
+import type { PromptsSetRequest } from "@/app/api/types.generated";
+
+// Prompts is the daemon's own prompt item: an object the daemon reads a title
+// and a text out of. The daemon's SET endpoint takes objects and ignores every
+// field it does not know, so the bundle carries the same shape.
+type PromptItem = NonNullable<PromptsSetRequest["prompts"]>[number];
 
 export interface ConfigBundle {
   persona?: string;
-  prompts?: unknown[];
+  prompts?: PromptItem[];
   chains?: Record<string, string[]>;
 }
 
@@ -25,9 +31,13 @@ export function parseConfigBundle(text: string): ConfigBundle {
   const out: ConfigBundle = {};
   // persona: any string (including "" — a deliberate "no default identity", restored as-is).
   if (typeof src.persona === "string") out.persona = src.persona;
-  // prompts: pass the array through (the prompts_set command validates entries, the
-  // same path the prompt import/export uses).
-  if (Array.isArray(src.prompts)) out.prompts = src.prompts;
+  // prompts: keep the entries that are objects (the daemon's prompt items);
+  // the daemon trims, caps and drops the ones it cannot read.
+  if (Array.isArray(src.prompts)) {
+    out.prompts = src.prompts.filter(
+      (e: unknown): e is Record<string, any> => !!e && typeof e === "object" && !Array.isArray(e),
+    );
+  }
   // chains: keep only {task: [model strings]} entries with a non-empty chain.
   if (src.chains && typeof src.chains === "object" && !Array.isArray(src.chains)) {
     const chains: Record<string, string[]> = {};
@@ -58,7 +68,7 @@ export async function fetchConfigBundle(): Promise<{ version: number; config: Re
   for (const [task, list] of Object.entries(r.chains || {})) {
     if (list) chains[task] = list;
   }
-  return { version: 1, config: { persona: p.system || "", prompts: pr.prompts || [], chains } };
+  return { version: 1, config: { persona: p.system || "", prompts: (pr.prompts || []).map((x) => ({ title: x.title, text: x.text })), chains } };
 }
 
 // applyConfigBundle restores each section a bundle carries via the existing /set

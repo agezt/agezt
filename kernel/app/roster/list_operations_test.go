@@ -11,6 +11,7 @@ import (
 	core "github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/platform/schema"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -188,10 +189,10 @@ func TestRosterListOperationAdmissionAndDelayedCodec(t *testing.T) {
 	if _, err := d.Dispatch(ctx, opapi.Caller{}, "agent_list", json.RawMessage(`{}`), nil); !errors.Is(err, context.Canceled) || providers != 0 || reads != 0 {
 		t.Fatal("canceled effects", err)
 	}
-	for _, tc := range []struct{ raw, err string }{{`{"limit":"wrong","cursor":false}`, "args.limit must be a number"}, {`{"limit":null}`, "args.limit must be a number"}, {`{"cursor":null}`, "args.cursor must be a string"}} {
+	for _, tc := range []struct{ raw, err string }{{`{"limit":"wrong"}`, "$.limit has wrong type: got string, want number"}, {`{"limit":null}`, "$.limit has wrong type: got null, want number"}, {`{"cursor":null}`, "$.cursor has wrong type: got null, want string"}} {
 		before := reads
 		_, err := d.Dispatch(context.Background(), opapi.Caller{}, "agent_list", json.RawMessage(tc.raw), nil)
-		if err == nil || err.Error() != tc.err || reads != before+1 || statuses != 1 {
+		if err == nil || !strings.Contains(err.Error(), tc.err) || reads != before || statuses != 0 {
 			t.Fatal("codec ordering", tc, err, reads, statuses)
 		}
 	}

@@ -27,7 +27,7 @@ type AddSourceRequest struct {
 	PubKey json.RawMessage `json:"pubkey,omitempty"`
 }
 
-var writeInputSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"name":{},"marketplace":{},"version":{},"url":{},"pubkey":{}}}`)
+var writeInputSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"name":{"type":"string"},"marketplace":{"type":"string"},"version":{"type":"string"},"url":{"type":"string"},"pubkey":{"type":"string"}}}`)
 var marketProgressSchema = func() json.RawMessage {
 	var frame map[string]any
 	if err := json.Unmarshal([]byte(event.WireSchema), &frame); err != nil {

@@ -396,12 +396,10 @@ func (s *Service) Drop(_ context.Context, in DropRequest) (DropOutput, error) {
 	return DropOutput{Dropped: name}, nil
 }
 
-func properties(names ...string) json.RawMessage {
-	parts := make([]string, 0, len(names))
-	for _, n := range names {
-		parts = append(parts, `"`+n+`":{}`)
-	}
-	return json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{` + strings.Join(parts, ",") + `}}`)
+// properties renders the request contract of an operation: every property
+// carries the type the handler reads it as.
+func properties(props ...string) json.RawMessage {
+	return json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{` + strings.Join(props, ",") + `}}`)
 }
 
 // Operations declares the two read-only views and the five audited edits, all
@@ -422,32 +420,32 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 				return provider(ctx).Collections(ctx, in)
 			})
 		}},
-		{opapi.DataRecords, true, reflect.TypeFor[RecordsOutput](), []string{"collection", "search", "sort", "desc", "limit", "offset"}, func(s opapi.Spec) (app.Operation, error) {
+		{opapi.DataRecords, true, reflect.TypeFor[RecordsOutput](), []string{`"collection":{"type":"string"}`, `"search":{"type":"string"}`, `"sort":{"type":"string"}`, `"desc":{"type":["boolean","string"]}`, `"limit":{"type":["number","string"]}`, `"offset":{"type":["number","string"]}`}, func(s opapi.Spec) (app.Operation, error) {
 			return app.NewOperation(s, func(ctx context.Context, in RecordsRequest) (RecordsOutput, error) {
 				return provider(ctx).Records(ctx, in)
 			})
 		}},
-		{opapi.DataInsert, false, reflect.TypeFor[RecordOutput](), []string{"collection", "record"}, func(s opapi.Spec) (app.Operation, error) {
+		{opapi.DataInsert, false, reflect.TypeFor[RecordOutput](), []string{`"collection":{"type":"string"}`, `"record":{"type":"object"}`}, func(s opapi.Spec) (app.Operation, error) {
 			return app.NewOperation(s, func(ctx context.Context, in InsertRequest) (RecordOutput, error) {
 				return provider(ctx).Insert(ctx, in)
 			})
 		}},
-		{opapi.DataUpdate, false, reflect.TypeFor[RecordOutput](), []string{"collection", "id", "record"}, func(s opapi.Spec) (app.Operation, error) {
+		{opapi.DataUpdate, false, reflect.TypeFor[RecordOutput](), []string{`"collection":{"type":"string"}`, `"id":{"type":"string"}`, `"record":{"type":"object"}`}, func(s opapi.Spec) (app.Operation, error) {
 			return app.NewOperation(s, func(ctx context.Context, in UpdateRequest) (RecordOutput, error) {
 				return provider(ctx).Update(ctx, in)
 			})
 		}},
-		{opapi.DataDelete, false, reflect.TypeFor[DeleteOutput](), []string{"collection", "id"}, func(s opapi.Spec) (app.Operation, error) {
+		{opapi.DataDelete, false, reflect.TypeFor[DeleteOutput](), []string{`"collection":{"type":"string"}`, `"id":{"type":"string"}`}, func(s opapi.Spec) (app.Operation, error) {
 			return app.NewOperation(s, func(ctx context.Context, in DeleteRequest) (DeleteOutput, error) {
 				return provider(ctx).Delete(ctx, in)
 			})
 		}},
-		{opapi.DataCreateCollection, false, reflect.TypeFor[CreateOutput](), []string{"collection"}, func(s opapi.Spec) (app.Operation, error) {
+		{opapi.DataCreateCollection, false, reflect.TypeFor[CreateOutput](), []string{`"collection":{"type":"object"}`}, func(s opapi.Spec) (app.Operation, error) {
 			return app.NewOperation(s, func(ctx context.Context, in CreateRequest) (CreateOutput, error) {
 				return provider(ctx).Create(ctx, in)
 			})
 		}},
-		{opapi.DataDropCollection, false, reflect.TypeFor[DropOutput](), []string{"name"}, func(s opapi.Spec) (app.Operation, error) {
+		{opapi.DataDropCollection, false, reflect.TypeFor[DropOutput](), []string{`"name":{"type":"string"}`}, func(s opapi.Spec) (app.Operation, error) {
 			return app.NewOperation(s, func(ctx context.Context, in DropRequest) (DropOutput, error) { return provider(ctx).Drop(ctx, in) })
 		}},
 	}

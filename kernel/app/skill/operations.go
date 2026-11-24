@@ -70,8 +70,13 @@ func bind[I, O any](operations *[]app.Operation, spec opapi.Spec, handler func(c
 	}
 	return err
 }
+
+// hygieneSchema is the hygiene read's request contract: the idle window is a
+// number of days.
+var hygieneSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"idle_days":{"type":["number","string"]}}}`)
+
 func importSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"name":{},"body":{},"description":{},"agent":{},"triggers":{"type":"array","items":{"type":"string"}},"tools_required":{"type":"array","items":{"type":"string"}},"resources":{"type":["object","null"],"additionalProperties":{"type":"string"}}}}`)
+	return json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"name":{"type":"string"},"body":{"type":"string"},"description":{"type":"string"},"agent":{"type":"string"},"triggers":{"type":"array","items":{"type":"string"}},"tools_required":{"type":"array","items":{"type":"string"}},"resources":{"type":["object","null"],"additionalProperties":{"type":"string"}}}}`)
 }
 func Operations(reads func(context.Context) *Service, lifecycle func(context.Context) *Lifecycle, curation func(context.Context) *Curation, observations func(context.Context) *Observations) ([]app.Operation, error) {
 	if reads == nil || lifecycle == nil || curation == nil || observations == nil {
@@ -118,7 +123,7 @@ func Operations(reads func(context.Context) *Service, lifecycle func(context.Con
 			})
 		},
 		func() error {
-			return bind(&operations, opapi.Spec{Name: opapi.SkillHygiene, ReadOnly: true}, func(ctx context.Context, in HygieneRequestInput) (HygieneOutput, error) {
+			return bind(&operations, opapi.Spec{Name: opapi.SkillHygiene, ReadOnly: true, InputSchema: hygieneSchema}, func(ctx context.Context, in HygieneRequestInput) (HygieneOutput, error) {
 				return observations(ctx).Hygiene(ctx, HygieneInput{IdleDays: idleDays(in.IdleDays)})
 			})
 		},

@@ -30,15 +30,15 @@ func TestRun_RejectsWrongTypedArgs(t *testing.T) {
 		args map[string]any
 		want string
 	}{
-		{"dry_run as string", map[string]any{"intent": "x", "dry_run": "true"}, "dry_run must be a boolean"},
-		{"tools as string", map[string]any{"intent": "x", "tools": "shell"}, "tools must be an array"},
-		{"tools element non-string", map[string]any{"intent": "x", "tools": []any{"shell", 3.0}}, "tools[1] must be a string"},
-		{"model as number", map[string]any{"intent": "x", "model": 5.0}, "model must be a string"},
-		{"remote peer as number", map[string]any{"intent": "x", "remote_peer": 5.0}, "remote_peer must be a string"},
+		{"dry_run as string", map[string]any{"intent": "x", "dry_run": "true"}, "$.dry_run has wrong type: got string, want boolean"},
+		{"tools as string", map[string]any{"intent": "x", "tools": "shell"}, "$.tools has wrong type: got string, want array"},
+		{"tools element non-string", map[string]any{"intent": "x", "tools": []any{"shell", 3.0}}, "$.tools[1] has wrong type: got number, want string"},
+		{"model as number", map[string]any{"intent": "x", "model": 5.0}, "$.model has wrong type: got number, want string"},
+		{"remote peer as number", map[string]any{"intent": "x", "remote_peer": 5.0}, "$.remote_peer has wrong type: got number, want string"},
 		{"remote peer without remote profile", map[string]any{"intent": "x", "remote_peer": "nodeB"}, `remote_peer requires execution_profile "remote-agezt"`},
-		{"timeout as number", map[string]any{"intent": "x", "timeout": 30.0}, "timeout must be a string"},
-		{"system as number", map[string]any{"intent": "x", "system": 1.0}, "system must be a string"},
-		{"execution profile as number", map[string]any{"intent": "x", "execution_profile": 1.0}, "execution_profile must be a string"},
+		{"timeout as number", map[string]any{"intent": "x", "timeout": 30.0}, "$.timeout has wrong type: got number, want string"},
+		{"system as number", map[string]any{"intent": "x", "system": 1.0}, "$.system has wrong type: got number, want string"},
+		{"execution profile as number", map[string]any{"intent": "x", "execution_profile": 1.0}, "$.execution_profile has wrong type: got number, want string"},
 		{"execution profile docker backend inactive", map[string]any{"intent": "x", "execution_profile": "docker"}, "requires an active container backend"},
 		{"execution profile ssh backend inactive", map[string]any{"intent": "x", "execution_profile": "ssh"}, "requires an active SSH backend"},
 		{"execution profile k8s backend inactive", map[string]any{"intent": "x", "execution_profile": "k8s"}, "requires an active Kubernetes backend"},
@@ -46,7 +46,7 @@ func TestRun_RejectsWrongTypedArgs(t *testing.T) {
 		{"execution profile daytona backend inactive", map[string]any{"intent": "x", "execution_profile": "daytona"}, "requires an active Daytona backend"},
 		{"execution profile remote backend inactive", map[string]any{"intent": "x", "execution_profile": "remote-agezt"}, "requires configured AGEZT peers"},
 		{"execution profile unsupported", map[string]any{"intent": "x", "execution_profile": "cloud"}, "not routable"},
-		{"images as string", map[string]any{"intent": "x", "images": "photo.png"}, "images must be an array"},
+		{"images as string", map[string]any{"intent": "x", "images": "photo.png"}, "$.images has wrong type: got string, want array"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

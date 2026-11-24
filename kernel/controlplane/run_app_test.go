@@ -154,7 +154,7 @@ func TestRunRejectsAMistypedDryRun(t *testing.T) {
 		"intent":  "say hi",
 		"dry_run": "true",
 	}})[0]
-	if resp.Type != RespError || !strings.Contains(resp.Error, "args.dry_run must be a boolean") {
+	if resp.Type != RespError || !strings.Contains(resp.Error, "$.dry_run has wrong type: got string, want boolean") {
 		t.Fatalf("response = %+v", resp)
 	}
 }
@@ -169,7 +169,7 @@ func TestRunRejectsAMistypedTenant(t *testing.T) {
 		"intent": "say hi",
 		"tenant": 7,
 	}})[0]
-	if resp.Type != RespError || !strings.Contains(resp.Error, "args.tenant must be a string") {
+	if resp.Type != RespError || !strings.Contains(resp.Error, "$.tenant has wrong type: got number, want string") {
 		t.Fatalf("response = %+v", resp)
 	}
 }

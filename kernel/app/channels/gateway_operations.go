@@ -35,7 +35,7 @@ func GatewayOperations(provider func(context.Context) *Gateway) ([]app.Operation
 	}
 	spec := func(name, path string) opapi.Spec {
 		return opapi.Spec{Name: name, ReadOnly: true, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true,
-			InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"url":{},"backend":{},"session":{},"key":{}}}`),
+			InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"url":{"type":"string"},"backend":{"type":"string"},"session":{"type":"string"},"key":{"type":"string"}}}`),
 		}
 	}
 	status, err := app.NewOperation(spec(opapi.WhatsAppGatewayStatus, "/api/whatsappgw/status"), func(ctx context.Context, in GatewayRequest) (GatewayStatusOutput, error) {

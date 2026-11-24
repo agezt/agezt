@@ -105,9 +105,12 @@ func RunOperations(provider func(context.Context) *RunService) ([]app.Operation,
 	}
 	frames := json.RawMessage(event.WireSchema)
 	input := json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{
-		"intent":{},"tenant":{},"model":{},"agent":{},"images":{},"system":{},
-		"timeout":{},"tools":{},"max_cost":{},"execution_profile":{},"remote_peer":{},
-		"auto_approve_caps":{},"prompt_injection_trust":{},"assure":{},"dry_run":{}}}`)
+		"intent":{"type":"string"},"tenant":{"type":"string"},"model":{"type":"string"},"agent":{"type":"string"},
+		"images":{"type":"array","items":{"type":"string"}},"system":{"type":"string"},
+		"timeout":{"type":"string"},"tools":{"type":"array","items":{"type":"string"}},"max_cost":{"type":"number"},
+		"execution_profile":{"type":"string"},"remote_peer":{"type":"string"},
+		"auto_approve_caps":{"type":["string","array"],"items":{"type":"string"}},"prompt_injection_trust":{"type":["boolean","string"]},
+		"assure":{"type":"number"},"dry_run":{"type":"boolean"}}}`)
 	run, err := app.NewStreamingOperation(opapi.Spec{
 		Name: opapi.Run, Stream: opapi.StreamEvents, OutputSchema: out, EmissionSchema: frames,
 		Authz: opapi.OwnTenant, Tenancy: opapi.CallerTenant, AllowUnknownInput: true,

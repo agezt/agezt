@@ -35,6 +35,16 @@ func TestChannelInboxOperationSpecNestedSchemaAndPresence(t *testing.T) {
 	if len(props) != 5 || len(threads) != 5 || len(messages) != 5 {
 		t.Fatal(string(s.OutputSchema))
 	}
+	// The request body is typed: a typed body is admitted, a mistyped one is
+	// refused at the door.
+	if err := schema.ValidateJSON(s.InputSchema, json.RawMessage(`{"limit":5,"channel":"telegram","cursor":"100:z"}`)); err != nil {
+		t.Fatal("typed request refused", err)
+	}
+	for _, raw := range []string{`{"limit":"5"}`, `{"cursor":false}`, `{"channel":[]}`} {
+		if schema.ValidateJSON(s.InputSchema, json.RawMessage(raw)) == nil {
+			t.Fatal("mistyped request admitted", raw)
+		}
+	}
 	empty, _ := NewInbox(&ownedInboxJournal{}).List(context.Background(), InboxInput{})
 	raw, _ := json.Marshal(empty)
 	if string(raw) != `{"threads":[],"count":0,"total":0}` || schema.ValidateJSON(s.OutputSchema, raw) != nil {
@@ -104,9 +114,10 @@ func TestChannelInboxRequestWireNumericLimitsAndDelayedCursorError(t *testing.T)
 }
 
 func TestChannelInboxOperationAdmissionAndRangeBeforeCursorError(t *testing.T) {
-	for _, mode := range []string{"success", "canceled", "tenant", "agent", "range-error", "cursor-error"} {
+	for _, mode := range []string{"success", "canceled", "tenant", "agent", "range-error", "cursor-error", "limit-error"} {
 		j := &ownedInboxJournal{}
 		providers := 0
+		audit := &accountAudit{}
 		sentinel := errors.New("owned range failure")
 		if mode == "range-error" {
 			j.err = sentinel
@@ -125,14 +136,20 @@ func TestChannelInboxOperationAdmissionAndRangeBeforeCursorError(t *testing.T) {
 		if mode == "agent" {
 			principal.Kind = opapi.Agent
 		}
-		d, _ := app.NewDispatcher(ops, app.Dependencies{Auth: ownedACPAuth{principal: principal}, Router: ownedACPRoute{}})
+		d, _ := app.NewDispatcher(ops, app.Dependencies{Auth: ownedACPAuth{principal: principal}, Router: ownedACPRoute{}, Audit: audit})
 		ctx, cancel := context.WithCancel(context.Background())
 		if mode == "canceled" {
 			cancel()
 		}
 		raw := json.RawMessage(`{"unknown":true}`)
-		if mode == "range-error" || mode == "cursor-error" {
+		if mode == "range-error" {
+			raw = json.RawMessage(`{"cursor":"owned"}`)
+		}
+		if mode == "cursor-error" {
 			raw = json.RawMessage(`{"cursor":false}`)
+		}
+		if mode == "limit-error" {
+			raw = json.RawMessage(`{"limit":"5"}`)
 		}
 		out, err := d.Dispatch(ctx, opapi.Caller{Tenant: "ignored"}, "inbox", raw, nil)
 		cancel()
@@ -145,17 +162,28 @@ func TestChannelInboxOperationAdmissionAndRangeBeforeCursorError(t *testing.T) {
 			}
 			continue
 		}
+		if mode == "cursor-error" {
+			// A wrong-typed cursor is refused at admission: the journal is
+			// never read and the handler never runs.
+			want := "operation inbox input: $.cursor has wrong type: got boolean, want string"
+			if err == nil || err.Error() != want || providers != 0 || j.calls != 0 || audit.begin != 0 || audit.end != 0 {
+				t.Fatal(mode, err, providers, j.calls, audit)
+			}
+			continue
+		}
+		if mode == "limit-error" {
+			// A wrong-typed limit is refused at admission too.
+			want := "operation inbox input: $.limit has wrong type: got string, want number"
+			if err == nil || err.Error() != want || providers != 0 || j.calls != 0 || audit.begin != 0 || audit.end != 0 {
+				t.Fatal(mode, err, providers, j.calls, audit)
+			}
+			continue
+		}
 		if providers != 1 || j.calls != 1 {
 			t.Fatal(mode, providers, j.calls)
 		}
 		if mode == "range-error" {
 			if !errors.Is(err, sentinel) {
-				t.Fatal(err)
-			}
-			continue
-		}
-		if mode == "cursor-error" {
-			if err == nil || err.Error() != "args.cursor must be a string" {
 				t.Fatal(err)
 			}
 			continue

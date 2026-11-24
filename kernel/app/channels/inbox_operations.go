@@ -51,7 +51,7 @@ func InboxOperations(provider func(context.Context) *Inbox) ([]app.Operation, er
 		return nil, errors.New("channel inbox service provider required")
 	}
 	op, err := app.NewOperation(opapi.Spec{Name: opapi.Inbox, ReadOnly: true, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true,
-		InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"limit":{},"channel":{},"cursor":{}}}`),
+		InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"limit":{"type":"number"},"channel":{"type":"string"},"cursor":{"type":"string"}}}`),
 	}, func(ctx context.Context, in InboxRequest) (InboxOutput, error) {
 		return provider(ctx).List(ctx, in.input())
 	})

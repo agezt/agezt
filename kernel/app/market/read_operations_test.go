@@ -10,6 +10,7 @@ import (
 	core "github.com/agezt/agezt/kernel/market"
 	"github.com/agezt/agezt/kernel/platform/schema"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -99,8 +100,18 @@ func TestReadOperationsPermissiveTextCodecsAndAvailabilityPrecedence(t *testing.
 		var seen context.Context
 		d, _ := readDispatcher(t, p, a, opapi.Operator, &f, &seen)
 		raw := json.RawMessage(`{"name":` + value + `,"marketplace":` + value + `,"query":` + value + `,"unknown":true}`)
+		// A wrong-typed request field is refused at the door: the request
+		// contract names the types the read ops accept, so the codec no
+		// longer reads a non-string as an empty text.
+		junk := value != `""` && value != `" \t "` && value != `" owned "`
 		for _, name := range []string{opapi.MarketList, "market_show", "market_sources"} {
 			out, err := d.Dispatch(context.Background(), opapi.Caller{}, name, raw, nil)
+			if junk {
+				if err == nil || !strings.Contains(err.Error(), "has wrong type") {
+					t.Fatal(value, name, out, err)
+				}
+				continue
+			}
 			if name == "market_show" && value != `" owned "` {
 				if err == nil || err.Error() != "args.name required" {
 					t.Fatal(value, out, err)
@@ -108,6 +119,9 @@ func TestReadOperationsPermissiveTextCodecsAndAvailabilityPrecedence(t *testing.
 			} else if err != nil {
 				t.Fatal(value, name, err)
 			}
+		}
+		if junk {
+			continue
 		}
 		want := ""
 		if value == `" owned "` {
