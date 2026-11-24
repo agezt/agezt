@@ -70,7 +70,7 @@ func TestRun_PerRunCostCap_EndToEnd(t *testing.T) {
 		_, _, c, _ := startPair(t, mkProv())
 		_, err := c.Stream(context.Background(), opapi.Run,
 			map[string]any{"intent": "x", "max_cost": "lots"}, func(*event.Event) {})
-		if err == nil || !strings.Contains(err.Error(), "max_cost must be a number") {
+		if err == nil || !strings.Contains(err.Error(), "$.max_cost has wrong type: got string, want number") {
 			t.Errorf("err = %v; want a max_cost type error", err)
 		}
 	})

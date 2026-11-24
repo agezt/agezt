@@ -109,10 +109,10 @@ func TestSummaryOperations(t *testing.T) {
 	if s.Name != "chat_summarize" || s.ReadOnly || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Stream != opapi.StreamLive || !s.AllowUnknownInput || s.Input != reflect.TypeFor[SummarizeRequest]() || s.Output != reflect.TypeFor[SummarizeOutput]() || s.Emission != reflect.TypeFor[event.Event]() || string(s.OutputSchema) != string(out) {
 		t.Fatalf("spec: %+v", s)
 	}
-	if !strings.Contains(string(s.InputSchema), `"properties":{"turns":{},"model":{}}`) {
+	if !strings.Contains(string(s.InputSchema), `"properties":{"turns":{"type":"array","items":{"type":"object"}},"model":{"type":"string"}}`) {
 		t.Fatal(string(s.InputSchema))
 	}
-	if err := schema.ValidateJSON(s.InputSchema, json.RawMessage(`{"turns":5,"model":null,"tenant":"t"}`)); err != nil {
+	if err := schema.ValidateJSON(s.InputSchema, json.RawMessage(`{"turns":[{"role":"user","text":"owned"}],"model":"owned","tenant":"t"}`)); err != nil {
 		t.Fatal(err)
 	}
 }

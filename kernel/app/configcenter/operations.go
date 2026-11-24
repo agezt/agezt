@@ -44,8 +44,15 @@ type SetAccessRequest struct {
 	ExcludedAgents json.RawMessage `json:"excluded_agents,omitempty"`
 }
 
-// Raw fields defer legacy null/type/blank validation to each command's codec.
-var inputSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"key":{},"value":{},"rating":{},"description":{},"allowed_agents":{},"excluded_agents":{},"agent_id":{},"since":{}}}`)
+// inputSchema declares what the door accepts before a config-center command
+// runs. The types are the ones the codecs read: key, value, rating,
+// description, agent_id and since are strings (textArg), and the two access
+// lists are what stringList takes — a comma/semicolon separated STRING or an
+// ARRAY of agent names. Those are the two shapes the field means, so they are
+// the union; the items of the array are agent names, so they are strings. A
+// mistyped list is a usage error: it is refused at the door, not silently
+// dropped by the codec.
+var inputSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"key":{"type":"string"},"value":{"type":"string"},"rating":{"type":"string"},"description":{"type":"string"},"allowed_agents":{"type":["string","array"],"items":{"type":"string"}},"excluded_agents":{"type":["string","array"],"items":{"type":"string"}},"agent_id":{"type":"string"},"since":{"type":"string"}}}`)
 
 func textArg(raw json.RawMessage, key string, required bool) (string, error) {
 	if len(raw) == 0 {

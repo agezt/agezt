@@ -54,7 +54,7 @@ func TestMarketWriteNativeUnavailableBeforeRequiredArguments(t *testing.T) {
 	head, hash := k.Journal().Head()
 	for _, cmd := range []string{opapi.MarketInstall, opapi.MarketUninstall, opapi.MarketAddSource, opapi.MarketRemoveSource, opapi.MarketSync} {
 		var err error
-		args := map[string]any{"name": false, "url": false, "unknown": true}
+		args := map[string]any{"name": "owned", "url": "https://example.invalid/pack.zip", "unknown": true}
 		if cmd == opapi.MarketInstall || cmd == opapi.MarketUninstall {
 			_, err = client.Stream(context.Background(), cmd, args, nil)
 		} else {

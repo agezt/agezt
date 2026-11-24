@@ -465,7 +465,7 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 	if err != nil {
 		return nil, err
 	}
-	routingSet, err := app.NewOperation(spec(opapi.RoutingSet, false, `{"type":"object","additionalProperties":true,"properties":{"chains":{}}}`), func(ctx context.Context, in RoutingSetRequest) (RoutingSetOutput, error) {
+	routingSet, err := app.NewOperation(spec(opapi.RoutingSet, false, `{"type":"object","additionalProperties":true,"properties":{"chains":{"type":"object"}}}`), func(ctx context.Context, in RoutingSetRequest) (RoutingSetOutput, error) {
 		return provider(ctx).SetRouting(ctx, in)
 	})
 	if err != nil {
@@ -477,7 +477,7 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 	if err != nil {
 		return nil, err
 	}
-	chainsSet, err := app.NewOperation(spec(opapi.ChainsSet, false, `{"type":"object","additionalProperties":true,"properties":{"chains":{},"default":{}}}`), func(ctx context.Context, in ChainsSetRequest) (ChainsSetOutput, error) {
+	chainsSet, err := app.NewOperation(spec(opapi.ChainsSet, false, `{"type":"object","additionalProperties":true,"properties":{"chains":{"type":"object"},"default":{"type":"string"}}}`), func(ctx context.Context, in ChainsSetRequest) (ChainsSetOutput, error) {
 		return provider(ctx).SetChains(ctx, in)
 	})
 	if err != nil {

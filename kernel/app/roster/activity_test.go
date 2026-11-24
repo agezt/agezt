@@ -8,6 +8,7 @@ import (
 	"errors"
 	"reflect"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/agezt/agezt/kernel/app"
@@ -165,7 +166,7 @@ func TestRosterActivityOperationSpecAndAdmission(t *testing.T) {
 		t.Fatal("canceled effects", err)
 	}
 	out, err := d.Dispatch(context.Background(), opapi.Caller{}, "agent_activity", json.RawMessage(`{"ref":"a","limit":"1"}`), nil)
-	if err == nil || err.Error() != "args.limit must be a number" || out != nil {
+	if err == nil || !strings.Contains(err.Error(), "$.limit has wrong type: got string, want number") || out != nil {
 		t.Fatal("codec error through dispatch", out, err)
 	}
 	out, err = d.Dispatch(context.Background(), opapi.Caller{}, "agent_activity", json.RawMessage(`{"ref":"a"}`), nil)

@@ -837,6 +837,32 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The request side gets one home.** The daemon's **response** rows already
+  had one home (the operation registry); the **request** side did not. The
+  console's route catalogue has **70** routes that take a JSON body — the
+  contract the browser sends against — and **56** of those bodies declared
+  **337** properties with **no type at all** (`{}` says "anything"). The
+  browser's generated request rows therefore carried `any` for **162** of
+  their **205** fields, and a mistyped field reached the handler as a
+  **silent default**: a boolean sender became an empty one, the text "TRUE"
+  became a disabled standing order, a string cost ceiling became zero. Every
+  property of every body the browser can send now names the type the handler
+  reads it as — the type is the field's read type, a union appears only where
+  the handler genuinely accepts two meaningful shapes (a boolean, or the text
+  a form sends), and no null or junk arms are added. **19** daemon packages
+  carry the change. A mistyped body is refused at **admission**, before the
+  handler runs and before the audit sees it, and the refusal names the field
+  and both types: `operation board_send input: $.from has wrong type: got
+  boolean, want string`. The wire protocol is unchanged — only the *declared*
+  type of a field moved — and the presence of a field (absent vs null) stays
+  the handler's business. The OpenAPI renderer now publishes **every** arm of
+  a union (it took the first arm it understood, so `["string","array"]` was
+  published as `string[]`), and the browser became null-aware about the
+  daemon's nullable chain map, which it had read as if it could not happen.
+  Two guards hold the line: the daemon's own rule (every property of every
+  body route declares a type) and the browser's (no request row carries a
+  bare `any`, and the browser may not spell a request row of its own).
+
 - **The console's own endpoints get one home.** The console's HTTP surface has
   two halves: the operation-bound routes (owned by the catalogue since W3.82)
   and the console's **own** endpoints — the SPA shell, the auth surface, the

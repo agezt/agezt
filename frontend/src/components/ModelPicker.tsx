@@ -11,7 +11,7 @@ import {
   type ModelCatalog,
   type ModelOption,
 } from "@/lib/models";
-import { isChainRef, chainName, chainRef, type ChainMap, type ChainsState } from "@/lib/chains";
+import { isChainRef, chainName, chainRef, type ChainRegistry, type ChainsState } from "@/lib/chains";
 
 // PinnedModels is an ordered id list shown as the picker's FIRST group (M931) —
 // e.g. the chat task's routing chain, so the models the run will actually fall
@@ -106,7 +106,7 @@ function ModelModal({
   onPick: (id: string) => void;
 }) {
   const [cat, setCat] = useState<ModelCatalog | null>(null);
-  const [chains, setChains] = useState<ChainMap>({});
+  const [chains, setChains] = useState<ChainRegistry>({});
   const [defaultChain, setDefaultChain] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [q, setQ] = useState("");

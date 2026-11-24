@@ -23,7 +23,13 @@ type UnregisterRequest struct {
 	Force json.RawMessage `json:"force,omitempty"`
 }
 
-var settingsInputSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"name":{},"value":{},"section":{},"id":{},"force":{}}}`)
+// settingsInputSchema declares what the door accepts before a settings
+// command runs. The types are the ones the codecs read: name, value and id
+// are strings (settingsText), force is a boolean (settingsBool) and section
+// is the object the registry decodes (json.Unmarshal into settings.Section).
+// A mistyped field is a usage error: the body is refused at the door, one
+// step before the codec would have refused it.
+var settingsInputSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"name":{"type":"string"},"value":{"type":"string"},"section":{"type":"object"},"id":{"type":"string"},"force":{"type":"boolean"}}}`)
 
 func settingsText(raw json.RawMessage, key string, required bool) (string, error) {
 	if len(raw) == 0 {

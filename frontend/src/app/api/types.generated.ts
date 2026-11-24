@@ -293,7 +293,7 @@ export interface AgentAddResponse {
 
 /** AgentAddRequest */
 export interface AgentAddRequest {
-  profile?: any;
+  profile?: Record<string, any>;
 }
 
 /** AgentCapabilitiesResponseConfigEntriesItem */
@@ -398,22 +398,22 @@ export interface AgentCapabilitiesResponse {
 
 /** AgentCapabilitiesRequest */
 export interface AgentCapabilitiesRequest {
-  config_overrides?: any;
-  max_cost_mc?: any;
-  max_daily_mc?: any;
-  memory_scope?: any;
-  noise_policy?: any;
-  ref?: any;
-  tool_allow?: any;
-  tool_deny?: any;
-  trust_ceiling?: any;
-  workdir?: any;
+  config_overrides?: Record<string, any>;
+  max_cost_mc?: number;
+  max_daily_mc?: number;
+  memory_scope?: string;
+  noise_policy?: Record<string, any>;
+  ref?: string;
+  tool_allow?: string[];
+  tool_deny?: string[];
+  trust_ceiling?: string;
+  workdir?: string;
 }
 
 /** AgentEditRequest */
 export interface AgentEditRequest {
-  profile?: any;
-  ref?: any;
+  profile?: Record<string, any>;
+  ref?: string;
 }
 
 /** AgentSetEnabledResponse */
@@ -541,8 +541,8 @@ export interface AgentRemoveResponse {
 
 /** AgentRemoveRequest */
 export interface AgentRemoveRequest {
-  cascade?: any;
-  ref?: any;
+  cascade?: Record<string, any>;
+  ref?: string;
 }
 
 /** AgentRepairResponse */
@@ -554,11 +554,11 @@ export interface AgentRepairResponse {
 
 /** AgentRepairRequest */
 export interface AgentRepairRequest {
-  incident_id?: any;
-  parent_incident_id?: any;
-  reason?: any;
-  ref?: any;
-  root_incident_id?: any;
+  incident_id?: string;
+  parent_incident_id?: string;
+  reason?: string;
+  ref?: string;
+  root_incident_id?: string;
 }
 
 /** AgentRepairStatusResponseContract */
@@ -684,15 +684,15 @@ export interface AgentResolveResponse {
 
 /** AgentResolveRequest */
 export interface AgentResolveRequest {
-  delegate_to?: any;
-  incident_id?: any;
-  parent_incident_id?: any;
-  ref?: any;
-  resolution?: any;
-  root_incident_id?: any;
-  summary?: any;
-  task_model_chain?: any;
-  task_type?: any;
+  delegate_to?: string;
+  incident_id?: string;
+  parent_incident_id?: string;
+  ref?: string;
+  resolution?: string;
+  root_incident_id?: string;
+  summary?: string;
+  task_model_chain?: string[];
+  task_type?: string;
 }
 
 /** AgentRetireResponseImpactSummary */
@@ -765,24 +765,24 @@ export interface AgentTaskUpdateResponse {
 
 /** AgentTaskUpdateRequest */
 export interface AgentTaskUpdateRequest {
-  description?: any;
-  id?: any;
-  op?: any;
-  ref?: any;
-  scope?: any;
-  status?: any;
-  task?: any;
-  title?: any;
+  description?: string;
+  id?: string;
+  op?: string;
+  ref?: string;
+  scope?: string;
+  status?: string;
+  task?: Record<string, any>;
+  title?: string;
 }
 
 /** AgentWakeRequest */
 export interface AgentWakeRequest {
-  incident_id?: any;
-  intent?: any;
-  parent_incident_id?: any;
-  reason?: any;
-  ref?: any;
-  root_incident_id?: any;
+  incident_id?: string;
+  intent?: string;
+  parent_incident_id?: string;
+  reason?: string;
+  ref?: string;
+  root_incident_id?: string;
 }
 
 /** ApprovalsResponsePendingItem */
@@ -961,8 +961,8 @@ export interface BoardAckResponse {
 
 /** BoardAckRequest */
 export interface BoardAckRequest {
-  by?: any;
-  id?: any;
+  by?: string;
+  id?: string;
 }
 
 /** BoardHelpResponse */
@@ -979,13 +979,13 @@ export interface BoardSendResponse {
 
 /** BoardSendRequest */
 export interface BoardSendRequest {
-  correlation_id?: any;
-  from?: any;
+  correlation_id?: string;
+  from?: string;
   help?: boolean;
-  reply_to?: any;
-  text?: any;
-  to?: any;
-  topic?: any;
+  reply_to?: string;
+  text?: string;
+  to?: string;
+  topic?: string;
 }
 
 /** BudgetResponsePerTaskItem */
@@ -1071,7 +1071,7 @@ export interface CatalogSyncRequest {
 
 /** ChainsGetResponse */
 export interface ChainsGetResponse {
-  chains: Record<string, string[] | null>;
+  chains: Record<string, string[] | null> | null;
   default: string;
   usage: Record<string, any> | null;
 }
@@ -1087,8 +1087,8 @@ export interface ChainsSetResponse {
 
 /** ChainsSetRequest */
 export interface ChainsSetRequest {
-  chains?: any;
-  default?: any;
+  chains?: Record<string, any>;
+  default?: string;
 }
 
 /** ChannelAccountRemoveResponse */
@@ -1101,8 +1101,8 @@ export interface ChannelAccountRemoveResponse {
 
 /** ChannelAccountRemoveRequest */
 export interface ChannelAccountRemoveRequest {
-  kind?: any;
-  label?: any;
+  kind?: string;
+  label?: string;
 }
 
 /** ChannelAccountSetResponse */
@@ -1116,10 +1116,10 @@ export interface ChannelAccountSetResponse {
 
 /** ChannelAccountSetRequest */
 export interface ChannelAccountSetRequest {
-  kind?: any;
-  label?: any;
-  name?: any;
-  value?: any;
+  kind?: string;
+  label?: string;
+  name?: string;
+  value?: string;
 }
 
 /** ChannelOauthStartResponse */
@@ -1130,12 +1130,12 @@ export interface ChannelOauthStartResponse {
 
 /** ChannelOauthStartRequest */
 export interface ChannelOauthStartRequest {
-  client_id?: any;
-  client_secret?: any;
-  instance_url?: any;
-  kind?: any;
-  label?: any;
-  redirect_uri?: any;
+  client_id?: string;
+  client_secret?: string;
+  instance_url?: string;
+  kind?: string;
+  label?: string;
+  redirect_uri?: string;
 }
 
 /** ChannelOauthStatusResponse */
@@ -1148,7 +1148,7 @@ export interface ChannelOauthStatusResponse {
 
 /** ChannelOauthStatusRequest */
 export interface ChannelOauthStatusRequest {
-  state?: any;
+  state?: string;
 }
 
 /** ChannelListResponseChannelsItemAccountsItemFieldsItem */
@@ -1253,8 +1253,8 @@ export interface ChatSummarizeResponse {
 
 /** ChatSummarizeRequest */
 export interface ChatSummarizeRequest {
-  model?: any;
-  turns?: any;
+  model?: string;
+  turns?: Record<string, any>[];
 }
 
 /** ConfigResponsePaths */
@@ -1331,11 +1331,11 @@ export interface ConfigSchemaRegisterResponse {
 
 /** ConfigSchemaRegisterRequest */
 export interface ConfigSchemaRegisterRequest {
-  force?: any;
-  id?: any;
-  name?: any;
-  section?: any;
-  value?: any;
+  force?: boolean;
+  id?: string;
+  name?: string;
+  section?: Record<string, any>;
+  value?: string;
 }
 
 /** ConfigSchemaUnregisterResponse */
@@ -1390,14 +1390,14 @@ export interface ConfigcenterAccessResponse {
 
 /** ConfigcenterAccessRequest */
 export interface ConfigcenterAccessRequest {
-  agent_id?: any;
-  allowed_agents?: any;
-  description?: any;
-  excluded_agents?: any;
-  key?: any;
-  rating?: any;
-  since?: any;
-  value?: any;
+  agent_id?: string;
+  allowed_agents?: string | string[];
+  description?: string;
+  excluded_agents?: string | string[];
+  key?: string;
+  rating?: string;
+  since?: string;
+  value?: string;
 }
 
 /** ConfigcenterDeleteResponse */
@@ -1446,9 +1446,9 @@ export interface CouncilAskResponse {
 
 /** CouncilAskRequest */
 export interface CouncilAskRequest {
-  corr?: any;
-  question?: any;
-  rounds?: any;
+  corr?: string;
+  question?: string;
+  rounds?: number | string;
 }
 
 /** CouncilMembersResponse */
@@ -1465,9 +1465,15 @@ export interface CouncilSetResponse {
   unknown_models?: string[];
 }
 
+/** CouncilSetRequestMembersItem */
+export interface CouncilSetRequestMembersItem {
+  model?: string;
+  seat?: string;
+}
+
 /** CouncilSetRequest */
 export interface CouncilSetRequest {
-  members?: any;
+  members?: CouncilSetRequestMembersItem[];
 }
 
 /** DataCollectionsResponseCollectionsItemFieldsItem */
@@ -1515,8 +1521,8 @@ export interface DataInsertResponse {
 
 /** DataInsertRequest */
 export interface DataInsertRequest {
-  collection?: any;
-  record?: any;
+  collection?: string;
+  record?: Record<string, any>;
 }
 
 /** DataRecordsResponse */
@@ -1529,9 +1535,9 @@ export interface DataRecordsResponse {
 
 /** DataUpdateRequest */
 export interface DataUpdateRequest {
-  collection?: any;
-  id?: any;
-  record?: any;
+  collection?: string;
+  id?: string;
+  record?: Record<string, any>;
 }
 
 /** DecideResponse */
@@ -1696,7 +1702,7 @@ export interface InboxResponse {
   channel?: string;
   count: number;
   next_cursor?: string;
-  threads: (InboxResponseThreadsItem | null)[];
+  threads: (InboxResponseThreadsItem | null)[] | null;
   total: number;
 }
 
@@ -1854,11 +1860,11 @@ export interface MarketAddSourceResponse {
 
 /** MarketAddSourceRequest */
 export interface MarketAddSourceRequest {
-  marketplace?: any;
-  name?: any;
-  pubkey?: any;
-  url?: any;
-  version?: any;
+  marketplace?: string;
+  name?: string;
+  pubkey?: string;
+  url?: string;
+  version?: string;
 }
 
 /** MarketRemoveSourceResponse */
@@ -1929,9 +1935,9 @@ export interface McpAddResponse {
 
 /** McpAddRequest */
 export interface McpAddRequest {
-  enabled?: any;
-  ref?: any;
-  server?: any;
+  enabled?: boolean | string;
+  ref?: string;
+  server?: Record<string, any>;
 }
 
 /** McpAttachResponse */
@@ -2185,7 +2191,7 @@ export interface PersonaSetResponse {
 
 /** PersonaSetRequest */
 export interface PersonaSetRequest {
-  system?: any;
+  system?: string;
 }
 
 /** PlanGenerateResponse */
@@ -2196,15 +2202,15 @@ export interface PlanGenerateResponse {
 
 /** PlanGenerateRequest */
 export interface PlanGenerateRequest {
-  intent?: any;
-  model?: any;
+  intent?: string;
+  model?: string;
 }
 
 /** PlanRefineRequest */
 export interface PlanRefineRequest {
-  feedback?: any;
-  model?: any;
-  plan_json?: any;
+  feedback?: string;
+  model?: string;
+  plan_json?: string;
 }
 
 /** PlanResponse */
@@ -2288,7 +2294,7 @@ export interface PromptsSetResponse {
 
 /** PromptsSetRequest */
 export interface PromptsSetRequest {
-  prompts?: any;
+  prompts?: Record<string, any>[];
 }
 
 /** ProviderConnectResponse */
@@ -2398,11 +2404,6 @@ export interface ProviderOauthStatusResponse {
   error: string;
   models: string[] | null;
   status: string;
-}
-
-/** ProviderOauthStatusRequest */
-export interface ProviderOauthStatusRequest {
-  state?: string;
 }
 
 /** ProviderProbeResponse */
@@ -2641,7 +2642,7 @@ export interface RedactTestResponse {
 
 /** RedactTestRequest */
 export interface RedactTestRequest {
-  text?: any;
+  text?: string;
 }
 
 /** ResearchAskResponseClaimsItem */
@@ -2677,12 +2678,12 @@ export interface ResearchAskResponse {
 
 /** ResearchAskRequest */
 export interface ResearchAskRequest {
-  corr?: any;
-  max_sources?: any;
-  max_sub_questions?: any;
-  max_verify_claims?: any;
-  question?: any;
-  verify?: any;
+  corr?: string;
+  max_sources?: number | string;
+  max_sub_questions?: number | string;
+  max_verify_claims?: number | string;
+  question?: string;
+  verify?: boolean;
 }
 
 /** RoutingGetResponseActivityValue */
@@ -2697,7 +2698,7 @@ export interface RoutingGetResponseActivityValue {
 /** RoutingGetResponse */
 export interface RoutingGetResponse {
   activity: Record<string, RoutingGetResponseActivityValue> | null;
-  chains: Record<string, string[] | null>;
+  chains: Record<string, string[] | null> | null;
   task_types: string[] | null;
 }
 
@@ -2711,7 +2712,7 @@ export interface RoutingSetResponse {
 
 /** RoutingSetRequest */
 export interface RoutingSetRequest {
-  chains?: any;
+  chains?: Record<string, any>;
 }
 
 /** RunResponse */
@@ -2858,29 +2859,29 @@ export interface ScheduleAddResponse {
 
 /** ScheduleAddRequest */
 export interface ScheduleAddRequest {
-  agent?: any;
-  at_minutes?: any;
-  cooldown_sec?: any;
-  count?: any;
-  cursor?: any;
-  days?: any;
-  enabled?: any;
-  id?: any;
-  intent?: any;
-  interval_sec?: any;
-  limit?: any;
-  model?: any;
-  once_at_unix?: any;
-  payload?: any;
-  since_ms?: any;
-  status?: any;
-  system_task?: any;
-  target?: any;
-  tool?: any;
-  tz?: any;
-  window_end?: any;
-  window_start?: any;
-  workflow?: any;
+  agent?: string;
+  at_minutes?: number;
+  cooldown_sec?: number;
+  count?: number;
+  cursor?: string;
+  days?: number;
+  enabled?: boolean | string;
+  id?: string;
+  intent?: string;
+  interval_sec?: number;
+  limit?: number;
+  model?: string;
+  once_at_unix?: number;
+  payload?: Record<string, any> | any[] | string | number | boolean;
+  since_ms?: number;
+  status?: string;
+  system_task?: string;
+  target?: string;
+  tool?: string;
+  tz?: string;
+  window_end?: number;
+  window_start?: number;
+  workflow?: string;
 }
 
 /** ScheduleEditResponse */
@@ -3015,9 +3016,9 @@ export interface SendResponse {
 
 /** SendRequest */
 export interface SendRequest {
-  channel?: any;
-  text?: any;
-  to?: any;
+  channel?: string;
+  text?: string;
+  to?: string;
 }
 
 /** SkillArchiveResponse */
@@ -3047,10 +3048,10 @@ export interface SkillImportResponse {
 
 /** SkillImportRequest */
 export interface SkillImportRequest {
-  agent?: any;
-  body?: any;
-  description?: any;
-  name?: any;
+  agent?: string;
+  body?: string;
+  description?: string;
+  name?: string;
   resources?: Record<string, string>;
   tools_required?: string[];
   triggers?: string[];
@@ -3196,17 +3197,17 @@ export interface StandingAddResponse {
 
 /** StandingAddRequest */
 export interface StandingAddRequest {
-  agent?: any;
-  assure?: any;
-  briefing_min?: any;
-  cooldown_sec?: any;
-  enabled?: any;
-  id?: any;
-  max_trust?: any;
-  mode?: any;
-  name?: any;
-  order?: any;
-  plan?: any;
+  agent?: string;
+  assure?: number;
+  briefing_min?: string;
+  cooldown_sec?: number;
+  enabled?: boolean;
+  id?: string;
+  max_trust?: string;
+  mode?: string;
+  name?: string;
+  order?: Record<string, any>;
+  plan?: string;
 }
 
 /** StandingEditResponseOrder */
@@ -3446,10 +3447,10 @@ export interface WhatsappgwQrResponse {
 
 /** WhatsappgwQrRequest */
 export interface WhatsappgwQrRequest {
-  backend?: any;
-  key?: any;
-  session?: any;
-  url?: any;
+  backend?: string;
+  key?: string;
+  session?: string;
+  url?: string;
 }
 
 /** WhatsappgwStatusResponse */
@@ -3535,20 +3536,20 @@ export interface WorkflowDraftResponse {
 
 /** WorkflowDraftRequest */
 export interface WorkflowDraftRequest {
-  async?: any;
-  data?: any;
-  description?: any;
-  enabled?: any;
-  instruction?: any;
-  limit?: any;
-  name?: any;
-  node?: any;
-  payload?: any;
-  reason?: any;
-  ref?: any;
-  secret?: any;
-  with_runs?: any;
-  workflow?: any;
+  async?: boolean;
+  data?: Record<string, any>;
+  description?: string;
+  enabled?: boolean | string;
+  instruction?: string;
+  limit?: number;
+  name?: string;
+  node?: string;
+  payload?: Record<string, any> | any[] | string | number | boolean;
+  reason?: string;
+  ref?: string;
+  secret?: string;
+  with_runs?: boolean | string;
+  workflow?: Record<string, any>;
 }
 
 /** WorkflowSetEnabledResponse */
@@ -4001,6 +4002,9 @@ export type PlanRefineResponse = PlanGenerateResponse;
 
 /** ProviderOauthStartResponse is the same shape as ChannelOauthStartResponse. */
 export type ProviderOauthStartResponse = ChannelOauthStartResponse;
+
+/** ProviderOauthStatusRequest is the same shape as ChannelOauthStatusRequest. */
+export type ProviderOauthStatusRequest = ChannelOauthStatusRequest;
 
 /** PulseResumeResponse is the same shape as PulsePauseResponse. */
 export type PulseResumeResponse = PulsePauseResponse;

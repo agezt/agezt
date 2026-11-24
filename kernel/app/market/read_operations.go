@@ -18,7 +18,7 @@ type ShowRequest struct {
 	Marketplace json.RawMessage `json:"marketplace,omitempty"`
 }
 
-var readInputSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"query":{},"name":{},"marketplace":{}}}`)
+var readInputSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"query":{"type":"string"},"name":{"type":"string"},"marketplace":{"type":"string"}}}`)
 
 // Permissive native fields: missing, null and nonstrings select empty text.
 func readText(raw json.RawMessage) string {

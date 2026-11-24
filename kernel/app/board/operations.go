@@ -10,6 +10,11 @@ import (
 	"strings"
 )
 
+// The request inputs are the console's own contract: every field names the
+// type it is read as, so a mistyped body is refused at the door instead of
+// arriving as a silent default. `limit` stays lenient on purpose — a limit
+// that is not a number falls back to the default page size, and the read
+// routes carry it as a query argument.
 type ReadRequestInput struct {
 	Topic  string `json:"topic,omitempty"`
 	Cursor string `json:"cursor,omitempty"`
@@ -19,32 +24,32 @@ type LimitRequestInput struct {
 	Limit any `json:"limit,omitempty"`
 }
 type InboxRequestInput struct {
-	To    any  `json:"to,omitempty"`
-	All   bool `json:"all,omitempty"`
-	Limit any  `json:"limit,omitempty"`
+	To    string `json:"to,omitempty"`
+	All   bool   `json:"all,omitempty"`
+	Limit any    `json:"limit,omitempty"`
 }
 type GetRequestInput struct {
-	ID any `json:"id,omitempty"`
+	ID string `json:"id,omitempty"`
 }
 type RepliesRequestInput struct {
-	ID    any `json:"id,omitempty"`
-	Limit any `json:"limit,omitempty"`
+	ID    string `json:"id,omitempty"`
+	Limit any    `json:"limit,omitempty"`
 }
 type AckRequestInput struct {
-	ID any `json:"id,omitempty"`
-	By any `json:"by,omitempty"`
+	ID string `json:"id,omitempty"`
+	By string `json:"by,omitempty"`
 }
 type SendRequestInput struct {
-	Text          any  `json:"text,omitempty"`
-	From          any  `json:"from,omitempty"`
-	To            any  `json:"to,omitempty"`
-	Topic         any  `json:"topic,omitempty"`
-	ReplyTo       any  `json:"reply_to,omitempty"`
-	CorrelationID any  `json:"correlation_id,omitempty"`
-	Help          bool `json:"help,omitempty"`
+	Text          string `json:"text,omitempty"`
+	From          string `json:"from,omitempty"`
+	To            string `json:"to,omitempty"`
+	Topic         string `json:"topic,omitempty"`
+	ReplyTo       string `json:"reply_to,omitempty"`
+	CorrelationID string `json:"correlation_id,omitempty"`
+	Help          bool   `json:"help,omitempty"`
 }
 
-func text(raw any) string { value, _ := raw.(string); return strings.TrimSpace(value) }
+func trim(value string) string { return strings.TrimSpace(value) }
 func admittedLimit(raw any) int {
 	limit := 50
 	if value, ok := raw.(float64); ok && value > 0 {
@@ -93,7 +98,7 @@ func Operations(reads func(context.Context) (*Service, error), writes func(conte
 				if err != nil {
 					return InboxOutput{}, err
 				}
-				return service.Inbox(ctx, InboxInput{To: text(in.To), All: in.All, Limit: admittedLimit(in.Limit)})
+				return service.Inbox(ctx, InboxInput{To: trim(in.To), All: in.All, Limit: admittedLimit(in.Limit)})
 			})
 		},
 		func() error {
@@ -102,7 +107,7 @@ func Operations(reads func(context.Context) (*Service, error), writes func(conte
 				if err != nil {
 					return GetOutput{}, err
 				}
-				return service.Get(ctx, GetInput{ID: text(in.ID)})
+				return service.Get(ctx, GetInput{ID: trim(in.ID)})
 			})
 		},
 		func() error {
@@ -111,7 +116,7 @@ func Operations(reads func(context.Context) (*Service, error), writes func(conte
 				if err != nil {
 					return RepliesOutput{}, err
 				}
-				return service.Replies(ctx, RepliesInput{ID: text(in.ID), Limit: admittedLimit(in.Limit)})
+				return service.Replies(ctx, RepliesInput{ID: trim(in.ID), Limit: admittedLimit(in.Limit)})
 			})
 		},
 		func() error {
@@ -120,7 +125,7 @@ func Operations(reads func(context.Context) (*Service, error), writes func(conte
 				if err != nil {
 					return SendOutput{}, err
 				}
-				return service.Send(ctx, SendInput{Text: text(in.Text), From: text(in.From), To: text(in.To), Topic: text(in.Topic), ReplyTo: text(in.ReplyTo), CorrelationID: text(in.CorrelationID), Help: in.Help})
+				return service.Send(ctx, SendInput{Text: trim(in.Text), From: trim(in.From), To: trim(in.To), Topic: trim(in.Topic), ReplyTo: trim(in.ReplyTo), CorrelationID: trim(in.CorrelationID), Help: in.Help})
 			})
 		},
 		func() error {
@@ -129,7 +134,7 @@ func Operations(reads func(context.Context) (*Service, error), writes func(conte
 				if err != nil {
 					return AckOutput{}, err
 				}
-				return service.Ack(ctx, AckInput{ID: text(in.ID), By: text(in.By)})
+				return service.Ack(ctx, AckInput{ID: trim(in.ID), By: trim(in.By)})
 			})
 		},
 	}

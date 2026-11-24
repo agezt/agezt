@@ -93,7 +93,7 @@ func SetEnabledOperations(provider func(context.Context) *SetEnabledService) ([]
 	if err != nil {
 		return nil, err
 	}
-	op, err := app.NewOperation(opapi.Spec{Name: opapi.AgentSetEnabled, OutputSchema: output, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{},"enabled":{}}}`)}, func(ctx context.Context, in SetEnabledRequest) (SetEnabledOutput, error) {
+	op, err := app.NewOperation(opapi.Spec{Name: opapi.AgentSetEnabled, OutputSchema: output, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{"type":"string"},"enabled":{"type":["boolean","string"]}}}`)}, func(ctx context.Context, in SetEnabledRequest) (SetEnabledOutput, error) {
 		return provider(ctx).SetEnabled(ctx, in)
 	})
 	if err != nil {

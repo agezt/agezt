@@ -174,7 +174,7 @@ func ActivityOperations(provider func(context.Context) *ActivityService) ([]app.
 	if provider == nil {
 		return nil, errors.New("roster activity provider required")
 	}
-	op, err := app.NewOperation(opapi.Spec{Name: opapi.AgentActivity, ReadOnly: true, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{},"limit":{},"cursor":{}}}`)}, func(ctx context.Context, in ActivityRequest) (ActivityOutput, error) {
+	op, err := app.NewOperation(opapi.Spec{Name: opapi.AgentActivity, ReadOnly: true, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{"type":"string"},"limit":{"type":"number"},"cursor":{"type":"string"}}}`)}, func(ctx context.Context, in ActivityRequest) (ActivityOutput, error) {
 		return provider(ctx).Activity(ctx, in)
 	})
 	if err != nil {

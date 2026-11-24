@@ -97,7 +97,7 @@ func GraveyardOperations(provider func(context.Context) *GraveyardService) ([]ap
 	if provider == nil {
 		return nil, errors.New("roster graveyard provider required")
 	}
-	op, err := app.NewOperation(opapi.Spec{Name: opapi.AgentGraveyard, ReadOnly: true, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"older_than_days":{}}}`)}, func(ctx context.Context, in GraveyardRequest) (GraveyardOutput, error) {
+	op, err := app.NewOperation(opapi.Spec{Name: opapi.AgentGraveyard, ReadOnly: true, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"older_than_days":{"type":["number","string"]}}}`)}, func(ctx context.Context, in GraveyardRequest) (GraveyardOutput, error) {
 		return provider(ctx).Graveyard(ctx, in.days()), nil
 	})
 	if err != nil {

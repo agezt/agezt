@@ -11,6 +11,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/platform/schema"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -92,7 +93,7 @@ func TestBoardMutationAuditPrecedesAllFactoryEffects(t *testing.T) {
 		t.Fatalf("factory=%d audit=%d", calls, audit.calls)
 	}
 }
-func TestBoardTypedAdmissionRetainsLimitsAndLenientText(t *testing.T) {
+func TestBoardTypedAdmissionRetainsLimitsAndRefusesMistypedText(t *testing.T) {
 	store, s := boardFixture(t)
 	for i := 0; i < 505; i++ {
 		if _, err := store.Post("topic", "writer", "owned", 100); err != nil {
@@ -120,17 +121,23 @@ func TestBoardTypedAdmissionRetainsLimitsAndLenientText(t *testing.T) {
 	if audit.calls != 0 {
 		t.Fatal("read audited")
 	}
-	value, err := d.Dispatch(context.Background(), opapi.Caller{}, "board_send", json.RawMessage(`{"text":" owned ","topic":" status ","from":true,"correlation_id":" inbound ","unused":true}`), nil)
+	value, err := d.Dispatch(context.Background(), opapi.Caller{}, "board_send", json.RawMessage(`{"text":" owned ","topic":" status ","from":" asker ","correlation_id":" inbound ","unused":true}`), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	sent := value.(appboard.SendOutput)
-	if sent.Sent.Text != "owned" || sent.Sent.Topic != "status" || sent.Sent.From != "" || sent.CorrelationID != "inbound" {
+	if sent.Sent.Text != "owned" || sent.Sent.Topic != "status" || sent.Sent.From != "asker" || sent.CorrelationID != "inbound" {
 		t.Fatalf("send=%+v", sent)
 	}
-	for _, raw := range []string{`{"text":"owned","topic":"status","help":null}`, `{"text":"owned","topic":"status","help":"bad"}`} {
+	audited := audit.calls
+	for _, raw := range []string{`{"text":"owned","topic":"status","help":null}`, `{"text":"owned","topic":"status","help":"bad"}`, `{"text":"owned","topic":"status","from":true}`, `{"text":7,"topic":"status"}`} {
 		if _, err := d.Dispatch(context.Background(), opapi.Caller{}, "board_send", json.RawMessage(raw), nil); err == nil {
-			t.Fatalf("invalid help accepted %s", raw)
+			t.Fatalf("invalid body accepted %s", raw)
+		} else if !strings.Contains(err.Error(), "has wrong type") {
+			t.Fatalf("%s: %v", raw, err)
 		}
+	}
+	if audit.calls != audited {
+		t.Fatalf("a refused body was audited %d times", audit.calls-audited)
 	}
 }

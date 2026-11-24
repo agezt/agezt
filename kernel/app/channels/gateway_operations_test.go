@@ -35,8 +35,9 @@ func TestChannelGatewayOperationSpecsAndResultPresence(t *testing.T) {
 		if len(node["properties"].(map[string]any)) != count {
 			t.Fatal(string(s.OutputSchema))
 		}
-		if schema.ValidateJSON(s.InputSchema, json.RawMessage(`{"url":null,"key":false,"unknown":{}}`)) != nil {
-			t.Fatal("lenient decoding changed")
+		// A mistyped argument is a usage error: the door refuses it.
+		if err := schema.ValidateJSON(s.InputSchema, json.RawMessage(`{"url":null,"key":false,"unknown":{}}`)); err == nil {
+			t.Fatal("input schema admits a mistyped argument")
 		}
 		if schema.ValidateJSON(s.OutputSchema, json.RawMessage(`{"ok":"wrong"}`)) == nil {
 			t.Fatal("untyped bool")
@@ -129,16 +130,30 @@ func TestChannelGatewayOperationPrimaryUnauditedCancelAndLenientURL(t *testing.T
 				t.Fatal(out, err, providers, gets)
 			}
 		}
-		for _, value := range []any{nil, false, 3, []any{}, map[string]any{}} {
-			gets := 0
+		for _, tc := range []struct {
+			value any
+			want  string
+		}{
+			{nil, "operation " + command + " input: $.url has wrong type: got null, want string"},
+			{false, "operation " + command + " input: $.url has wrong type: got boolean, want string"},
+			{3, "operation " + command + " input: $.url has wrong type: got number, want string"},
+			{[]any{}, "operation " + command + " input: $.url has wrong type: got array, want string"},
+			{map[string]any{}, "operation " + command + " input: $.url has wrong type: got object, want string"},
+		} {
+			gets, providers := 0, 0
+			audit := &accountAudit{}
 			ops, _ := GatewayOperations(func(context.Context) *Gateway {
+				providers++
 				return NewGateway(func(string, string, string, int64) ([]byte, int, string, error) { gets++; return nil, 0, "", nil })
 			})
-			d, _ := app.NewDispatcher(ops, app.Dependencies{Auth: ownedACPAuth{principal: opapi.Principal{Kind: opapi.Operator}}, Router: ownedACPRoute{}})
-			raw, _ := json.Marshal(map[string]any{"url": value})
+			d, _ := app.NewDispatcher(ops, app.Dependencies{Auth: ownedACPAuth{principal: opapi.Principal{Kind: opapi.Operator}}, Router: ownedACPRoute{}, Audit: audit})
+			raw, _ := json.Marshal(map[string]any{"url": tc.value})
 			_, err := d.Dispatch(context.Background(), opapi.Caller{}, command, raw, nil)
-			if err == nil || err.Error() != "args.url (gateway URL) is required" || gets != 0 {
-				t.Fatal(value, err, gets)
+			// The door refuses the mistyped URL before the handler: the service
+			// is never asked, the gateway is never probed, and the read is not
+			// audited.
+			if err == nil || err.Error() != tc.want || gets != 0 || providers != 0 || audit.begin != 0 || audit.end != 0 {
+				t.Fatal(tc.value, err, gets, providers, audit)
 			}
 		}
 	}

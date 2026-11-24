@@ -114,13 +114,38 @@ func TestMCPLifecycleTypedAdmissionBlocksEveryFactory(t *testing.T) {
 	}
 }
 func TestMCPLifecycleTypedCodecsRetainNativeErrorsAndEnableRules(t *testing.T) {
-	cases := []struct{ name, raw, want string }{{"mcp_add", `{}`, "args.server required"}, {"mcp_add", `{"server":false}`, "args.server: json: cannot unmarshal bool into Go value of type mcpapi.Server"}, {"mcp_add", `{"server":[]}`, "args.server: json: cannot unmarshal array into Go value of type mcpapi.Server"}, {"mcp_add", `{"server":{"args":1}}`, "args.server: json: cannot unmarshal number into Go struct field Server.args of type []string"}}
+	// A wrong-typed body is refused at ADMISSION: the request contract names
+	// the types the lifecycle accepts, so the body never reaches the audit
+	// and never reaches the handler.
+	cases := []struct {
+		name, raw, want string
+		refused         bool
+	}{{"mcp_add", `{}`, "args.server required", false}, {"mcp_add", `{"server":false}`, "operation mcp_add input: $.server has wrong type: got boolean, want object", true}, {"mcp_add", `{"server":[]}`, "operation mcp_add input: $.server has wrong type: got array, want object", true}, {"mcp_add", `{"server":{"args":1}}`, "args.server: json: cannot unmarshal number into Go struct field Server.args of type []string", false}}
 	for _, name := range []string{opapi.MCPAttach, "mcp_detach", "mcp_set_enabled", "mcp_remove"} {
 		for _, raw := range []string{`{}`, `{"ref":""}`, `{"ref":" \t "}`} {
-			cases = append(cases, struct{ name, raw, want string }{name, raw, "args.ref required"})
+			cases = append(cases, struct {
+				name, raw, want string
+				refused         bool
+			}{name, raw, "args.ref required", false})
 		}
 		for _, raw := range []string{`{"ref":null}`, `{"ref":false}`, `{"ref":1}`, `{"ref":[]}`, `{"ref":{}}`} {
-			cases = append(cases, struct{ name, raw, want string }{name, raw, "args.ref must be a string"})
+			want := "operation " + name + " input: $.ref has wrong type: got "
+			switch raw {
+			case `{"ref":null}`:
+				want += "null, want string"
+			case `{"ref":false}`:
+				want += "boolean, want string"
+			case `{"ref":1}`:
+				want += "number, want string"
+			case `{"ref":[]}`:
+				want += "array, want string"
+			default:
+				want += "object, want string"
+			}
+			cases = append(cases, struct {
+				name, raw, want string
+				refused         bool
+			}{name, raw, want, true})
 		}
 	}
 	for _, tc := range cases {
@@ -129,14 +154,29 @@ func TestMCPLifecycleTypedCodecsRetainNativeErrorsAndEnableRules(t *testing.T) {
 		f := 0
 		d, _ := mcpLifecycleDispatcher(t, p, a, &f, opapi.Operator)
 		_, err := d.Dispatch(context.Background(), opapi.Caller{}, tc.name, json.RawMessage(tc.raw), nil)
-		if err == nil || err.Error() != tc.want || f != 0 || len(p.calls) != 0 || a.begins != 1 || a.ends != 1 || !errors.Is(err, a.cause) {
+		if err == nil || err.Error() != tc.want || f != 0 || len(p.calls) != 0 {
+			t.Fatal(tc, err, a, p)
+		}
+		if tc.refused {
+			// The body never matched the request contract: nothing was
+			// audited, because the operation was never admitted.
+			if a.begins != 0 || a.ends != 0 {
+				t.Fatal(tc, err, a, p)
+			}
+			continue
+		}
+		if a.begins != 1 || a.ends != 1 || !errors.Is(err, a.cause) {
 			t.Fatal(tc, err, a, p)
 		}
 	}
 	for _, tc := range []struct {
 		raw  string
 		want bool
-	}{{`true`, true}, {`false`, false}, {`"TRUE"`, true}, {`"tRuE"`, true}, {`"1"`, true}, {`" true "`, false}, {`"on"`, false}, {`1`, false}, {`null`, false}, {`[]`, false}, {`{}`, false}, {`""`, false}, {``, false}} {
+		// refused marks a value the request contract does not accept: the
+		// body is refused at admission, so nothing runs and nothing is
+		// audited.
+		refused bool
+	}{{`true`, true, false}, {`false`, false, false}, {`"TRUE"`, true, false}, {`"tRuE"`, true, false}, {`"1"`, true, false}, {`" true "`, false, false}, {`"on"`, false, false}, {`1`, false, true}, {`null`, false, true}, {`[]`, false, true}, {`{}`, false, true}, {`""`, false, false}, {``, false, false}} {
 		p := &mcpLifecyclePort{}
 		a := &forgeAuditProbe{}
 		f := 0
@@ -147,6 +187,12 @@ func TestMCPLifecycleTypedCodecsRetainNativeErrorsAndEnableRules(t *testing.T) {
 		}
 		raw += `}`
 		out, err := d.Dispatch(context.Background(), opapi.Caller{}, "mcp_set_enabled", json.RawMessage(raw), nil)
+		if tc.refused {
+			if err == nil || !strings.Contains(err.Error(), "$.enabled has wrong type") || f != 0 || a.begins != 0 || a.ends != 0 {
+				t.Fatal(tc, out, err, p)
+			}
+			continue
+		}
 		if err != nil || p.enabled != tc.want || p.ref != " raw-ref " || f != 1 || a.begins != 1 || a.ends != 1 {
 			t.Fatal(tc, out, err, p)
 		}
@@ -155,7 +201,9 @@ func TestMCPLifecycleTypedCodecsRetainNativeErrorsAndEnableRules(t *testing.T) {
 	a := &forgeAuditProbe{}
 	f := 0
 	d, _ := mcpLifecycleDispatcher(t, p, a, &f, opapi.Operator)
-	if _, err := d.Dispatch(context.Background(), opapi.Caller{}, "mcp_add", json.RawMessage(`{"server":null}`), nil); err != nil || f != 1 || !reflect.DeepEqual(p.input, mcp.Server{}) {
+	// A null server is a mistyped field: the request contract refuses it at
+	// admission, so the factory never runs.
+	if _, err := d.Dispatch(context.Background(), opapi.Caller{}, "mcp_add", json.RawMessage(`{"server":null}`), nil); err == nil || !strings.Contains(err.Error(), "$.server has wrong type: got null, want object") || f != 0 || a.begins != 0 {
 		t.Fatal(err, p)
 	}
 }

@@ -25,7 +25,7 @@ func TestMarketReadNativeUnavailablePrecedesNameAndReadShapesHaveNoEffects(t *te
 	p := mock.New()
 	k, _, client, dir := startPair(t, p)
 	for _, cmd := range []string{opapi.MarketList, opapi.MarketShow, opapi.MarketSources} {
-		if _, err := client.Call(context.Background(), cmd, map[string]any{"name": false, "unknown": true}); err == nil || !strings.Contains(err.Error(), "marketplace not available on this daemon") {
+		if _, err := client.Call(context.Background(), cmd, map[string]any{"name": "owned", "unknown": true}); err == nil || !strings.Contains(err.Error(), "marketplace not available on this daemon") {
 			t.Fatal(cmd, err)
 		}
 	}

@@ -195,7 +195,7 @@ func PlanOperations(provider func(context.Context) *Plans) ([]app.Operation, err
 		return nil, errors.New("plans provider required")
 	}
 	var ops []app.Operation
-	if err := bind(&ops, opapi.Spec{Name: opapi.PlanHistory, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"limit":{},"cursor":{},"status":{}}}`)}, func(ctx context.Context, in PlansRequest) (PlansOutput, error) {
+	if err := bind(&ops, opapi.Spec{Name: opapi.PlanHistory, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"limit":{"type":"number"},"cursor":{"type":"string"},"status":{"type":"string"}}}`)}, func(ctx context.Context, in PlansRequest) (PlansOutput, error) {
 		return provider(ctx).List(ctx, in)
 	}); err != nil {
 		return nil, err

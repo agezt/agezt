@@ -143,13 +143,22 @@ func TestOperations(t *testing.T) {
 		if s.Name != want.name || s.ReadOnly != want.read || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Stream != opapi.StreamNone || !s.AllowUnknownInput || s.Input != want.input || s.Output != want.output || string(s.OutputSchema) != string(out) {
 			t.Fatalf("%s spec: %+v", want.name, s)
 		}
-		for _, in := range []string{`{}`, `{"members":null,"tenant":"t"}`} {
+		for _, in := range []string{`{}`, `{"members":[],"tenant":"t"}`, `{"members":[{"seat":"s","model":"m"}]}`} {
 			if err := schema.ValidateJSON(s.InputSchema, json.RawMessage(in)); err != nil {
 				t.Fatal(want.name, in, err)
 			}
 		}
+		// A membership that is not an array of {seat, model} is refused at the
+		// door: the contract names the type the handler reads it as.
+		if want.name == opapi.CouncilSet {
+			for _, in := range []string{`{"members":null}`, `{"members":[{"model":7}]}`} {
+				if err := schema.ValidateJSON(s.InputSchema, json.RawMessage(in)); err == nil {
+					t.Fatal(want.name, in, "accepted")
+				}
+			}
+		}
 	}
-	if !strings.Contains(string(ops[1].Spec().InputSchema), `"properties":{"members":{}}`) {
+	if !strings.Contains(string(ops[1].Spec().InputSchema), `"members":{"type":"array"`) {
 		t.Fatal(string(ops[1].Spec().InputSchema))
 	}
 }

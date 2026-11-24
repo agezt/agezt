@@ -17,7 +17,7 @@ type ToolboxInstallRequest struct {
 	Names json.RawMessage `json:"names,omitempty"`
 }
 
-var toolboxInstallSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"names":{}}}`)
+var toolboxInstallSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"names":{"type":"array","items":{"type":"string"}}}}`)
 
 // toolboxProgressSchema specializes the shared event envelope with this producer's
 // InstallResult payload and its required tool/ok fields.

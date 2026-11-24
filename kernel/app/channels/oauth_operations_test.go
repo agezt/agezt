@@ -51,8 +51,19 @@ func TestChannelOAuthOperationMetadataAndPresence(t *testing.T) {
 		if len(node["properties"].(map[string]any)) != counts[i] {
 			t.Fatal(string(s.OutputSchema))
 		}
-		if schema.ValidateJSON(s.InputSchema, json.RawMessage(`{"kind":null,"label":false,"code":{},"state":42,"unknown":[]}`)) != nil {
-			t.Fatal("lenient admission changed")
+		// A mistyped argument is a usage error: the door refuses it, and a
+		// type-correct body is admitted.
+		typed := []string{
+			`{"kind":"slack","label":"work","client_id":"id","unknown":[]}`,
+			`{"code":"code","state":"state"}`,
+			`{"state":"state"}`,
+		}
+		if err := schema.ValidateJSON(s.InputSchema, json.RawMessage(typed[i])); err != nil {
+			t.Fatal("typed argument refused", err)
+		}
+		mistyped := []string{`{"kind":null}`, `{"code":{}}`, `{"state":42}`}
+		if schema.ValidateJSON(s.InputSchema, json.RawMessage(mistyped[i])) == nil {
+			t.Fatal("mistyped argument admitted", s.Name)
 		}
 		var out any = OAuthStartOutput{}
 		if i == 1 {
@@ -156,15 +167,35 @@ func TestChannelOAuthOperationAdmissionBeforeProviderAndLenientInputs(t *testing
 			}
 		}
 	}
-	for _, invalid := range []any{nil, false, 3, []any{}, map[string]any{}} {
+	for _, tc := range []struct {
+		invalid any
+		want    string
+	}{
+		{nil, "operation channel_oauth_start input: $.kind has wrong type: got null, want string"},
+		{false, "operation channel_oauth_start input: $.kind has wrong type: got boolean, want string"},
+		{3, "operation channel_oauth_start input: $.kind has wrong type: got number, want string"},
+		{[]any{}, "operation channel_oauth_start input: $.kind has wrong type: got array, want string"},
+		{map[string]any{}, "operation channel_oauth_start input: $.kind has wrong type: got object, want string"},
+	} {
 		p := newOAuthProbe()
 		audit := &accountAudit{}
 		ops, _ := OAuthOperations(func(context.Context) *OAuth { return NewOAuth(p) })
 		d, _ := app.NewDispatcher(ops, app.Dependencies{Auth: ownedACPAuth{principal: opapi.Principal{Kind: opapi.Operator}}, Router: ownedACPRoute{}, Audit: audit})
-		raw, _ := json.Marshal(map[string]any{"kind": invalid, "code": invalid, "state": invalid, "unknown": true})
-		if _, err := d.Dispatch(context.Background(), opapi.Caller{}, "channel_oauth_start", raw, nil); err == nil || err.Error() != "client_id and client_secret are required" || p.kind != "" || audit.begin != 1 || audit.end != 1 {
-			t.Fatal("lenient type input changed", err, p.kind, audit)
+		raw, _ := json.Marshal(map[string]any{"kind": tc.invalid, "code": tc.invalid, "state": tc.invalid, "unknown": true})
+		_, err := d.Dispatch(context.Background(), opapi.Caller{}, "channel_oauth_start", raw, nil)
+		// The door refuses the mistyped argument before the handler: the
+		// provider is never asked and nothing is audited.
+		if err == nil || err.Error() != tc.want || p.kind != "" || audit.begin != 0 || audit.end != 0 {
+			t.Fatal("mistyped argument reached the handler", err, p.kind, audit)
 		}
-		// The original domain error wins over any stricter JSON type admission.
+	}
+	// A type-correct body that carries no client credentials is the handler's
+	// own domain error, and it is audited.
+	p := newOAuthProbe()
+	audit := &accountAudit{}
+	ops, _ := OAuthOperations(func(context.Context) *OAuth { return NewOAuth(p) })
+	d, _ := app.NewDispatcher(ops, app.Dependencies{Auth: ownedACPAuth{principal: opapi.Principal{Kind: opapi.Operator}}, Router: ownedACPRoute{}, Audit: audit})
+	if _, err := d.Dispatch(context.Background(), opapi.Caller{}, "channel_oauth_start", json.RawMessage(`{"kind":"slack","label":"work","unknown":true}`), nil); err == nil || err.Error() != "client_id and client_secret are required" || p.kind != "slack" || audit.begin != 1 || audit.end != 1 {
+		t.Fatal("domain error lost", err, p.kind, audit)
 	}
 }

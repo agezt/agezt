@@ -99,7 +99,7 @@ func TestPlanHistoryNativeRouting(t *testing.T) {
 		{tenantToken, opapi.PlanHistory, map[string]any{"tenant": "acme", "status": "failed"}, `"plan_name":"tenant-plan"`},
 		{"primary", opapi.PlanStats, nil, `"running":1`},
 		{tenantToken, opapi.PlanStats, map[string]any{"tenant": "acme"}, `"failed":1`},
-		{"primary", opapi.PlanHistory, map[string]any{"status": 3}, `"error":"args.status must be a string"`},
+		{"primary", opapi.PlanHistory, map[string]any{"status": 3}, `"error":"operation plan_history input: $.status has wrong type: got number, want string"`},
 	} {
 		if line := call(c.token, c.cmd, c.args); !strings.Contains(line, c.want) {
 			t.Fatalf("%s %v: %s", c.cmd, c.args, line)

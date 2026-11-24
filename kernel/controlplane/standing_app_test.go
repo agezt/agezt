@@ -153,16 +153,25 @@ func TestStandingAppReadsUnauditedAndFireUsesLatestInjectedCallback(t *testing.T
 }
 func TestStandingAppPresenceValidationAndOutputSchemas(t *testing.T) {
 	_, s, id, _, fireSlot := standingAppFixture(t)
-	for _, value := range []any{"true", "1", float64(1), nil, true, false} {
+	// The request contract names the type the handler reads the flag as: a
+	// boolean. Anything else is refused at the door — the standing order is
+	// never read, so a mistyped flag can no longer pause the wrong order.
+	for _, value := range []any{true, false} {
 		out := callAppHost(t, s, Request{ID: "enable", Cmd: opapi.StandingSetEnabled, Token: "primary", Args: map[string]any{"id": id, "enabled": value}})
 		want, _ := value.(bool)
 		if len(out) != 1 || out[0].Type != RespResult || out[0].Result["order"].(map[string]any)["enabled"] != want {
 			t.Fatal(value, out)
 		}
 	}
+	for _, value := range []any{"true", "1", float64(1), nil} {
+		out := callAppHost(t, s, Request{ID: "enable", Cmd: opapi.StandingSetEnabled, Token: "primary", Args: map[string]any{"id": id, "enabled": value}})
+		if len(out) != 1 || out[0].Type != RespError || !strings.Contains(out[0].Error, "$.enabled has wrong type") {
+			t.Fatal(value, out)
+		}
+	}
 	for _, args := range []map[string]any{{"id": "missing", "agent": "unknown", "assure": "wrong"}, {"id": "missing", "name": nil, "agent": "unknown"}} {
 		out := callAppHost(t, s, Request{ID: "edit", Cmd: opapi.StandingEdit, Token: "primary", Args: args})
-		if len(out) != 1 || out[0].Type != RespError || (!strings.Contains(out[0].Error, "args.assure must be a number") && !strings.Contains(out[0].Error, "args.name must be a string")) {
+		if len(out) != 1 || out[0].Type != RespError || (!strings.Contains(out[0].Error, "$.assure has wrong type: got string, want number") && !strings.Contains(out[0].Error, "$.name has wrong type: got null, want string")) {
 			t.Fatal(args, out)
 		}
 	}

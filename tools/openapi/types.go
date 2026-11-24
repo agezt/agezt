@@ -381,6 +381,29 @@ func (r *tsRenderer) renderMember(name string, raw json.RawMessage, keepNull boo
 		return r.withNull(canonical, node, keepNull), nil
 	}
 
+	// A node that declares SEVERAL types is a union of shapes, and the
+	// browser's view must carry every arm of it: the daemon accepts any of
+	// them, so a renderer that picked one arm would promise the browser less
+	// than the daemon accepts — and would promise it the wrong shape.
+	types := node.typeNames()
+	if len(types) > 1 {
+		parts := make([]string, 0, len(types))
+		for _, kind := range types {
+			arm, err := r.renderArm(name, node, kind, keepNull)
+			if err != nil {
+				return "", err
+			}
+			if arm == "" {
+				continue
+			}
+			parts = append(parts, arm)
+		}
+		if len(parts) == 0 {
+			return "any", nil
+		}
+		return strings.Join(parts, " | "), nil
+	}
+
 	if node.hasType("array") {
 		item := "any"
 		if len(node.Items) > 0 {
@@ -420,35 +443,72 @@ func (r *tsRenderer) renderMember(name string, raw json.RawMessage, keepNull boo
 		return r.withNull(record, node, keepNull), nil
 	}
 
-	types := node.typeNames()
 	if len(types) == 0 {
 		return "any", nil
 	}
 	parts := make([]string, 0, len(types))
-	for _, name := range types {
-		switch name {
-		case "string":
-			parts = append(parts, "string")
-		case "integer", "number":
-			parts = append(parts, "number")
-		case "boolean":
-			parts = append(parts, "boolean")
-		case "null":
-			if r.mode.null && keepNull {
-				parts = append(parts, "null")
-			}
-		case "array":
-			parts = append(parts, "any[]")
-		case "object":
-			parts = append(parts, "Record<string, any>")
-		default:
-			parts = append(parts, "any")
+	for _, kind := range types {
+		arm, err := r.renderArm(name, node, kind, keepNull)
+		if err != nil {
+			return "", err
 		}
+		if arm == "" {
+			continue
+		}
+		parts = append(parts, arm)
 	}
 	if len(parts) == 0 {
 		return "any", nil
 	}
 	return strings.Join(parts, " | "), nil
+}
+
+// renderArm renders ONE arm of a union: the node declares several types and
+// the browser's view carries each of them.
+//
+// An arm that the browser's view folds away (the null arm of a member the
+// daemon may omit) renders as the empty string, and the caller drops it.
+func (r *tsRenderer) renderArm(name string, node schemaNode, kind string, keepNull bool) (string, error) {
+	switch kind {
+	case "array":
+		item := "any"
+		if len(node.Items) > 0 {
+			rendered, err := r.renderMember(name+"Item", node.Items, true)
+			if err != nil {
+				return "", err
+			}
+			item = rendered
+		}
+		if strings.Contains(item, "|") {
+			item = "(" + item + ")"
+		}
+		return item + "[]", nil
+	case "object":
+		record := "Record<string, any>"
+		if len(node.AdditionalProperties) > 0 && !isJSONBool(node.AdditionalProperties, false) {
+			if !isJSONBool(node.AdditionalProperties, true) {
+				value, err := r.renderMember(name+"Value", node.AdditionalProperties, true)
+				if err != nil {
+					return "", err
+				}
+				record = "Record<string, " + value + ">"
+			}
+		}
+		return record, nil
+	case "string":
+		return "string", nil
+	case "integer", "number":
+		return "number", nil
+	case "boolean":
+		return "boolean", nil
+	case "null":
+		if r.mode.null && keepNull {
+			return "null", nil
+		}
+		return "", nil
+	default:
+		return "any", nil
+	}
 }
 
 // objectBody renders the members of an object schema.

@@ -9,7 +9,7 @@ import (
 )
 
 // Raw request fields require an explicit schema so presence validation stays in the handler.
-var scheduleRequestSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"status":{},"id":{},"intent":{},"model":{},"agent":{},"target":{},"workflow":{},"system_task":{},"tool":{},"payload":{},"enabled":{},"count":{},"once_at_unix":{},"cooldown_sec":{},"window_start":{},"window_end":{},"interval_sec":{},"days":{},"at_minutes":{},"tz":{},"limit":{},"cursor":{},"since_ms":{}}}`)
+var scheduleRequestSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"status":{"type":"string"},"id":{"type":"string"},"intent":{"type":"string"},"model":{"type":"string"},"agent":{"type":"string"},"target":{"type":"string"},"workflow":{"type":"string"},"system_task":{"type":"string"},"tool":{"type":"string"},"payload":{"type":["object","array","string","number","boolean","null"]},"enabled":{"type":["boolean","string"]},"count":{"type":"number"},"once_at_unix":{"type":"number"},"cooldown_sec":{"type":"number"},"window_start":{"type":"number"},"window_end":{"type":"number"},"interval_sec":{"type":"number"},"days":{"type":"number"},"at_minutes":{"type":"number"},"tz":{"type":"string"},"limit":{"type":"number"},"cursor":{"type":"string"},"since_ms":{"type":"number"}}}`)
 
 func scheduleOutputSchemas() (json.RawMessage, json.RawMessage, json.RawMessage, error) {
 	typ := reflect.TypeFor[Record]()

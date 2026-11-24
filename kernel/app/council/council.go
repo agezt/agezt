@@ -191,7 +191,7 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 	if err != nil {
 		return nil, err
 	}
-	set, err := app.NewOperation(opapi.Spec{Name: opapi.CouncilSet, OutputSchema: setOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"members":{}}}`)}, func(ctx context.Context, in SetRequest) (SetOutput, error) {
+	set, err := app.NewOperation(opapi.Spec{Name: opapi.CouncilSet, OutputSchema: setOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"members":{"type":"array","items":{"type":"object","additionalProperties":true,"properties":{"seat":{"type":"string"},"model":{"type":"string"}}}}}}`)}, func(ctx context.Context, in SetRequest) (SetOutput, error) {
 		return provider(ctx).Set(ctx, in)
 	})
 	if err != nil {
