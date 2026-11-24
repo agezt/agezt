@@ -11,6 +11,7 @@ import (
 	curated "github.com/agezt/agezt/kernel/modules/knowledge/taste"
 	"github.com/agezt/agezt/kernel/platform/schema"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -63,8 +64,14 @@ func TestTasteSpecsRetainNativePolicyAndActualSchemas(t *testing.T) {
 		if err := schema.ValidateJSON(spec.OutputSchema, raw); err != nil {
 			t.Fatal(err)
 		}
-		if err := schema.ValidateJSON(spec.InputSchema, json.RawMessage(`{"title":true,"body":null,"id":12,"tags":["a",false],"scope":[],"limit":"ignored","unused":true}`)); err != nil {
-			t.Fatalf("lenient admission changed: %v", err)
+		if err := schema.ValidateJSON(spec.InputSchema, json.RawMessage(`{"title":"owned","body":"body","id":"x","tags":["a"],"scope":"Agent","limit":10,"unused":true}`)); err != nil {
+			t.Fatalf("a well-formed body was refused: %v", err)
+		}
+		// The door names a mistyped field before the handler reads it: the
+		// service still reads leniently, the registry does not admit a body
+		// whose field is not the type the contract names.
+		if err := schema.ValidateJSON(spec.InputSchema, json.RawMessage(`{"title":true,"body":null,"id":12,"tags":["a",false],"scope":[],"limit":"ignored","unused":true}`)); err == nil {
+			t.Fatal("a mistyped body was admitted")
 		}
 	}
 	if _, err := apptaste.Operations(nil); err == nil {
@@ -123,8 +130,8 @@ func TestTasteTypedNativeLenientAdmission(t *testing.T) {
 			t.Fatalf("created=%+v", e)
 		}
 	}
-	for _, limit := range []string{`null`, `"ignored"`, `0.5`, `-1`, `0`, `true`, `1`} {
-		value, err := d.Dispatch(context.Background(), opapi.Caller{}, "taste_list", json.RawMessage(`{"limit":`+limit+`,"scope":true,"tag":{},"unused":true}`), nil)
+	for _, limit := range []string{`0.5`, `-1`, `0`, `1`} {
+		value, err := d.Dispatch(context.Background(), opapi.Caller{}, "taste_list", json.RawMessage(`{"limit":`+limit+`,"unused":true}`), nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -134,6 +141,21 @@ func TestTasteTypedNativeLenientAdmission(t *testing.T) {
 		}
 		if value.(apptaste.ListOutput).Count != want {
 			t.Fatalf("limit=%s out=%+v", limit, value)
+		}
+	}
+	// A page size, a scope or a tag that is not the type the contract names is
+	// a usage error the door reports, not a default the caller never asked for.
+	for _, tc := range []struct{ raw, want string }{
+		{`{"limit":"ignored"}`, "$.limit has wrong type: got string, want number"},
+		{`{"limit":null}`, "$.limit has wrong type: got null, want number"},
+		{`{"limit":true}`, "$.limit has wrong type: got boolean, want number"},
+		{`{"scope":true}`, "$.scope has wrong type: got boolean, want string"},
+		{`{"tag":{}}`, "$.tag has wrong type: got object, want string"},
+	} {
+		if _, err := d.Dispatch(context.Background(), opapi.Caller{}, "taste_list", json.RawMessage(tc.raw), nil); err == nil {
+			t.Fatalf("invalid %s succeeded", tc.raw)
+		} else if !strings.Contains(err.Error(), tc.want) {
+			t.Fatalf("%s: %v", tc.raw, err)
 		}
 	}
 	for _, tc := range []struct{ name, raw string }{{"taste_create", `{"title":true,"body":"body"}`}, {"taste_create", `{}`}, {"taste_delete", `{"id":12}`}} {

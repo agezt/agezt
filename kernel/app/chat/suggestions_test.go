@@ -195,12 +195,24 @@ func TestOperations(t *testing.T) {
 	if s.Name != "chat_suggestions" || !s.ReadOnly || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Stream != opapi.StreamNone || !s.AllowUnknownInput || s.Input != reflect.TypeFor[SuggestionsRequest]() || s.Output != reflect.TypeFor[SuggestionsOutput]() || string(s.OutputSchema) != string(out) {
 		t.Fatalf("spec: %+v", s)
 	}
-	for _, in := range []string{`{}`, `{"session_id":null,"tools":5,"tenant":"t"}`} {
+	for _, in := range []string{`{}`, `{"session_id":"conv","tools":["write","bash"],"tenant":"t"}`} {
 		if err := schema.ValidateJSON(s.InputSchema, json.RawMessage(in)); err != nil {
 			t.Fatal(in, err)
 		}
 	}
-	if !strings.Contains(string(s.InputSchema), `"properties":{"session_id":{},"tools":{}}`) {
+	// The typed door owns the type error now: a wrong-typed argument is
+	// refused before the handler reads it.
+	for _, tc := range []struct{ in, want string }{
+		{`{"session_id":null}`, "$.session_id has wrong type: got null, want string"},
+		{`{"session_id":5}`, "$.session_id has wrong type: got number, want string"},
+		{`{"tools":5}`, "$.tools has wrong type: got number, want string|array"},
+	} {
+		err := schema.ValidateJSON(s.InputSchema, json.RawMessage(tc.in))
+		if err == nil || !strings.Contains(err.Error(), tc.want) {
+			t.Fatal(tc.in, err)
+		}
+	}
+	if !strings.Contains(string(s.InputSchema), `"properties":{"session_id":{"type":"string"},"tools":{"type":["string","array"],"items":{"type":"string"}}}`) {
 		t.Fatal(string(s.InputSchema))
 	}
 }

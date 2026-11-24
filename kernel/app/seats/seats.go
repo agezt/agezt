@@ -174,13 +174,13 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 	if err != nil {
 		return nil, err
 	}
-	createOp, err := app.NewOperation(opapi.Spec{Name: opapi.SeatCreate, OutputSchema: seatOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"id":{},"name":{},"description":{},"execution_profile":{},"model_chain":{},"tools":{},"restrict_tools":{}}}`)}, func(ctx context.Context, in CreateRequest) (SeatOutput, error) {
+	createOp, err := app.NewOperation(opapi.Spec{Name: opapi.SeatCreate, OutputSchema: seatOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"id":{"type":"string"},"name":{"type":"string"},"description":{"type":"string"},"execution_profile":{"type":"string"},"model_chain":{"type":["array","string"]},"tools":{"type":["array","string"]},"restrict_tools":{"type":"boolean"}}}`)}, func(ctx context.Context, in CreateRequest) (SeatOutput, error) {
 		return provider(ctx).Create(ctx, in)
 	})
 	if err != nil {
 		return nil, err
 	}
-	deleteOp, err := app.NewOperation(opapi.Spec{Name: opapi.SeatDelete, OutputSchema: deleteOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"id":{}}}`)}, func(ctx context.Context, in DeleteRequest) (DeleteOutput, error) {
+	deleteOp, err := app.NewOperation(opapi.Spec{Name: opapi.SeatDelete, OutputSchema: deleteOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"id":{"type":"string"}}}`)}, func(ctx context.Context, in DeleteRequest) (DeleteOutput, error) {
 		return provider(ctx).Delete(ctx, in)
 	})
 	if err != nil {

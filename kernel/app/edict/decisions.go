@@ -208,12 +208,12 @@ func DecisionOperations(provider func(context.Context) *Decisions) ([]app.Operat
 	var ops []app.Operation
 	for _, b := range []func() error{
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.EdictLog, ReadOnly: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"denied":{},"tool":{},"capability":{},"limit":{},"since_ms":{},"cursor":{}}}`)}, func(ctx context.Context, in DecisionLogRequest) (DecisionsOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.EdictLog, ReadOnly: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"denied":{"type":"boolean"},"tool":{"type":"string"},"capability":{"type":"string"},"limit":{"type":"number"},"since_ms":{"type":"number"},"cursor":{"type":"string"}}}`)}, func(ctx context.Context, in DecisionLogRequest) (DecisionsOutput, error) {
 				return provider(ctx).Log(ctx, in)
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.EdictStats, ReadOnly: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"since_ms":{},"tool":{},"capability":{}}}`)}, func(ctx context.Context, in DecisionStatsRequest) (DecisionStatsOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.EdictStats, ReadOnly: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"since_ms":{"type":"number"},"tool":{"type":"string"},"capability":{"type":"string"}}}`)}, func(ctx context.Context, in DecisionStatsRequest) (DecisionStatsOutput, error) {
 				return provider(ctx).Stats(ctx, in)
 			})
 		},

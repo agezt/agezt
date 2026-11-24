@@ -268,11 +268,11 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 	if provider == nil {
 		return nil, errors.New("steer provider required")
 	}
-	runInput := json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"correlation":{}}}`)
+	runInput := json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"correlation":{"type":"string"}}}`)
 	var ops []app.Operation
 	for _, b := range []func() error{
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.CancelRun, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"correlation":{},"tenant":{}}}`)}, func(ctx context.Context, in CancelRequest) (CancelOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.CancelRun, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"correlation":{"type":"string"},"tenant":{"type":"string"}}}`)}, func(ctx context.Context, in CancelRequest) (CancelOutput, error) {
 				return provider(ctx).Cancel(ctx, in)
 			})
 		},
@@ -292,12 +292,12 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.RunSteer, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"correlation":{},"directive":{},"mode":{}}}`)}, func(ctx context.Context, in SteerRequest) (SteerOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.RunSteer, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"correlation":{"type":"string"},"directive":{"type":"string"},"mode":{"type":"string"}}}`)}, func(ctx context.Context, in SteerRequest) (SteerOutput, error) {
 				return provider(ctx).Steer(ctx, in)
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.RunIntervene, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"correlation":{},"primitive":{},"directive":{},"scope":{},"idempotency_key":{},"lease_ms":{}}}`)}, func(ctx context.Context, in InterveneRequest) (InterveneOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.RunIntervene, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"correlation":{"type":"string"},"primitive":{"type":"string"},"directive":{"type":"string"},"scope":{"type":"string"},"idempotency_key":{"type":"string"},"lease_ms":{"type":"number"}}}`)}, func(ctx context.Context, in InterveneRequest) (InterveneOutput, error) {
 				return provider(ctx).Intervene(ctx, in)
 			})
 		},

@@ -4,6 +4,7 @@ package providers
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -25,6 +26,11 @@ type ObservationLogInput struct {
 type ObservationStatsInput struct {
 	SinceMS float64 `json:"since_ms,omitempty"`
 }
+
+// The provider log's contract names every field the page reads: the page size
+// and the window are numbers, the cursor is the text the journal encodes it
+// as, and the fallback flag is a boolean.
+var providerLogSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"cursor":{"type":"string"},"fallbacks":{"type":"boolean"},"limit":{"type":"number"},"since_ms":{"type":"number"}}}`)
 
 func observationWindow(since float64) ObservationInput {
 	window := int64(since)
@@ -54,7 +60,7 @@ func ObservationOperations(provider func(context.Context) *Observations) ([]app.
 	if provider == nil {
 		return nil, errors.New("provider observation service provider required")
 	}
-	log, err := app.NewOperation(opapi.Spec{Name: opapi.ProviderLog, ReadOnly: true, Authz: opapi.OwnTenant, Tenancy: opapi.CallerTenant, AllowUnknownInput: true}, func(ctx context.Context, in ObservationLogInput) (ObservationLogOutput, error) {
+	log, err := app.NewOperation(opapi.Spec{Name: opapi.ProviderLog, ReadOnly: true, Authz: opapi.OwnTenant, Tenancy: opapi.CallerTenant, AllowUnknownInput: true, InputSchema: providerLogSchema}, func(ctx context.Context, in ObservationLogInput) (ObservationLogOutput, error) {
 		bounded := observationPage(in.ObservationPageInput)
 		bounded.Cursor, bounded.FallbacksOnly = in.Cursor, in.Fallbacks
 		return provider(ctx).Log(bounded)

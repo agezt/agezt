@@ -56,7 +56,7 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 	if err != nil {
 		return nil, err
 	}
-	apply, err := app.NewOperation(opapi.Spec{Name: opapi.UpdateApply, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"version":{},"sha256":{},"url":{},"notes":{}}}`)}, func(ctx context.Context, in ApplyRequest) (out ApplyOutput, cause error) {
+	apply, err := app.NewOperation(opapi.Spec{Name: opapi.UpdateApply, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"version":{"type":"string"},"sha256":{"type":"string"},"url":{"type":"string"},"notes":{"type":"string"}}}`)}, func(ctx context.Context, in ApplyRequest) (out ApplyOutput, cause error) {
 		defer func() {
 			if recover() != nil {
 				out = ApplyOutput{}

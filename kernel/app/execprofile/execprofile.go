@@ -143,7 +143,7 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 		input  string
 	}{
 		{opapi.ExecutionProfiles, reflect.TypeFor[ListOutput](), ""},
-		{opapi.ExecutionProfileShow, reflect.TypeFor[ShowOutput](), `{"type":"object","additionalProperties":true,"properties":{"id":{}}}`},
+		{opapi.ExecutionProfileShow, reflect.TypeFor[ShowOutput](), `{"type":"object","additionalProperties":true,"properties":{"id":{"type":"string"}}}`},
 		{opapi.ExecutionProfileCheck, reflect.TypeFor[CheckOutput](), ""},
 	} {
 		out, err := schema.FromType(op.output, false)

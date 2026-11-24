@@ -9,6 +9,7 @@ import (
 	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
 	"github.com/agezt/agezt/kernel/platform/schema"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -82,9 +83,21 @@ func TestForgeShowNativeRefCodecRejectsBeforeFactory(t *testing.T) {
 	port := &forgeReaderProbe{rows: []toolforge.ScriptTool{{}}, found: true}
 	factory := 0
 	d, _ := forgeDispatcher(t, opapi.Operator, port, &factory, &inventoryForbiddenAudit{})
-	cases := []struct{ raw, want string }{{`{}`, "args.ref required"}, {`{"ref":null}`, "args.ref must be a string"}, {`{"ref":false}`, "args.ref must be a string"}, {`{"ref":1}`, "args.ref must be a string"}, {`{"ref":[]}`, "args.ref must be a string"}, {`{"ref":{}}`, "args.ref must be a string"}, {`{"ref":""}`, "args.ref required"}, {`{"ref":" \t "}`, "args.ref required"}}
+	cases := []struct{ raw, want string }{{`{}`, "args.ref required"}, {`{"ref":""}`, "args.ref required"}, {`{"ref":" \t "}`, "args.ref required"}}
 	for _, tc := range cases {
 		if _, err := d.Dispatch(context.Background(), opapi.Caller{}, "toolforge_show", json.RawMessage(tc.raw), nil); err == nil || err.Error() != tc.want {
+			t.Fatal(tc.raw, err, tc.want)
+		}
+	}
+	// A mistyped reference is refused at the door, before the handler reads it.
+	for _, tc := range []struct{ raw, want string }{
+		{`{"ref":null}`, "$.ref has wrong type: got null, want string"},
+		{`{"ref":false}`, "$.ref has wrong type: got boolean, want string"},
+		{`{"ref":1}`, "$.ref has wrong type: got number, want string"},
+		{`{"ref":[]}`, "$.ref has wrong type: got array, want string"},
+		{`{"ref":{}}`, "$.ref has wrong type: got object, want string"},
+	} {
+		if _, err := d.Dispatch(context.Background(), opapi.Caller{}, "toolforge_show", json.RawMessage(tc.raw), nil); err == nil || !strings.Contains(err.Error(), tc.want) {
 			t.Fatal(tc.raw, err, tc.want)
 		}
 	}

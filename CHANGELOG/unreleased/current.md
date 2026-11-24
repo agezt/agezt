@@ -837,6 +837,39 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The registry's own request side gets its types.** W5.8 gave the
+  **browser's** request bodies their types; the daemon's own surface — the
+  operations a CLI or an SDK calls, the ones no console route names — was the
+  last one still reading "anything goes". Measured over the whole registry
+  (**324** operations), **122** of them declared **418** request properties
+  with **no type at all** (`{}` says "anything"), so a mistyped field reached
+  the handler as a **silent default**: a text page size became the default
+  page, a number where a title belongs became an empty title, a text approval
+  flag became *false*, a null tool became an empty tool that was then drafted.
+  Every property of every request body the daemon accepts now names the type
+  its handler reads it as — the type is the field's **read** type, a union
+  appears only where the handler genuinely accepts two meaningful shapes (the
+  pulse approval flag: a boolean, or the text a form sends; the seats' model
+  chain: a list, or the one comma-separated string the reader splits), and
+  **no** null or junk arms are added — across **29** daemon packages. A
+  mistyped body is refused at **admission**, before the handler runs and before
+  the audit sees it, and the refusal names the field and both types:
+  `operation workboard_create input: $.max_attempts has wrong type: got
+  string, want number`. The dispatcher was not touched and the wire protocol
+  is unchanged — only the *declared* type of a field moved. The types were
+  checked against the real callers first (the CLI sends numbers as numbers and
+  the pulse approval as a boolean; the Go SDK sends the board's limit as a
+  number), and one gap that binding found is closed: the console's query proxy
+  did not coerce the **day windows** the reaper and the skill hygiene read, so
+  a query-carried day count arrived as text and was silently the default — the
+  proxy coerces `idle_days` and `stale_days` now. Two guards hold the line:
+  the daemon's own rule (every property of every request body the daemon
+  accepts declares a type) and the door's own test (a mistyped body on the
+  CLI/SDK surface never reaches the handler or the audit — 24 bodies over
+  **13** packages). Proved by **3** reverted mutations. The registry's request
+  surface is now **122 → 0** untyped bodies and **418 → 0** untyped
+  properties; **324 of 324** operations carry a fully typed request body.
+
 - **The request side gets one home.** The daemon's **response** rows already
   had one home (the operation registry); the **request** side did not. The
   console's route catalogue has **70** routes that take a JSON body — the

@@ -100,9 +100,9 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 	}
 	var ops []app.Operation
 	for _, d := range []struct{ name, input string }{
-		{Mkdir, `{"type":"object","additionalProperties":true,"properties":{"path":{},"parents":{}}}`},
-		{Rename, `{"type":"object","additionalProperties":true,"properties":{"from":{},"to":{}}}`},
-		{Delete, `{"type":"object","additionalProperties":true,"properties":{"path":{},"recursive":{}}}`},
+		{Mkdir, `{"type":"object","additionalProperties":true,"properties":{"path":{"type":"string"},"parents":{"type":"boolean"}}}`},
+		{Rename, `{"type":"object","additionalProperties":true,"properties":{"from":{"type":"string"},"to":{"type":"string"}}}`},
+		{Delete, `{"type":"object","additionalProperties":true,"properties":{"path":{"type":"string"},"recursive":{"type":"boolean"}}}`},
 	} {
 		operation := d.name
 		op, err := app.NewOperation(opapi.Spec{Name: operation, OutputSchema: mutationOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(d.input)}, func(ctx context.Context, in MutationRequest) (MutationOutput, error) {
@@ -114,7 +114,7 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 		}
 		ops = append(ops, op)
 	}
-	restore, err := app.NewOperation(opapi.Spec{Name: RestoreOperation, OutputSchema: restoreOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"id":{}}}`)}, func(ctx context.Context, in RestoreRequest) (RestoreOutput, error) {
+	restore, err := app.NewOperation(opapi.Spec{Name: RestoreOperation, OutputSchema: restoreOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"id":{"type":"string"}}}`)}, func(ctx context.Context, in RestoreRequest) (RestoreOutput, error) {
 		out, err := provider(ctx).Restore(ctx, in)
 		return out, classified(err)
 	})

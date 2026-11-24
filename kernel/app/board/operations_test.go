@@ -112,11 +112,18 @@ func TestBoardTypedAdmissionRetainsLimitsAndRefusesMistypedText(t *testing.T) {
 	for _, tc := range []struct {
 		raw   string
 		count int
-	}{{`{}`, 50}, {`{"limit":-1}`, 50}, {`{"limit":"ignored"}`, 50}, {`{"limit":0.5}`, 505}, {`{"limit":1.9}`, 1}, {`{"limit":9999}`, 500}} {
+	}{{`{}`, 50}, {`{"limit":-1}`, 50}, {`{"limit":0.5}`, 505}, {`{"limit":1.9}`, 1}, {`{"limit":9999}`, 500}} {
 		value, err := d.Dispatch(context.Background(), opapi.Caller{}, "board_read", json.RawMessage(tc.raw), nil)
 		if err != nil || value.(appboard.ReadOutput).Count != tc.count {
 			t.Fatalf("read %s out=%+v err=%v", tc.raw, value, err)
 		}
+	}
+	// A limit that is not a number is a usage error the door names, not a page
+	// size the caller never asked for.
+	if _, err := d.Dispatch(context.Background(), opapi.Caller{}, "board_read", json.RawMessage(`{"limit":"ignored"}`), nil); err == nil {
+		t.Fatal("a text limit was accepted")
+	} else if !strings.Contains(err.Error(), "$.limit has wrong type: got string, want number") {
+		t.Fatalf("text limit: %v", err)
 	}
 	if audit.calls != 0 {
 		t.Fatal("read audited")

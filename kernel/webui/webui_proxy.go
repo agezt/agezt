@@ -94,6 +94,8 @@ var numericQueryArgs = map[string]bool{
 	"offset":          true,
 	"older_than_days": true,
 	"count":           true,
+	"idle_days":       true,
+	"stale_days":      true,
 }
 
 func queryArgValue(k, v string) any {

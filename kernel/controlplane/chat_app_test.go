@@ -50,7 +50,7 @@ func TestChatSuggestionsReadThePrimaryMemory(t *testing.T) {
 	if string(bytes.TrimSpace(line)) != want {
 		t.Fatal(string(line))
 	}
-	if resp := callAppHost(t, s, Request{ID: "c", Cmd: opapi.ChatSuggestions, Token: "primary", Args: map[string]any{"session_id": 5}})[0]; resp.Type != RespError || resp.Error != "args.session_id must be a string" {
+	if resp := callAppHost(t, s, Request{ID: "c", Cmd: opapi.ChatSuggestions, Token: "primary", Args: map[string]any{"session_id": 5}})[0]; resp.Type != RespError || resp.Error != "operation chat_suggestions input: $.session_id has wrong type: got number, want string" {
 		t.Fatal(resp)
 	}
 	if wire, exists := commandRegistry[opapi.ChatSuggestions]; !exists || !wire.AppOwned || !wire.ReadOnly || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone {

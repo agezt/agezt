@@ -75,7 +75,7 @@ func TraceOperations(provider func(context.Context) *Trace) ([]app.Operation, er
 		return nil, errors.New("trace provider required")
 	}
 	var ops []app.Operation
-	if err := bind(&ops, opapi.Spec{Name: opapi.Why, Authz: opapi.OwnTenant, Tenancy: opapi.CallerTenant, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"event_id":{}}}`)}, func(ctx context.Context, in WhyRequest) (WhyOutput, error) {
+	if err := bind(&ops, opapi.Spec{Name: opapi.Why, Authz: opapi.OwnTenant, Tenancy: opapi.CallerTenant, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"event_id":{"type":"string"}}}`)}, func(ctx context.Context, in WhyRequest) (WhyOutput, error) {
 		return provider(ctx).Why(ctx, in)
 	}); err != nil {
 		return nil, err

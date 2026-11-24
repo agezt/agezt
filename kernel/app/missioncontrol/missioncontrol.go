@@ -189,7 +189,7 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 	if err != nil {
 		return nil, err
 	}
-	attention, err := app.NewOperation(opapi.Spec{Name: opapi.Attention, ReadOnly: true, OutputSchema: attentionOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"window":{},"limit":{}}}`)}, func(ctx context.Context, in AttentionRequest) (AttentionOutput, error) {
+	attention, err := app.NewOperation(opapi.Spec{Name: opapi.Attention, ReadOnly: true, OutputSchema: attentionOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"window":{"type":["string","number"]},"limit":{"type":["number","string"]}}}`)}, func(ctx context.Context, in AttentionRequest) (AttentionOutput, error) {
 		return provider(ctx).Attention(ctx, in)
 	})
 	if err != nil {

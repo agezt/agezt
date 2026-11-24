@@ -30,7 +30,7 @@ type ForgeQuarantineRequest struct {
 	Reason json.RawMessage `json:"reason,omitempty"`
 }
 
-var forgeMutationSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{},"tool":{},"input":{},"reason":{}}}`)
+var forgeMutationSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{"type":"string"},"tool":{"type":"object"},"input":{"type":"string"},"reason":{"type":"string"}}}`)
 
 func forgeDecodeTool(raw json.RawMessage) (toolforge.ScriptTool, error) {
 	if len(raw) == 0 {

@@ -144,7 +144,7 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 	if err != nil {
 		return nil, err
 	}
-	set, err := app.NewOperation(opapi.Spec{Name: opapi.BudgetSet, OutputSchema: out, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ceiling_mc":{}}}`)}, func(ctx context.Context, in SetRequest) (Output, error) {
+	set, err := app.NewOperation(opapi.Spec{Name: opapi.BudgetSet, OutputSchema: out, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ceiling_mc":{"type":["number","string"]}}}`)}, func(ctx context.Context, in SetRequest) (Output, error) {
 		return provider(ctx).Set(ctx, in)
 	})
 	if err != nil {

@@ -179,10 +179,10 @@ func TestOperations(t *testing.T) {
 		name, props   string
 		input, output reflect.Type
 	}{
-		{Mkdir, `{"path":{},"parents":{}}`, reflect.TypeFor[MutationRequest](), reflect.TypeFor[MutationOutput]()},
-		{Rename, `{"from":{},"to":{}}`, reflect.TypeFor[MutationRequest](), reflect.TypeFor[MutationOutput]()},
-		{Delete, `{"path":{},"recursive":{}}`, reflect.TypeFor[MutationRequest](), reflect.TypeFor[MutationOutput]()},
-		{RestoreOperation, `{"id":{}}`, reflect.TypeFor[RestoreRequest](), reflect.TypeFor[RestoreOutput]()},
+		{Mkdir, `{"path":{"type":"string"},"parents":{"type":"boolean"}}`, reflect.TypeFor[MutationRequest](), reflect.TypeFor[MutationOutput]()},
+		{Rename, `{"from":{"type":"string"},"to":{"type":"string"}}`, reflect.TypeFor[MutationRequest](), reflect.TypeFor[MutationOutput]()},
+		{Delete, `{"path":{"type":"string"},"recursive":{"type":"boolean"}}`, reflect.TypeFor[MutationRequest](), reflect.TypeFor[MutationOutput]()},
+		{RestoreOperation, `{"id":{"type":"string"}}`, reflect.TypeFor[RestoreRequest](), reflect.TypeFor[RestoreOutput]()},
 	} {
 		s := ops[i].Spec()
 		out, err := schema.FromType(want.output, false)
@@ -195,8 +195,25 @@ func TestOperations(t *testing.T) {
 		if !strings.Contains(string(s.InputSchema), `"properties":`+want.props) {
 			t.Fatal(want.name, string(s.InputSchema))
 		}
-		if err := schema.ValidateJSON(s.InputSchema, json.RawMessage(`{"tenant":"t","path":5,"id":null}`)); err != nil {
+		if err := schema.ValidateJSON(s.InputSchema, json.RawMessage(`{"tenant":"t","path":"p"}`)); err != nil {
 			t.Fatal(want.name, err)
+		}
+	}
+	// The typed door owns the type error now: a wrong-typed argument is
+	// refused before the mutation is applied.
+	schemas := map[string]json.RawMessage{}
+	for _, op := range ops {
+		schemas[op.Spec().Name] = op.Spec().InputSchema
+	}
+	for _, tc := range []struct{ name, in, want string }{
+		{Mkdir, `{"path":5}`, "$.path has wrong type: got number, want string"},
+		{Mkdir, `{"parents":"yes"}`, "$.parents has wrong type: got string, want boolean"},
+		{Rename, `{"from":5}`, "$.from has wrong type: got number, want string"},
+		{Delete, `{"recursive":"yes"}`, "$.recursive has wrong type: got string, want boolean"},
+		{RestoreOperation, `{"id":5}`, "$.id has wrong type: got number, want string"},
+	} {
+		if err := schema.ValidateJSON(schemas[tc.name], json.RawMessage(tc.in)); err == nil || !strings.Contains(err.Error(), tc.want) {
+			t.Fatal(tc.name, tc.in, err)
 		}
 	}
 }

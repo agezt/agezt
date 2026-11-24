@@ -101,7 +101,7 @@ func TestApprovalHistoryNativeRouting(t *testing.T) {
 		{tenantToken, opapi.ApprovalsLog, map[string]any{"tenant": "acme", "denied": true}, `"approval_id":"tenant-ap"`},
 		{"primary", opapi.ApprovalsStats, nil, `"pending":1`},
 		{tenantToken, opapi.ApprovalsStats, map[string]any{"tenant": "acme", "since_ms": 600000}, `"denied":1`},
-		{"primary", opapi.ApprovalsLog, map[string]any{"denied": "yes"}, `"error":"args.denied must be a boolean"`},
+		{"primary", opapi.ApprovalsLog, map[string]any{"denied": "yes"}, `"error":"operation approvals_log input: $.denied has wrong type: got string, want boolean"`},
 	} {
 		if line := call(c.token, c.cmd, c.args); !strings.Contains(line, c.want) {
 			t.Fatalf("%s %v: %s", c.cmd, c.args, line)

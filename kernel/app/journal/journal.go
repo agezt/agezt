@@ -190,27 +190,27 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.JournalTail, Tenancy: opapi.Primary, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"n":{}}}`)}, func(ctx context.Context, in TailRequest) (EventsOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.JournalTail, Tenancy: opapi.Primary, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"n":{"type":"number"}}}`)}, func(ctx context.Context, in TailRequest) (EventsOutput, error) {
 				return provider(ctx).Tail(ctx, in)
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.JournalGrep, Tenancy: opapi.Primary, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"pattern":{},"kind":{},"subject":{},"actor":{},"correlation_id":{},"limit":{}}}`)}, func(ctx context.Context, in GrepRequest) (EventsOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.JournalGrep, Tenancy: opapi.Primary, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"pattern":{"type":"string"},"kind":{"type":"string"},"subject":{"type":"string"},"actor":{"type":"string"},"correlation_id":{"type":"string"},"limit":{"type":"number"}}}`)}, func(ctx context.Context, in GrepRequest) (EventsOutput, error) {
 				return provider(ctx).Grep(ctx, in)
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.JournalExport, Tenancy: opapi.Primary, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"since_ms":{},"correlation":{}}}`)}, func(ctx context.Context, in ExportRequest) (ExportOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.JournalExport, Tenancy: opapi.Primary, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"since_ms":{"type":"number"},"correlation":{"type":"string"}}}`)}, func(ctx context.Context, in ExportRequest) (ExportOutput, error) {
 				return provider(ctx).Export(ctx, in)
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.Changelog, Tenancy: opapi.CallerTenant, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"limit":{},"since_ms":{}}}`)}, func(ctx context.Context, in WindowRequest) (ChangelogOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.Changelog, Tenancy: opapi.CallerTenant, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"limit":{"type":"number"},"since_ms":{"type":"number"}}}`)}, func(ctx context.Context, in WindowRequest) (ChangelogOutput, error) {
 				return provider(ctx).Changelog(ctx, in)
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.CacheStats, Authz: opapi.OwnTenant, Tenancy: opapi.CallerTenant, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"since_ms":{}}}`)}, func(ctx context.Context, in WindowRequest) (CacheStatsOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.CacheStats, Authz: opapi.OwnTenant, Tenancy: opapi.CallerTenant, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"since_ms":{"type":"number"}}}`)}, func(ctx context.Context, in WindowRequest) (CacheStatsOutput, error) {
 				return provider(ctx).CacheStats(ctx, in)
 			})
 		},

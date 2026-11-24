@@ -122,7 +122,7 @@ func TestSteerNativeRoutesToTheCallersKernel(t *testing.T) {
 		{tenantToken, opapi.RunSteer, map[string]any{"correlation": tCorr, "tenant": "acme", "directive": "focus", "mode": "note"}, `"accepted":true,"correlation":"` + tCorr + `","mode":"note"`},
 		{"primary", opapi.RunIntervene, map[string]any{"correlation": pCorr, "primitive": "halt", "idempotency_key": "k1"}, `"accepted":true`},
 		{tenantToken, opapi.CancelRun, map[string]any{"correlation": pCorr, "tenant": "acme"}, `"cancelled":false`},
-		{"primary", opapi.CancelRun, map[string]any{"correlation": tCorr, "tenant": 3}, `"error":"args.tenant must be a string"`},
+		{"primary", opapi.CancelRun, map[string]any{"correlation": tCorr, "tenant": 3}, `"error":"operation cancel_run input: $.tenant has wrong type: got number, want string"`},
 	} {
 		if line := call(c.token, c.cmd, c.args); !strings.Contains(line, c.want) {
 			t.Fatalf("%s %v: %s", c.cmd, c.args, line)

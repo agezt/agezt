@@ -27,7 +27,11 @@ type ControlRequest struct {
 	Command  json.RawMessage `json:"command,omitempty"`
 }
 
-var controlSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"issue_key":{},"approve":{},"seconds":{},"dial":{},"hours":{},"path":{},"min_pct":{},"name":{},"command":{}}}`)
+// The control request's contract names every field the readers below accept:
+// the text fields are strings, the durations and percentages are numbers or
+// their digit strings, and the approval flag is a boolean or the text a form
+// sends ("true"/"1").
+var controlSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"issue_key":{"type":"string"},"approve":{"type":["boolean","string"]},"seconds":{"type":["number","string"]},"dial":{"type":"string"},"hours":{"type":"string"},"path":{"type":"string"},"min_pct":{"type":["number","string"]},"name":{"type":"string"},"command":{"type":"string"}}}`)
 
 func controlValue(raw json.RawMessage) any {
 	var value any

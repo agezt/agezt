@@ -134,8 +134,8 @@ func TestOperations(t *testing.T) {
 		props         string
 	}{
 		{opapi.SeatList, true, reflect.TypeFor[ListRequest](), reflect.TypeFor[ListOutput](), ""},
-		{opapi.SeatCreate, false, reflect.TypeFor[CreateRequest](), reflect.TypeFor[SeatOutput](), `"id":{},"name":{},"description":{},"execution_profile":{},"model_chain":{},"tools":{},"restrict_tools":{}`},
-		{opapi.SeatDelete, false, reflect.TypeFor[DeleteRequest](), reflect.TypeFor[DeleteOutput](), `"id":{}`},
+		{opapi.SeatCreate, false, reflect.TypeFor[CreateRequest](), reflect.TypeFor[SeatOutput](), `"id":{"type":"string"},"name":{"type":"string"},"description":{"type":"string"},"execution_profile":{"type":"string"},"model_chain":{"type":["array","string"]},"tools":{"type":["array","string"]},"restrict_tools":{"type":"boolean"}`},
+		{opapi.SeatDelete, false, reflect.TypeFor[DeleteRequest](), reflect.TypeFor[DeleteOutput](), `"id":{"type":"string"}`},
 	} {
 		s := ops[i].Spec()
 		out, err := schema.FromType(want.output, false)
@@ -148,9 +148,18 @@ func TestOperations(t *testing.T) {
 		if want.props != "" && !strings.Contains(string(s.InputSchema), `"properties":{`+want.props+`}`) {
 			t.Fatal(want.name, string(s.InputSchema))
 		}
-		for _, in := range []string{`{}`, `{"id":7,"tools":"a,b","restrict_tools":null,"tenant":"t"}`} {
+		for _, in := range []string{`{}`, `{"id":"seat-1","tools":"a,b","restrict_tools":true,"tenant":"t"}`} {
 			if err := schema.ValidateJSON(s.InputSchema, json.RawMessage(in)); err != nil {
 				t.Fatal(want.name, in, err)
+			}
+		}
+		// The door names a mistyped field before the handler reads it.
+		for _, in := range map[string][]string{
+			opapi.SeatCreate: {`{"id":7}`, `{"restrict_tools":null}`, `{"tools":7}`},
+			opapi.SeatDelete: {`{"id":7}`},
+		}[want.name] {
+			if err := schema.ValidateJSON(s.InputSchema, json.RawMessage(in)); err == nil {
+				t.Fatal(want.name, in, "admitted")
 			}
 		}
 	}

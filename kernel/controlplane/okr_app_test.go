@@ -162,26 +162,27 @@ func TestOKRAppCreateKeepsOneAuditAndDefaultOrExplicitDomainIdentity(t *testing.
 		})
 	}
 }
-func TestOKRAppAdmissionRetainsLenientTargetFiltersAndStrictBoolean(t *testing.T) {
+func TestOKRAppAdmissionNamesMistypedTargetsAndKeepsTheTruncatingOne(t *testing.T) {
 	_, s, objective, _, _, _ := okrAppFixture(t)
-	for _, raw := range []any{float64(2.9), nil, true, "3"} {
+	response := callAppHost(t, s, Request{ID: "kr", Cmd: opapi.OKRKeyResult, Token: "primary", Args: map[string]any{"id": objective.ID, "title": " criterion ", "target": float64(2.9), "unused": true}})[0]
+	if response.Type != RespResult {
+		t.Fatal(response)
+	}
+	record := response.Result["objective"].(map[string]any)
+	results := record["key_results"].([]any)
+	last := results[len(results)-1].(map[string]any)
+	target, _ := last["target"].(float64)
+	if last["title"] != "criterion" || target != 2 {
+		t.Fatal(last)
+	}
+	// A target that is not a number is a usage error the door names.
+	for _, raw := range []any{nil, true, "3"} {
 		response := callAppHost(t, s, Request{ID: "kr", Cmd: opapi.OKRKeyResult, Token: "primary", Args: map[string]any{"id": objective.ID, "title": " criterion ", "target": raw, "unused": true}})[0]
-		if response.Type != RespResult {
-			t.Fatal(raw, response)
-		}
-		record := response.Result["objective"].(map[string]any)
-		results := record["key_results"].([]any)
-		last := results[len(results)-1].(map[string]any)
-		want := float64(0)
-		if _, ok := raw.(float64); ok {
-			want = 2
-		}
-		target, _ := last["target"].(float64)
-		if last["title"] != "criterion" || target != want {
-			t.Fatal(raw, last)
+		if response.Type != RespError || !strings.Contains(response.Error, "$.target has wrong type") {
+			t.Fatal("invalid target accepted", raw, response)
 		}
 	}
-	response := callAppHost(t, s, Request{ID: "list", Cmd: opapi.OKRList, Token: "primary", Args: map[string]any{"status": "unknown", "limit": float64(.5)}})[0]
+	response = callAppHost(t, s, Request{ID: "list", Cmd: opapi.OKRList, Token: "primary", Args: map[string]any{"status": "unknown", "limit": float64(.5)}})[0]
 	if response.Type != RespResult || response.Result["count"] != float64(0) {
 		t.Fatal(response)
 	}

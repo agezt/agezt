@@ -211,9 +211,41 @@ type CreateRequestInput struct {
 	MaxAttempts    json.RawMessage `json:"max_attempts,omitempty"`
 }
 
-var createRequestSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"title":{},"description":{},"status":{},"priority":{},"tenant":{},"assignee":{},"owner":{},"idempotency_key":{},"tags":{},"artifacts":{},"criteria":{},"seat":{},"escalate_to":{},"correlation_id":{},"max_attempts":{}}}`)
+// The request schemas below declare the type each handler actually reads:
+// requestText reads a string, requestNumber/requestLimit/requestRawNumber read a
+// number, and requestStrings reads a list of strings (or one comma-separated
+// string). A list field therefore accepts both shapes the handler understands;
+// the members stay unconstrained because the handler filters the ones it cannot
+// use instead of refusing the whole body.
+var listRequestSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"status":{"type":"string"},"tenant":{"type":"string"},"assignee":{"type":"string"},"include_archived":{"type":"boolean"},"limit":{"type":"number"}}}`)
 
-var policyRequestSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"id":{},"actor":{},"clear":{"type":"boolean"},"max_attempts":{},"escalate_to":{},"correlation_id":{}}}`)
+var idRequestSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"id":{"type":"string"}}}`)
+
+var claimRequestSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"id":{"type":"string"},"agent":{"type":"string"},"run_id":{"type":"string"},"correlation_id":{"type":"string"}}}`)
+
+var commentRequestSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"id":{"type":"string"},"author":{"type":"string"},"body":{"type":"string"},"correlation_id":{"type":"string"}}}`)
+
+var reasonRequestSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"id":{"type":"string"},"actor":{"type":"string"},"reason":{"type":"string"},"correlation_id":{"type":"string"}}}`)
+
+var proveRequestSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"id":{"type":"string"},"answer":{"type":"string"},"correlation_id":{"type":"string"}}}`)
+
+var seatRequestSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"id":{"type":"string"},"seat":{"type":"string"}}}`)
+
+var linkRequestSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"id":{"type":"string"},"type":{"type":"string"},"target":{"type":"string"},"correlation_id":{"type":"string"}}}`)
+
+var dependRequestSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"id":{"type":"string"},"depends_on":{"type":"string"},"on":{"type":"string"},"correlation_id":{"type":"string"}}}`)
+
+var reclaimRequestSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"id":{"type":"string"},"actor":{"type":"string"},"stale_after_ms":{"type":"number"},"correlation_id":{"type":"string"}}}`)
+
+var sweepRequestSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"actor":{"type":"string"},"stale_after_ms":{"type":"number"},"limit":{"type":"number"},"correlation_id":{"type":"string"}}}`)
+
+var watchRequestSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"id":{"type":"string"},"run_id":{"type":"string"},"limit":{"type":"number"}}}`)
+
+var dispatchRequestSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"id":{"type":"string"},"agent":{"type":"string"},"reason":{"type":"string"},"intent":{"type":"string"}}}`)
+
+var createRequestSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"title":{"type":"string"},"description":{"type":"string"},"status":{"type":"string"},"priority":{"type":"number"},"tenant":{"type":"string"},"assignee":{"type":"string"},"owner":{"type":"string"},"idempotency_key":{"type":"string"},"tags":{"type":["array","string"]},"artifacts":{"type":["array","string"]},"criteria":{"type":["array","string"]},"seat":{"type":"string"},"escalate_to":{"type":"string"},"correlation_id":{"type":"string"},"max_attempts":{"type":"number"}}}`)
+
+var policyRequestSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"id":{"type":"string"},"actor":{"type":"string"},"clear":{"type":"boolean"},"max_attempts":{"type":"number"},"escalate_to":{"type":"string"},"correlation_id":{"type":"string"}}}`)
 
 func Operations(provider func(context.Context) NativeServices) ([]app.Operation, error) {
 	if provider == nil {
@@ -222,7 +254,7 @@ func Operations(provider func(context.Context) NativeServices) ([]app.Operation,
 	var ops []app.Operation
 	bindings := []func() error{
 		func() error {
-			return bindRequest(&ops, opapi.Spec{Name: opapi.WorkboardList, ReadOnly: true}, func(ctx context.Context, in ListRequestInput) (ListOutput, error) {
+			return bindRequest(&ops, opapi.Spec{Name: opapi.WorkboardList, ReadOnly: true, InputSchema: listRequestSchema}, func(ctx context.Context, in ListRequestInput) (ListOutput, error) {
 				var status tasks.Status
 				if raw := requestText(in.Status); raw != "" {
 					st, err := tasks.ParseStatus(raw)
@@ -235,7 +267,7 @@ func Operations(provider func(context.Context) NativeServices) ([]app.Operation,
 			})
 		},
 		func() error {
-			return bindRequest(&ops, opapi.Spec{Name: opapi.WorkboardLanes, ReadOnly: true}, func(ctx context.Context, in ListRequestInput) (LanesOutput, error) {
+			return bindRequest(&ops, opapi.Spec{Name: opapi.WorkboardLanes, ReadOnly: true, InputSchema: listRequestSchema}, func(ctx context.Context, in ListRequestInput) (LanesOutput, error) {
 				var status tasks.Status
 				if raw := requestText(in.Status); raw != "" {
 					st, err := tasks.ParseStatus(raw)
@@ -248,7 +280,7 @@ func Operations(provider func(context.Context) NativeServices) ([]app.Operation,
 			})
 		},
 		func() error {
-			return bindRequest(&ops, opapi.Spec{Name: opapi.WorkboardShow, ReadOnly: true}, func(ctx context.Context, in IDRequestInput) (ShowOutput, error) {
+			return bindRequest(&ops, opapi.Spec{Name: opapi.WorkboardShow, ReadOnly: true, InputSchema: idRequestSchema}, func(ctx context.Context, in IDRequestInput) (ShowOutput, error) {
 				return provider(ctx).Reads.Show(ctx, ShowInput{ID: requestText(in.ID)})
 			})
 		},
@@ -280,55 +312,55 @@ func Operations(provider func(context.Context) NativeServices) ([]app.Operation,
 			})
 		},
 		func() error {
-			return bindRequest(&ops, opapi.Spec{Name: opapi.WorkboardClaim}, func(ctx context.Context, in ClaimRequestInput) (TaskOutput, error) {
+			return bindRequest(&ops, opapi.Spec{Name: opapi.WorkboardClaim, InputSchema: claimRequestSchema}, func(ctx context.Context, in ClaimRequestInput) (TaskOutput, error) {
 				out, err := provider(ctx).Lifecycle.Claim(ctx, ClaimInput{CorrelationID: requestCorrelation(ctx, in.CorrelationID), ID: requestText(in.ID), Agent: requestText(in.Agent), RunID: requestText(in.RunID)})
 				return nativeResult(in.ID, out, err)
 			})
 		},
 		func() error {
-			return bindRequest(&ops, opapi.Spec{Name: opapi.WorkboardHeartbeat}, func(ctx context.Context, in ClaimRequestInput) (TaskOutput, error) {
+			return bindRequest(&ops, opapi.Spec{Name: opapi.WorkboardHeartbeat, InputSchema: claimRequestSchema}, func(ctx context.Context, in ClaimRequestInput) (TaskOutput, error) {
 				out, err := provider(ctx).Lifecycle.Heartbeat(ctx, ClaimInput{CorrelationID: requestCorrelation(ctx, in.CorrelationID), ID: requestText(in.ID), Agent: requestText(in.Agent), RunID: requestText(in.RunID)})
 				return nativeResult(in.ID, out, err)
 			})
 		},
 		func() error {
-			return bindRequest(&ops, opapi.Spec{Name: opapi.WorkboardComment}, func(ctx context.Context, in CommentRequestInput) (TaskOutput, error) {
+			return bindRequest(&ops, opapi.Spec{Name: opapi.WorkboardComment, InputSchema: commentRequestSchema}, func(ctx context.Context, in CommentRequestInput) (TaskOutput, error) {
 				out, err := provider(ctx).Lifecycle.Comment(ctx, CommentInput{CorrelationID: requestCorrelation(ctx, in.CorrelationID), ID: requestText(in.ID), Author: requestText(in.Author), Body: requestText(in.Body)})
 				return nativeResult(in.ID, out, err)
 			})
 		},
 		func() error {
-			return bindRequest(&ops, opapi.Spec{Name: opapi.WorkboardBlock}, func(ctx context.Context, in ReasonRequestInput) (TaskOutput, error) {
+			return bindRequest(&ops, opapi.Spec{Name: opapi.WorkboardBlock, InputSchema: reasonRequestSchema}, func(ctx context.Context, in ReasonRequestInput) (TaskOutput, error) {
 				out, err := provider(ctx).Lifecycle.Block(ctx, ReasonInput{CorrelationID: requestCorrelation(ctx, in.CorrelationID), ID: requestText(in.ID), Actor: requestText(in.Actor), Reason: requestText(in.Reason)})
 				return nativeResult(in.ID, out, err)
 			})
 		},
 		func() error {
-			return bindRequest(&ops, opapi.Spec{Name: opapi.WorkboardFail}, func(ctx context.Context, in ReasonRequestInput) (FailOutput, error) {
+			return bindRequest(&ops, opapi.Spec{Name: opapi.WorkboardFail, InputSchema: reasonRequestSchema}, func(ctx context.Context, in ReasonRequestInput) (FailOutput, error) {
 				out, err := provider(ctx).Lifecycle.Fail(ctx, ReasonInput{CorrelationID: requestCorrelation(ctx, in.CorrelationID), ID: requestText(in.ID), Actor: requestText(in.Actor), Reason: requestText(in.Reason)})
 				return nativeResult(in.ID, out, err)
 			})
 		},
 		func() error {
-			return bindRequest(&ops, opapi.Spec{Name: opapi.WorkboardUnblock}, func(ctx context.Context, in ReasonRequestInput) (TaskOutput, error) {
+			return bindRequest(&ops, opapi.Spec{Name: opapi.WorkboardUnblock, InputSchema: reasonRequestSchema}, func(ctx context.Context, in ReasonRequestInput) (TaskOutput, error) {
 				out, err := provider(ctx).Lifecycle.Unblock(ctx, ReasonInput{CorrelationID: requestCorrelation(ctx, in.CorrelationID), ID: requestText(in.ID), Actor: requestText(in.Actor), Reason: requestText(in.Reason)})
 				return nativeResult(in.ID, out, err)
 			})
 		},
 		func() error {
-			return bindRequest(&ops, opapi.Spec{Name: opapi.WorkboardComplete}, func(ctx context.Context, in ReasonRequestInput) (TaskOutput, error) {
+			return bindRequest(&ops, opapi.Spec{Name: opapi.WorkboardComplete, InputSchema: reasonRequestSchema}, func(ctx context.Context, in ReasonRequestInput) (TaskOutput, error) {
 				out, err := provider(ctx).Lifecycle.Complete(ctx, ReasonInput{CorrelationID: requestCorrelation(ctx, in.CorrelationID), ID: requestText(in.ID), Actor: requestText(in.Actor), Reason: requestText(in.Reason)})
 				return nativeResult(in.ID, out, err)
 			})
 		},
 		func() error {
-			return bindRequest(&ops, opapi.Spec{Name: opapi.WorkboardArchive}, func(ctx context.Context, in ReasonRequestInput) (TaskOutput, error) {
+			return bindRequest(&ops, opapi.Spec{Name: opapi.WorkboardArchive, InputSchema: reasonRequestSchema}, func(ctx context.Context, in ReasonRequestInput) (TaskOutput, error) {
 				out, err := provider(ctx).Lifecycle.Archive(ctx, ReasonInput{CorrelationID: requestCorrelation(ctx, in.CorrelationID), ID: requestText(in.ID), Actor: requestText(in.Actor), Reason: requestText(in.Reason)})
 				return nativeResult(in.ID, out, err)
 			})
 		},
 		func() error {
-			return bindRequest(&ops, opapi.Spec{Name: opapi.WorkboardProve}, func(ctx context.Context, in ProveRequestInput) (TaskOutput, error) {
+			return bindRequest(&ops, opapi.Spec{Name: opapi.WorkboardProve, InputSchema: proveRequestSchema}, func(ctx context.Context, in ProveRequestInput) (TaskOutput, error) {
 				id := requestText(in.ID)
 				if id == "" {
 					return TaskOutput{}, errors.New("workboard_prove requires id")
@@ -340,7 +372,7 @@ func Operations(provider func(context.Context) NativeServices) ([]app.Operation,
 			})
 		},
 		func() error {
-			return bindRequest(&ops, opapi.Spec{Name: opapi.WorkboardSeat}, func(ctx context.Context, in SeatRequestInput) (TaskOutput, error) {
+			return bindRequest(&ops, opapi.Spec{Name: opapi.WorkboardSeat, InputSchema: seatRequestSchema}, func(ctx context.Context, in SeatRequestInput) (TaskOutput, error) {
 				id := requestText(in.ID)
 				if id == "" {
 					return TaskOutput{}, errors.New("workboard_seat requires id")
@@ -355,7 +387,7 @@ func Operations(provider func(context.Context) NativeServices) ([]app.Operation,
 			})
 		},
 		func() error {
-			return bindRequest(&ops, opapi.Spec{Name: opapi.WorkboardLink}, func(ctx context.Context, in LinkRequestInput) (TaskOutput, error) {
+			return bindRequest(&ops, opapi.Spec{Name: opapi.WorkboardLink, InputSchema: linkRequestSchema}, func(ctx context.Context, in LinkRequestInput) (TaskOutput, error) {
 				out, err := provider(ctx).Relations.Link(ctx, LinkInput{CorrelationID: requestCorrelation(ctx, in.CorrelationID), ID: requestText(in.ID), Type: requestText(in.Type), Target: requestText(in.Target)})
 				return nativeResult(in.ID, out, err)
 			})
@@ -382,7 +414,7 @@ func Operations(provider func(context.Context) NativeServices) ([]app.Operation,
 			})
 		},
 		func() error {
-			return bindRequest(&ops, opapi.Spec{Name: opapi.WorkboardDepend}, func(ctx context.Context, in DependRequestInput) (TaskOutput, error) {
+			return bindRequest(&ops, opapi.Spec{Name: opapi.WorkboardDepend, InputSchema: dependRequestSchema}, func(ctx context.Context, in DependRequestInput) (TaskOutput, error) {
 				parent := requestText(in.DependsOn)
 				if parent == "" {
 					parent = requestText(in.On)
@@ -392,13 +424,13 @@ func Operations(provider func(context.Context) NativeServices) ([]app.Operation,
 			})
 		},
 		func() error {
-			return bindRequest(&ops, opapi.Spec{Name: opapi.WorkboardReclaim}, func(ctx context.Context, in ReclaimRequestInput) (TaskOutput, error) {
+			return bindRequest(&ops, opapi.Spec{Name: opapi.WorkboardReclaim, InputSchema: reclaimRequestSchema}, func(ctx context.Context, in ReclaimRequestInput) (TaskOutput, error) {
 				out, err := provider(ctx).Relations.Reclaim(ctx, ReclaimInput{CorrelationID: requestCorrelation(ctx, in.CorrelationID), ID: requestText(in.ID), Actor: requestText(in.Actor), StaleAfterMS: requestLimit(in.StaleAfterMS, 10*60*1000)})
 				return nativeResult(in.ID, out, err)
 			})
 		},
 		func() error {
-			return bindRequest(&ops, opapi.Spec{Name: opapi.WorkboardSweep}, func(ctx context.Context, in SweepRequestInput) (SweepOutput, error) {
+			return bindRequest(&ops, opapi.Spec{Name: opapi.WorkboardSweep, InputSchema: sweepRequestSchema}, func(ctx context.Context, in SweepRequestInput) (SweepOutput, error) {
 				limit := requestLimit(in.Limit, 100)
 				if limit > 1000 {
 					limit = 1000
@@ -411,7 +443,7 @@ func Operations(provider func(context.Context) NativeServices) ([]app.Operation,
 			})
 		},
 		func() error {
-			return bindRequest(&ops, opapi.Spec{Name: opapi.WorkboardWatch, ReadOnly: true}, func(ctx context.Context, in WatchRequestInput) (WatchOutput, error) {
+			return bindRequest(&ops, opapi.Spec{Name: opapi.WorkboardWatch, ReadOnly: true, InputSchema: watchRequestSchema}, func(ctx context.Context, in WatchRequestInput) (WatchOutput, error) {
 				id := requestText(in.ID)
 				if id == "" {
 					return WatchOutput{}, errors.New("workboard_watch requires id")
@@ -424,7 +456,7 @@ func Operations(provider func(context.Context) NativeServices) ([]app.Operation,
 			})
 		},
 		func() error {
-			return bindRequest(&ops, opapi.Spec{Name: opapi.WorkboardDispatch}, func(ctx context.Context, in DispatchRequestInput) (DispatchOutput, error) {
+			return bindRequest(&ops, opapi.Spec{Name: opapi.WorkboardDispatch, InputSchema: dispatchRequestSchema}, func(ctx context.Context, in DispatchRequestInput) (DispatchOutput, error) {
 				out, err := provider(ctx).Dispatch.Dispatch(ctx, DispatchInput{ID: requestText(in.ID), Agent: requestText(in.Agent), Reason: requestText(in.Reason), Intent: requestText(in.Intent)})
 				return nativeResult(in.ID, out, err)
 			})

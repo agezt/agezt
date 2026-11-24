@@ -160,7 +160,7 @@ func TestMemoryTypedAdmissionCompatibilityAndReadOnlyAudit(t *testing.T) {
 	if audit.calls != 0 || calls != 0 || s.Count() != 0 {
 		t.Fatalf("invalid input reached effects: audit=%d calls=%d count=%d", audit.calls, calls, s.Count())
 	}
-	for _, tc := range []struct{ name, raw string }{{"memory_get", `{"id":"missing"}`}, {"memory_list", `{}`}, {"memory_search", `{"query":"fixture"}`}, {"memory_find_related", `{"id":"missing"}`}, {"memory_audit", `{}`}, {"memory_log", `{"limit":"ignored","since_ms":"ignored"}`}} {
+	for _, tc := range []struct{ name, raw string }{{"memory_get", `{"id":"missing"}`}, {"memory_list", `{}`}, {"memory_search", `{"query":"fixture"}`}, {"memory_find_related", `{"id":"missing"}`}, {"memory_audit", `{}`}, {"memory_log", `{"limit":20,"since_ms":1000}`}} {
 		_, err := dispatcher.Dispatch(context.Background(), opapi.Caller{}, tc.name, json.RawMessage(tc.raw), nil)
 		if tc.name != "memory_find_related" && err != nil {
 			t.Errorf("%s read=%v", tc.name, err)
@@ -194,7 +194,7 @@ func TestMemoryTypedAdmissionCompatibilityAndReadOnlyAudit(t *testing.T) {
 	for _, tc := range []struct {
 		value any
 		days  int
-	}{{"7", 7}, {float64(7.9), 7}, {"bad", 30}, {true, 30}, {float64(-1), 30}} {
+	}{{"7", 7}, {float64(7.9), 7}, {"bad", 30}, {float64(-1), 30}} {
 		raw, err := json.Marshal(map[string]any{"older_than_days": tc.value})
 		if err != nil {
 			t.Fatal(err)
@@ -207,11 +207,20 @@ func TestMemoryTypedAdmissionCompatibilityAndReadOnlyAudit(t *testing.T) {
 			t.Errorf("legacy day input=%v got=%d want=%d", tc.value, got, tc.days)
 		}
 	}
+	// The typed door owns the type error now: a wrong-typed day count is
+	// refused before the prune reaches the store.
+	raw, err := json.Marshal(map[string]any{"older_than_days": true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := dispatcher.Dispatch(context.Background(), opapi.Caller{}, "memory_prune", raw, nil); err == nil || err.Error() != "operation memory_prune input: $.older_than_days has wrong type: got boolean, want number|string" {
+		t.Fatal(err)
+	}
 	added, err := service.Remember(context.Background(), appmemory.RememberInput{Content: "trimmed bulk fixture"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	raw, err := json.Marshal(map[string]any{"ids": []string{" ", "  " + added.ID + "  ", "missing"}})
+	raw, err = json.Marshal(map[string]any{"ids": []string{" ", "  " + added.ID + "  ", "missing"}})
 	if err != nil {
 		t.Fatal(err)
 	}

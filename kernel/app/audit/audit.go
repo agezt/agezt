@@ -332,8 +332,8 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 	if provider == nil {
 		return nil, errors.New("audit provider required")
 	}
-	pageSchema := json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"limit":{},"since_ms":{},"cursor":{}}}`)
-	windowSchema := json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"since_ms":{}}}`)
+	pageSchema := json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"limit":{"type":"number"},"since_ms":{"type":"number"},"cursor":{"type":"string"}}}`)
+	windowSchema := json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"since_ms":{"type":"number"}}}`)
 	var ops []app.Operation
 	for _, b := range []func() error{
 		func() error {
@@ -352,7 +352,7 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.WardenLog, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"limit":{},"since_ms":{},"cursor":{},"issues":{}}}`)}, func(ctx context.Context, in WardenLogRequest) (ExecutionsOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.WardenLog, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"limit":{"type":"number"},"since_ms":{"type":"number"},"cursor":{"type":"string"},"issues":{"type":"boolean"}}}`)}, func(ctx context.Context, in WardenLogRequest) (ExecutionsOutput, error) {
 				return provider(ctx).WardenLog(ctx, in)
 			})
 		},

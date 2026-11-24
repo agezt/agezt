@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/agezt/agezt/kernel/app"
@@ -181,9 +182,18 @@ func TestWorldTypedAdmissionAndReadOnlyCompatibility(t *testing.T) {
 	if calls != 0 || audit.calls != 0 || s.Count() != 0 {
 		t.Fatalf("invalid input reached effects: calls=%d audit=%d entities=%d", calls, audit.calls, s.Count())
 	}
-	for _, tc := range []struct{ name, raw string }{{"world_get", `{"id":"missing"}`}, {"world_list", `{}`}, {"world_resolve", `{"query":"fixture"}`}, {"world_neighbors", `{"query":"fixture"}`}, {"world_log", `{"limit":"ignored","since_ms":"ignored"}`}} {
+	for _, tc := range []struct{ name, raw string }{{"world_get", `{"id":"missing"}`}, {"world_list", `{}`}, {"world_resolve", `{"query":"fixture"}`}, {"world_neighbors", `{"query":"fixture"}`}, {"world_log", `{"cursor":"owned"}`}} {
 		if _, err := dispatcher.Dispatch(context.Background(), opapi.Caller{}, tc.name, json.RawMessage(tc.raw), nil); err != nil {
 			t.Errorf("%s read=%v", tc.name, err)
+		}
+	}
+	// A page size or a window that is not a number is a usage error the door
+	// names, not a page the caller never asked for.
+	for _, tc := range []struct{ name, raw string }{{"world_log", `{"limit":"ignored"}`}, {"world_log", `{"since_ms":"ignored"}`}} {
+		if _, err := dispatcher.Dispatch(context.Background(), opapi.Caller{}, tc.name, json.RawMessage(tc.raw), nil); err == nil {
+			t.Errorf("%s %s invalid input admitted", tc.name, tc.raw)
+		} else if !strings.Contains(err.Error(), "has wrong type") {
+			t.Errorf("%s %s: %v", tc.name, tc.raw, err)
 		}
 	}
 	if audit.calls != 0 {
