@@ -1,5 +1,90 @@
 # NEXT — handoff for the next coding agent
 
+## Current checkpoint — W5.13 the last body on `/api/v1` gets its row and its door, 2026-11-25
+
+The W0–W5 objective remains open. W5.8 gave the **browser's** request bodies
+their types, W5.9 gave the **daemon's** request side the same truth, W5.10
+gave the **SDK's** request rows one home, W5.11 gave the `/api/v1` surface the
+**door**, W5.12 gave the **console's own endpoints** the same door — and this
+slice gives the **last body on `/api/v1`** its row and its door, and makes the
+SDK catalogs carry the **SDK contract's** rows.
+
+### What was on the tree
+
+- **`POST /api/v1/update/apply` had no request row.** The endpoint reads
+  `{"version","sha256","url","notes"}` into a struct of its own, and the REST
+  contract did not describe it — so the door had **no schema to measure that
+  body against**. A mistyped body was refused with a Go decoder's sentence
+  (*"invalid JSON body: json: cannot unmarshal number into Go struct field
+  updateApplyArgs.version of type string"*), and a **null** was not refused at
+  all: `{"notes":null}` was an update that was **applied**.
+- **The contract names that body now** (`update_apply`), and the door measures
+  an arriving body against it with the **same validator the registry uses**:
+  `operation update_apply input: $.version has wrong type: got number, want
+  string`.
+- **The SDK catalogs carry the SDK contract's rows.** The contract publishes a
+  row to the SDKs (`Row.SDK`), and the catalog renders `SDKRows()` — so the
+  self-update body, the one request body the SDKs deliberately do not expose,
+  stays in the contract and out of three SDKs' public API. **Not a line** of
+  Python, TypeScript or Rust moved.
+- **The ratchet compares types now.** The contract's row and the daemon's
+  struct named the same fields, but only the **names**: a row that mistyped a
+  field (`sha256` as a boolean) agreed with itself and passed.
+- **Seven guards**: an SDK endpoint's rows are published to the SDKs; the
+  self-update body stays out of the catalogs and inside the surface's request
+  rows; the route and the endpoint name the same body; the contract's row and
+  the daemon's struct name the same fields **with the same types**; a mistyped
+  field — and a null — is refused with the registry's words; the SDK catalog
+  carries no request body of an endpoint the SDKs do not expose; and the golden
+  request fixture holds exactly the SDK contract's request rows.
+
+### What the measurement said
+
+- Request rows on the surface: **3 → 4**.
+- Endpoints behind a door: **3 → 4**.
+- Request fields checked before the handler reads them: **11 → 15**.
+- Bodies refused with the registry's sentence: **11 → 15**.
+- Nulls refused instead of silently becoming the zero value: **11 → 15**.
+- Contract rows the SDK catalog does **not** carry: **0 → 1**.
+- Lines of SDK code that moved: **0**.
+
+### The evidence
+
+`architecture/333-w513-the-last-body-on-api-v1-gets-its-row-and-its-door-evidence.md`
+— the measurement on `origin/main`, the two scopes (the surface's request rows
+and the SDK contract's), the seven guards, the five mutations (one of which —
+the mistyped field — is the one the name-only ratchet could not see) and the
+gates.
+
+### What the next slice should do
+
+The request-body programme has closed its **named** surfaces: the browser's
+bodies are typed (W5.8), the registry's request side is typed (W5.9), the
+SDKs' rows have one home (W5.10), the `/api/v1` surface has the door (W5.11),
+the console's own endpoints have the door (W5.12), and the last body on
+`/api/v1` has its row and its door (this slice). Two surfaces are **not** in
+that list yet, and neither has been measured — so measure them first:
+
+- **The agent gateway** (`kernel/agentgw`): five bodies — `POST
+  /v1/eventbus/publish`, `POST /v1/memory/write`, `POST /v1/log/write`,
+  `POST /v1/token/create`, `POST /v1/config` — and four of them are read into
+  an **anonymous struct** (`var req struct { … }`; the config one uses a named
+  `ConfigSetRequest`), on a surface that has **no contract table at all**. A
+  mistyped body is decided by Go's decoder there, and there is nowhere that
+  names what those bodies look like. The gateway is the daemon's *agent* door
+  — the same programme, one surface over.
+- **The OpenAI-compatible surface** (`kernel/openaiapi`): `POST
+  /v1/chat/completions` and the responses endpoint read **typed** structs
+  (`chatRequest`, `responsesRequest`), but no contract names them and no door
+  measures them — a mistyped body is refused in OpenAI's own error voice
+  (`invalid_request_error`), not the registry's. Note the constraint this
+  surface carries: its wire shape is **OpenAI's**, so its contract may not
+  rename a field — it can only say what OpenAI says.
+
+The programme's next sentence is therefore: **every HTTP surface's request
+body is named in a contract, and every surface answers a mistyped body in the
+registry's words.** The two surfaces above are the ones left to measure.
+
 ## Current checkpoint — W5.12 the console's own request bodies get a door, 2026-11-25
 
 The W0–W5 objective remains open. W5.8 gave the **browser's** request bodies

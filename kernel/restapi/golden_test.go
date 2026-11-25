@@ -82,6 +82,10 @@ const goldenRequestsFile = "requests.json"
 // (restapiapi.RowBody), so the Python, TypeScript and Rust SDKs all have to
 // serialize their rows to the very same bytes — one vocabulary, three
 // languages.
+//
+// The rows are the SDK CONTRACT's request rows. A request body of an endpoint
+// the SDKs do not expose (the self-update body) is the daemon's business:
+// no SDK builds it, so no SDK can check it against these bytes.
 type goldenRequests struct {
 	// Note says what the fixture is.
 	Note string `json:"note"`
@@ -130,9 +134,9 @@ func goldenRequestFixture(t *testing.T) []byte {
 		rows[c.Row] = json.RawMessage(body)
 	}
 	fixture := goldenRequests{
-		Note: "The request bodies the daemon's REST contract declares, rendered by the " +
-			"contract itself (kernel/contract/restapiapi's RowBody). Every SDK's request " +
-			"row must serialize to these bytes. Regenerate with " +
+		Note: "The request bodies the daemon's REST contract declares for the SDK " +
+			"contract, rendered by the contract itself (kernel/contract/restapiapi's RowBody). " +
+			"Every SDK's request row must serialize to these bytes. Regenerate with " +
 			"AGEZT_UPDATE_GOLDEN=1 go test ./kernel/restapi/ -run TestUpdateTheGoldenFixtures",
 		Rows: rows,
 	}
@@ -446,6 +450,33 @@ func TestTheGoldenFixturesAreInSync(t *testing.T) {
 		t.Errorf("read %s: %v", goldenRequestsFile, err)
 	} else if want := goldenRequestFixture(t); !bytes.Equal(haveRequests, want) {
 		t.Errorf("sdk/fixtures/%s is stale — regenerate the golden fixtures", goldenRequestsFile)
+	}
+}
+
+// TestTheGoldenRequestFixtureHoldsEverySDKRequestRow holds the request
+// fixture to the SDK contract's request rows.
+//
+// The SDKs check their rows against these bytes, so a request row the SDK
+// contract speaks must have a body here — and a body here must be a row the
+// SDKs build. A request row of an endpoint the SDKs do not expose (the
+// self-update body) is the daemon's own business and stays out of it.
+func TestTheGoldenRequestFixtureHoldsEverySDKRequestRow(t *testing.T) {
+	have := map[string]bool{}
+	for _, c := range goldenRequestRows {
+		have[c.Row] = true
+	}
+	sdkRows := map[string]bool{}
+	for _, r := range restapiapi.SDKRequestRows() {
+		sdkRows[r.Name] = true
+		if !have[r.Name] {
+			t.Errorf("the SDK request row %q has no golden body — the SDKs cannot check their own bytes",
+				r.Name)
+		}
+	}
+	for name := range have {
+		if !sdkRows[name] {
+			t.Errorf("the golden body %q is not a request row the SDK contract speaks", name)
+		}
 	}
 }
 

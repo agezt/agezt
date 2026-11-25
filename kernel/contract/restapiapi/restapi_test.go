@@ -123,6 +123,78 @@ func TestEverySDKEndpointHasARowAndTheRestDoNot(t *testing.T) {
 	}
 }
 
+// TestEverySDKEndpointExchangesPublishedRows holds the SDK catalog's row set
+// to the SDK contract: a row an SDK endpoint exchanges is published to the
+// SDKs, or the catalog would miss a shape the SDKs speak.
+func TestEverySDKEndpointExchangesPublishedRows(t *testing.T) {
+	for _, e := range Endpoints() {
+		if !e.SDK {
+			continue
+		}
+		for _, name := range []string{e.Request, e.Response} {
+			if name == "" {
+				continue
+			}
+			if !rowByName(t, name).SDK {
+				t.Errorf("the SDK endpoint %q exchanges the %q row, which the SDK catalog does not carry",
+					e.ID, name)
+			}
+		}
+	}
+}
+
+// TestTheSelfUpdateBodyStaysOutOfTheSDKCatalog holds the self-update body's
+// place: the SDKs do not expose that surface, so its request row stays in the
+// contract and out of the SDKs' public API — and the daemon's door still has
+// a row to measure the body against.
+func TestTheSelfUpdateBodyStaysOutOfTheSDKCatalog(t *testing.T) {
+	if rowByName(t, RowUpdateApply).SDK {
+		t.Errorf("the %q row is published to the SDKs — the SDKs do not expose the self-update surface",
+			RowUpdateApply)
+	}
+	for _, r := range SDKRows() {
+		if r.Name == RowUpdateApply {
+			t.Errorf("the SDK catalog carries the %q row", RowUpdateApply)
+		}
+	}
+	for _, r := range SDKRequestRows() {
+		if r.Name == RowUpdateApply {
+			t.Errorf("the SDK request rows hold the %q row — no SDK builds that body", RowUpdateApply)
+		}
+	}
+	found := false
+	for _, r := range RequestRows() {
+		if r.Name == RowUpdateApply {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("the surface's request rows do not hold the %q row — the door has no schema to measure against",
+			RowUpdateApply)
+	}
+	if _, ok := RequestSchema(EndpointUpdateApply); !ok {
+		t.Errorf("the %q endpoint has no request schema", EndpointUpdateApply)
+	}
+}
+
+// TestTheRouteAndTheEndpointAgreeOnTheRequestRow: the daemon registers the
+// route and the SDKs call the endpoint, so both must name the same body —
+// otherwise the door would measure a body the route does not take.
+func TestTheRouteAndTheEndpointAgreeOnTheRequestRow(t *testing.T) {
+	for _, e := range Endpoints() {
+		route := routeByID(t, e.Route)
+		for _, m := range route.Methods {
+			if m.Verb != e.Verb {
+				continue
+			}
+			if m.Request != e.Request {
+				t.Errorf("the %q endpoint takes the %q request row, the %q route's %s method takes %q",
+					e.ID, e.Request, route.ID, m.Verb, m.Request)
+			}
+		}
+	}
+}
+
 // TestEveryRowRendersASchemaTheDoorCanCheck holds the shape the daemon's
 // request door measures a body against.
 //

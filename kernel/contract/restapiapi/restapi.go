@@ -127,6 +127,19 @@ type Row struct {
 	Doc string
 	// Fields are the row's fields, in wire order.
 	Fields []Field
+	// SDK marks a row the SDK catalog carries — a shape the SDK contract
+	// publishes.
+	//
+	// Most rows are published because an SDK endpoint exchanges them. A row
+	// the SDK contract does NOT speak — the self-update body — stays in the
+	// vocabulary and out of the SDKs' public API: the SDKs deliberately do not
+	// expose the self-update surface, and a published row would be a request
+	// body every SDK would be expected to build.
+	//
+	// The endpoint table says the same about an endpoint (Endpoint.SDK), so
+	// the two decisions live together: what the SDKs speak is declared once,
+	// and a row nobody publishes never reaches a catalog.
+	SDK bool
 }
 
 // Param is a query parameter of an endpoint.
@@ -274,6 +287,7 @@ const (
 	RowArtifacts      = "artifacts"
 	RowAPIError       = "api_error"
 	RowProbeStatus    = "probe_status"
+	RowUpdateApply    = "update_apply"
 )
 
 // updateApplyBodyMax is the body cap of the self-update endpoint. It is
@@ -471,7 +485,7 @@ func routes() []Route {
 			Tier: TierAdmin,
 			Kind: KindJSON,
 			Methods: []Method{
-				{Verb: "POST", Doc: "Apply a downloaded release."},
+				{Verb: "POST", Request: RowUpdateApply, Doc: "Apply a downloaded release."},
 			},
 			Mutation: true,
 			BodyMax:  updateApplyBodyMax,
@@ -594,8 +608,9 @@ func endpoints() []Endpoint {
 		},
 		{
 			ID: EndpointUpdateApply, Route: RouteUpdateApply, Verb: "POST",
-			Path: "/api/v1/update/apply",
-			Doc:  "Apply a downloaded release (admin tier).",
+			Path:    "/api/v1/update/apply",
+			Request: RowUpdateApply,
+			Doc:     "Apply a downloaded release (admin tier).",
 		},
 	}
 }
@@ -605,6 +620,7 @@ func rows() []Row {
 	return []Row{
 		{
 			Name: RowHealth,
+			SDK:  true,
 			Doc:  "The daemon's health summary.",
 			Fields: []Field{
 				{Name: "status", Type: TypeString, Required: true, Doc: "\"ok\" when the daemon answers."},
@@ -615,6 +631,7 @@ func rows() []Row {
 		},
 		{
 			Name: RowModels,
+			SDK:  true,
 			Doc:  "The tenant's model catalog.",
 			Fields: []Field{
 				{Name: "default", Type: TypeString, Required: true, Doc: "The default model id."},
@@ -623,6 +640,7 @@ func rows() []Row {
 		},
 		{
 			Name: RowRunRequest,
+			SDK:  true,
 			Doc:  "The body of a run request.",
 			Fields: []Field{
 				{Name: "intent", Type: TypeString, Required: true, Doc: "What the agent should do."},
@@ -632,6 +650,7 @@ func rows() []Row {
 		},
 		{
 			Name: RowRunResult,
+			SDK:  true,
 			Doc:  "A completed (non-streaming) run.",
 			Fields: []Field{
 				{Name: "correlation_id", Type: TypeString, Required: true, Doc: "The run's correlation id."},
@@ -642,6 +661,7 @@ func rows() []Row {
 		},
 		{
 			Name: RowRunArc,
+			SDK:  true,
 			Doc:  "The journaled event arc of one run.",
 			Fields: []Field{
 				{Name: "correlation_id", Type: TypeString, Required: true, Doc: "The run's correlation id."},
@@ -651,6 +671,7 @@ func rows() []Row {
 		},
 		{
 			Name: RowMail,
+			SDK:  true,
 			Doc:  "One message on the shared mailbox (the inter-agent board).",
 			Fields: []Field{
 				{Name: "id", Type: TypeString, Doc: "The message's id; pass it to ack or replies."},
@@ -665,6 +686,7 @@ func rows() []Row {
 		},
 		{
 			Name: RowMailDraft,
+			SDK:  true,
 			Doc:  "A message to leave on the shared mailbox.",
 			Fields: []Field{
 				{Name: "text", Type: TypeString, Required: true, Doc: "The message body; required."},
@@ -683,6 +705,7 @@ func rows() []Row {
 		},
 		{
 			Name: RowMailAck,
+			SDK:  true,
 			Doc:  "The body of an ack.",
 			Fields: []Field{
 				{Name: "by", Type: TypeString, Required: true, Doc: "Whose inbox to clear."},
@@ -690,6 +713,7 @@ func rows() []Row {
 		},
 		{
 			Name: RowMailAcked,
+			SDK:  true,
 			Doc:  "The answer to an ack.",
 			Fields: []Field{
 				{Name: "acked", Type: TypeBool, Required: true, Doc: "Always true when the ack succeeded."},
@@ -699,6 +723,7 @@ func rows() []Row {
 		},
 		{
 			Name: RowMailboxList,
+			SDK:  true,
 			Doc:  "Recent messages on the shared mailbox.",
 			Fields: []Field{
 				{Name: "messages", Type: TypeMailSlice, Required: true, Doc: "The messages, newest first."},
@@ -707,6 +732,7 @@ func rows() []Row {
 		},
 		{
 			Name: RowMailboxSent,
+			SDK:  true,
 			Doc:  "The answer to leaving a message.",
 			Fields: []Field{
 				{Name: "message", Type: TypeMail, Required: true, Doc: "The message that was left."},
@@ -714,6 +740,7 @@ func rows() []Row {
 		},
 		{
 			Name: RowMailboxReplies,
+			SDK:  true,
 			Doc:  "The answers to one message.",
 			Fields: []Field{
 				{Name: "id", Type: TypeString, Required: true, Doc: "The answered message's id."},
@@ -723,6 +750,7 @@ func rows() []Row {
 		},
 		{
 			Name: RowMailboxInbox,
+			SDK:  true,
 			Doc:  "What waits for one inbox.",
 			Fields: []Field{
 				{Name: "name", Type: TypeString, Required: true, Doc: "Whose inbox this is."},
@@ -732,6 +760,7 @@ func rows() []Row {
 		},
 		{
 			Name: RowMailboxTopics,
+			SDK:  true,
 			Doc:  "The mailbox's topics with their message counts.",
 			Fields: []Field{
 				{Name: "topics", Type: TypeIntMap, Required: true, Doc: "Message count per topic."},
@@ -739,6 +768,7 @@ func rows() []Row {
 		},
 		{
 			Name: RowArtifacts,
+			SDK:  true,
 			Doc:  "Artifact metadata.",
 			Fields: []Field{
 				{Name: "count", Type: TypeInt, Required: true, Doc: "How many entries the answer holds."},
@@ -750,6 +780,7 @@ func rows() []Row {
 		},
 		{
 			Name: RowAPIError,
+			SDK:  true,
 			Doc:  "The error body of every non-2xx answer.",
 			Fields: []Field{
 				// `type` is a Rust keyword, and the Rust SDK has always called
@@ -762,11 +793,27 @@ func rows() []Row {
 		},
 		{
 			Name: RowProbeStatus,
+			SDK:  true,
 			Doc:  "The answer of a liveness or readiness probe.",
 			Fields: []Field{
 				{Name: "status", Type: TypeString, Required: true, Doc: "\"ok\" or \"ready\"."},
 				{Name: "reason", Type: TypeString, Doc: "Why the daemon is not ready."},
 			},
+		},
+		{
+			Name: RowUpdateApply,
+			Doc:  "The body of a self-update request.",
+			Fields: []Field{
+				{Name: "version", Type: TypeString, Required: true, Doc: "The release version to install."},
+				{Name: "sha256", Type: TypeString, Required: true, Doc: "The SHA256 of the release archive."},
+				{Name: "url", Type: TypeString, Required: true, Doc: "Where the release archive is fetched from."},
+				{Name: "notes", Type: TypeString, Doc: "The release notes."},
+			},
+			// The SDKs do not expose the self-update surface (Endpoint.SDK
+			// says so about the endpoint), so this row is NOT published to the
+			// SDK catalogs: a published request row is a body every SDK would
+			// be expected to build.
+			SDK: false,
 		},
 	}
 }
@@ -783,6 +830,10 @@ func Rows() []Row { return rows() }
 // RequestRows returns the rows an endpoint takes as a request body, in the
 // order the contract declares them. A request row is a shape the SDK SENDS;
 // every other row is a shape the daemon answers with.
+//
+// This is the WHOLE surface's set: the self-update body is in it, because the
+// daemon's door measures that body against it too. SDKRequestRows() is the
+// SDK contract's share.
 func RequestRows() []Row {
 	names := map[string]bool{}
 	for _, e := range endpoints() {
@@ -792,6 +843,50 @@ func RequestRows() []Row {
 	}
 	var out []Row
 	for _, r := range rows() {
+		if names[r.Name] {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// SDKRows returns the rows the SDK catalog carries: the rows the SDK contract
+// publishes, in contract order.
+//
+// The catalog is the SDK contract's own view of the vocabulary. A row the SDK
+// contract does not speak — the self-update body — stays in the contract and
+// out of the SDKs' public API: the SDKs deliberately do not expose the
+// self-update surface, and a published request row is a body every SDK would
+// be expected to build.
+//
+// A row an SDK endpoint exchanges is published (the guard lives in this
+// package's test), so the catalog can never miss a shape the SDKs speak.
+func SDKRows() []Row {
+	var out []Row
+	for _, r := range Rows() {
+		if r.SDK {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// SDKRequestRows returns the request rows of the SDK contract: the rows an
+// SDK endpoint takes as a body.
+//
+// RequestRows() holds every request row of the surface; this one holds the
+// SDKs' share of them. The self-update body is in the first and not in this
+// one — the SDKs do not expose that surface, so they neither build nor check
+// that body.
+func SDKRequestRows() []Row {
+	names := map[string]bool{}
+	for _, e := range endpoints() {
+		if e.SDK && e.Request != "" {
+			names[e.Request] = true
+		}
+	}
+	var out []Row
+	for _, r := range RequestRows() {
 		if names[r.Name] {
 			out = append(out, r)
 		}

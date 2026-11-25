@@ -131,13 +131,17 @@ func generate() ([]generatedFile, error) {
 // buildCatalog turns the contract into the generated view: the SDK contract's
 // unique paths (named after the endpoint that introduced them) and the wire
 // rows.
+//
+// The rows are the SDK contract's OWN rows: the contract publishes a row to
+// the SDKs (Row.SDK), and a row the SDK contract does not speak — the
+// self-update body — stays in the contract and out of the SDKs' public API.
 func buildCatalog() catalog {
 	eps := restapiapi.Endpoints()
 	sort.Slice(eps, func(i, j int) bool { return eps[i].ID < eps[j].ID })
 	seen := map[string]bool{}
 	var paths []pathSpec
 	requests := map[string]bool{}
-	for _, r := range restapiapi.RequestRows() {
+	for _, r := range restapiapi.SDKRequestRows() {
 		requests[r.Name] = true
 	}
 	for _, e := range eps {
@@ -147,7 +151,7 @@ func buildCatalog() catalog {
 		seen[e.Path] = true
 		paths = append(paths, pathSpec{Name: e.ID, Path: e.Path, Doc: e.Doc})
 	}
-	return catalog{Paths: paths, Rows: restapiapi.Rows(), Requests: requests}
+	return catalog{Paths: paths, Rows: restapiapi.SDKRows(), Requests: requests}
 }
 
 // isRequest reports whether a row is a request body: a shape the SDK sends.

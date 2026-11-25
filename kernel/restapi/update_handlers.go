@@ -11,13 +11,12 @@ package restapi
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
 	"time"
 
 	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/contract/restapiapi"
 	"github.com/agezt/agezt/kernel/contract/updateapi"
 )
 
@@ -69,6 +68,10 @@ func (s *Server) handleUpdateCheck(w http.ResponseWriter, r *http.Request) {
 // handleUpdateApply handles POST /api/v1/update/apply.
 // Body: {"version":"1.2.3","sha256":"...","url":"...","notes":"..."}
 // Returns: {applied:true, version:"1.2.3"} or {applied:false, error:"..."}
+//
+// The body is the contract's row (restapiapi.RowUpdateApply) and the door
+// measures it against that row before the handler reads it, so a mistyped
+// body is refused in the operation registry's words.
 func (s *Server) handleUpdateApply(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		methodNotAllowed(w, http.MethodPost)
@@ -83,20 +86,14 @@ func (s *Server) handleUpdateApply(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "empty_body", "request body required")
 		return
 	}
-	if r.ContentLength > 64*1024 {
-		writeErr(w, http.StatusRequestEntityTooLarge, "body_too_large", "request body must be under 64 KB")
-		return
-	}
 
-	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 64*1024))
-	if err != nil {
-		writeErr(w, http.StatusBadRequest, "read_body", err.Error())
-		return
-	}
-
+	// The door: the body is measured against the CONTRACT's row before the
+	// handler reads it, and a mistyped body is refused in the operation
+	// registry's own words ("operation update_apply input: $.version has
+	// wrong type: got number, want string"). The route's own 64 KB cap is
+	// applied by the transport, so an oversize body answers the surface's 413.
 	var args updateApplyArgs
-	if err := json.Unmarshal(body, &args); err != nil {
-		writeErr(w, http.StatusBadRequest, "invalid_json", err.Error())
+	if !decodeRequestBody(w, r, restapiapi.EndpointUpdateApply, &args) {
 		return
 	}
 
@@ -128,7 +125,7 @@ func (s *Server) handleUpdateApply(w http.ResponseWriter, r *http.Request) {
 		return updateapi.DrainResult{Timeout: false}
 	}
 
-	err = s.updateSvc.Apply(ctx, info, drainFn)
+	err := s.updateSvc.Apply(ctx, info, drainFn)
 	if err != nil {
 		if errors.Is(err, updateapi.ErrDrainTimeout) {
 			writeJSON(w, http.StatusConflict, map[string]any{
