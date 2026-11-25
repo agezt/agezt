@@ -799,6 +799,111 @@ func RequestRows() []Row {
 	return out
 }
 
+// RequestSchema renders an endpoint's request row as a JSON Schema.
+//
+// This is the shape the daemon's request door measures a body against: the
+// CONTRACT declares the row, so a mistyped body is refused with the same words
+// the operation registry uses (`$.<field> has wrong type: got <got>, want
+// <want>`) and the contract — not the daemon's private struct — is what the
+// body is checked against.
+//
+// Two rules keep it the registry's shape:
+//
+//  1. No `required` list. The registry's door checks TYPES; presence is the
+//     handler's business (an absent intent is "intent is required", not a
+//     schema error).
+//  2. Unknown fields are allowed (`additionalProperties: true`). A row is the
+//     stable SUBSET of a body — the daemon may read more than the contract
+//     names, and a caller may send more than the contract declares.
+//
+// The type mapping speaks the registry's words: an integer is a `number` (the
+// registry says "want number"), a boolean is a `boolean`.
+func RequestSchema(endpointID string) ([]byte, bool) {
+	row, ok := requestRow(endpointID)
+	if !ok {
+		return nil, false
+	}
+	return rowSchema(row)
+}
+
+// requestRow returns the request row an endpoint takes, by endpoint id.
+func requestRow(endpointID string) (Row, bool) {
+	for _, e := range endpoints() {
+		if e.ID == endpointID && e.Request != "" {
+			return lookupRow(e.Request)
+		}
+	}
+	return Row{}, false
+}
+
+// lookupRow returns the row with the given name.
+func lookupRow(name string) (Row, bool) {
+	for _, r := range rows() {
+		if r.Name == name {
+			return r, true
+		}
+	}
+	return Row{}, false
+}
+
+// schemaDocument is the JSON Schema of a request row.
+type schemaDocument struct {
+	Type                 string                    `json:"type"`
+	AdditionalProperties bool                      `json:"additionalProperties"`
+	Properties           map[string]propertySchema `json:"properties"`
+}
+
+// propertySchema is one property of a request row's schema.
+type propertySchema struct {
+	Type  string          `json:"type"`
+	Items *propertySchema `json:"items,omitempty"`
+}
+
+// rowSchema renders a row as a JSON Schema object.
+func rowSchema(row Row) ([]byte, bool) {
+	properties := map[string]propertySchema{}
+	for _, f := range row.Fields {
+		properties[f.Name] = propertySchema{Type: schemaType(f.Type), Items: schemaItems(f.Type)}
+	}
+	out, err := json.Marshal(schemaDocument{
+		Type:                 "object",
+		AdditionalProperties: true,
+		Properties:           properties,
+	})
+	if err != nil {
+		return nil, false
+	}
+	return out, true
+}
+
+// schemaType maps a wire type onto the JSON Schema type the registry's
+// validator speaks.
+func schemaType(t Type) string {
+	switch t {
+	case TypeString:
+		return "string"
+	case TypeInt:
+		return "number"
+	case TypeBool:
+		return "boolean"
+	case TypeStringSlice, TypeAnySlice, TypeMailSlice:
+		return "array"
+	case TypeAnyObject, TypeIntMap, TypeMail:
+		return "object"
+	default:
+		return ""
+	}
+}
+
+// schemaItems is the item schema of an array property, nil for every other
+// type.
+func schemaItems(t Type) *propertySchema {
+	if t == TypeStringSlice {
+		return &propertySchema{Type: "string"}
+	}
+	return nil
+}
+
 // RowBody renders a row's wire body from the values it carries.
 //
 // This is the ONE place the contract's request vocabulary becomes bytes: the

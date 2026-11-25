@@ -837,6 +837,46 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The `/api/v1` surface gets the registry's request door.** The daemon's native
+  REST surface still decoded its request bodies into its **own** structs, so what
+  happened to a mistyped body was decided by Go's `encoding/json` and not by the
+  contract: a wrong type was refused with a Go decoder's sentence about a Go
+  struct field (*"invalid JSON body: json: cannot unmarshal number into Go
+  struct field runRequest.intent of type string"*), and a **null** was not
+  refused at all — `{"help":null}` was a message that quietly asked for nothing,
+  because `encoding/json` accepts a null for a bool and leaves the zero value.
+  The REST contract now renders each request row as a JSON Schema, and the
+  daemon checks an arriving body against it with the **same validator the
+  registry uses**, before the handler reads it. The refusal carries the
+  registry's own words — `operation run input: $.intent has wrong type: got
+  number, want string` — so one caller learns one language whichever surface
+  the mistake was made on. Measured on the tree at `origin/main`: endpoints
+  behind a contract-checked door **0 → 3** (`run`, `mailbox_send`,
+  `mailbox_ack` — the three the contract describes with a request row), request
+  fields checked against the contract before the handler **0 → 11**,
+  mistyped fields refused in the registry's words **0 → 11**, null fields
+  refused **0 → 11**. Two rules keep it the registry's door: it checks
+  **types**, not presence (an absent intent is still the handler's *"intent is
+  required"*, not a schema error), and it measures the **contract's** row, not
+  the daemon's struct — the check is bound to the one home for the request
+  vocabulary. The bytes on the wire did not change, the handlers still read
+  their own structs, the empty and malformed bodies keep the surface's own
+  errors, and the SDKs did not move a line (the contract's rows did not move,
+  so the generated catalogs did not either). One refusal moved with it: the
+  **ack** endpoint's oversized body answers `413 request_too_large` now, like
+  its two siblings, where it answered `400 invalid JSON body: request body too
+  large` before — it was the only one of the three that did not read the cap's
+  error. One gap is named rather than
+  papered over: `POST /api/v1/update/apply` takes a body the contract does not
+  describe, so there is no schema for the door to measure against. **Six guards**
+  hold the line: every field of every request row is refused when mistyped; a
+  null is refused instead of silently becoming the zero value; the door's answer
+  **is** the registry's wrapper applied to the same schema error; a body that
+  fits the contract — and a body carrying a field the contract does not name —
+  still gets through; the surface's own refusals are still its own; and every
+  row of the vocabulary renders a schema the door can check. Proved by
+  **5** reverted mutations.
+
 - **The SDKs' request rows get one home.** W5.8 gave the **browser's** request
   bodies their types and W5.9 gave the **daemon's** request side the same
   truth; the half that was left was the **SDK's own** — the Python, TypeScript

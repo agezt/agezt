@@ -1,5 +1,73 @@
 # NEXT — handoff for the next coding agent
 
+## Current checkpoint — W5.11 the daemon's request door gets the contract, 2026-11-25
+
+The W0–W5 objective remains open. W5.8 gave the **browser's** request bodies
+their types, W5.9 gave the **daemon's** request side the same truth, W5.10
+gave the **SDK's** request rows one home — and this slice gave the `/api/v1`
+surface the **door** those types were meant to reach.
+
+### What was on the tree
+
+- **The REST surface checks its bodies against the CONTRACT, in the registry's
+  words.** The contract renders each request row as a JSON Schema
+  (`restapiapi.RequestSchema`), and the daemon checks an arriving body against
+  it — with the same validator the registry uses — before the handler reads
+  it. A mistyped body is refused as `operation run input: $.intent has wrong
+  type: got number, want string`: the same sentence the registry's door gives
+  (`kernel/app/dispatch.go` wraps the same schema error the same way).
+- **Three endpoints are behind it**: `run`, `mailbox_send` and `mailbox_ack` —
+  the three the contract describes with a request row. **11** request fields
+  are checked before the handler reads them.
+- **Two rules keep it the registry's door**: it checks **types**, not presence
+  (an absent intent is still the handler's *"intent is required"*), and it
+  measures the **contract's** row, not the daemon's private struct — so the
+  check is bound to the one home for the request vocabulary.
+- **The surface's own errors stayed its own**: the empty body is still
+  `invalid JSON body: EOF`, a malformed body is still the JSON error, and the
+  bytes on the wire did not move in either direction. (One refusal did move:
+  the **ack** endpoint's oversized body answers `413 request_too_large` now,
+  like its two siblings, where it answered `400 invalid JSON body: request body
+  too large` before — it was the only one of the three that did not read the
+  cap's error.)
+- **Six guards**: every field of every request row is refused when mistyped;
+  a null is refused instead of silently becoming the zero value; the door's
+  answer IS the registry's wrapper applied to the same schema error; a body
+  that fits the contract (and a body with a field the contract does not name)
+  still gets through; the surface's own refusals are still its own; and every
+  row of the vocabulary renders a schema the door can check.
+
+### What the measurement said
+
+- Endpoints behind a contract-checked door: **0 → 3**.
+- Request fields checked against the contract before the handler: **0 → 11**.
+- Mistyped fields refused in the registry's words: **0 → 11**.
+- Null fields refused: **0 → 11** (Go's decoder accepted a null for a bool and
+  left the zero value, so `{"help":null}` asked for nothing and said nothing).
+
+### The evidence
+
+`architecture/331-w511-the-daemons-request-door-gets-the-contract-evidence.md`
+— the measurement, the rule, the guards, the five mutations and the gates.
+
+### What the next slice should do
+
+Two holes are named by this slice, and the first is small:
+
+1. **`POST /api/v1/update/apply` has no request row.** The endpoint reads
+   `{"version","sha256","url","notes"}` and the contract does not describe it,
+   so the door has no schema to measure it against — it is the one body on
+   `/api/v1` the door cannot reach. Naming it in the contract gives the door
+   something to check; it reaches the generated SDK catalogs too, so it is a
+   contract change and not only a door change.
+2. **The console's OWN endpoints still read bodies of their own.** The
+   console's operation-bound routes got their request rows in W5.8, but the
+   console's own endpoints decode their bodies into private structs or into a
+   free-form `map[string]any` — **5** decode sites in `kernel/webui` (the
+   rollback body, the file body, the TTS body, the session body and the query
+   proxy's). Those bodies have no row, no type and no door: naming them in the
+   console's contract is the same "one home" the other surfaces now have.
+
 ## Current checkpoint — W5.10 the SDK's request rows get one home, 2026-11-25
 
 The W0–W5 objective remains open. W5.8 gave the **browser's** request bodies
