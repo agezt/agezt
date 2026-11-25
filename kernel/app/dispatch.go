@@ -10,6 +10,7 @@ import (
 	"sort"
 
 	"github.com/agezt/agezt/kernel/contract/opapi"
+	"github.com/agezt/agezt/kernel/platform/schema"
 )
 
 type Dependencies struct {
@@ -89,7 +90,10 @@ func (d *Dispatcher) Dispatch(ctx context.Context, caller opapi.Caller, name str
 	}
 	input, err := operation.decode(raw)
 	if err != nil {
-		return nil, fmt.Errorf("operation %s input: %w", name, err)
+		// The registry's refusal sentence has one home (kernel/platform/schema):
+		// every surface that refuses a mistyped request body says it the same
+		// way.
+		return nil, schema.InputError(name, err)
 	}
 	if operation.spec.Stream != opapi.StreamNone && emitter == nil {
 		return nil, errors.New("stream emitter required")

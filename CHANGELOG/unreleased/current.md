@@ -837,6 +837,50 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The console's own endpoints get a request door.** The console's **own**
+  endpoints — the ones that are not operation bindings: the login surface, the
+  rollback surface, the file manager, the voice surface — answer the
+  **browser**, and their request bodies were read into whatever the handler
+  happened to use. The console's own endpoint list names **21** endpoints with
+  their path, method, tier and mutation flag; **6** of them take a request
+  body, and **none** of those six said what the body looks like. Three of
+  them read their body into a free-form `map[string]any`, so a mistyped field
+  was not decided at all: the handler read `body["path"].(string)` and a
+  number became the **empty string**, silently, and the mutation was sent to
+  the daemon anyway. Measured on the tree at `origin/main`: of seven mistyped
+  bodies, **3** were accepted with a silent default
+  (`{"path":5}` → the path became `""`; `{"parents":"yes"}` → the flag became
+  `false`; `{"recursive":"yes"}` → the flag became `false`), and the other
+  four were refused in **four different voices** — none of them the operation
+  registry's. The console's own endpoint list now names each body's shape, and
+  the console checks an arriving body against it before the handler reads it,
+  with the **same validator the registry uses** and in the same words:
+  *operation files_mkdir input: $.path has wrong type: got number, want
+  string*. The refusal has **one home** now (`schema.InputError` in
+  `kernel/platform/schema`): the registry wraps its own input failures with
+  it, the REST door uses it, and the console uses it — so a caller learns one
+  language whichever surface the mistake was made on. The **check** moved to
+  one place too (`kernel/httpserver.DecodeJSONBody`): one place where a
+  request body becomes a value, so both surfaces read the same bytes the same
+  way. The file manager's three bodies are **typed** now (named structs, not
+  a map), so the *"a wrong type became a zero value and the caller was never
+  told"* pattern is gone from the console. The console answers the refusal in
+  its JSON envelope, so the browser can show the sentence instead of a bare
+  status line. **Preserved**: the status codes (a body over the cap is still
+  a 400, the console's convention), each endpoint's own malformed-body
+  message, the early answers (the login and the voice surface still answer
+  without reading a body), the valid bodies' behaviour, and the generated
+  client (byte-identical). **Six guards** hold the line: every body the list
+  names is a schema the door can check (every property declares a type, no
+  `required` list, an undeclared field stays allowed); the console's structs
+  and the contract's schemas name the **same fields with the same type**, in
+  both directions, and every schema belongs to an endpoint the console reads a
+  body for; a mistyped field — and a null — is refused with the registry's
+  words; and a body that fits the contract still gets through. Proved by **5**
+  reverted mutations — **2** of which escaped the first run, which is how the
+  test's own free loop (an expectation derived from the schema it checks) was
+  found and fixed.
+
 - **The `/api/v1` surface gets the registry's request door.** The daemon's native
   REST surface still decoded its request bodies into its **own** structs, so what
   happened to a mistyped body was decided by Go's `encoding/json` and not by the

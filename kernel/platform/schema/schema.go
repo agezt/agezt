@@ -14,6 +14,18 @@ import (
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
+// InputError wraps a failed request body in the operation registry's words:
+// "operation <op> input: <err>".
+//
+// This is the ONE place that sentence is written. The registry wraps its own
+// input failures with it (kernel/app/dispatch.go), and every surface that
+// refuses a mistyped request body — the REST surface, the console — wraps its
+// refusal with it too, so a caller learns one language whichever surface the
+// mistake was made on.
+func InputError(op string, err error) error {
+	return fmt.Errorf("operation %s input: %w", op, err)
+}
+
 // ValidateToolInput validates a tool call against the tool's advertised JSON
 // Schema before the input reaches policy classification or the tool handler.
 // It intentionally implements the small, dependency-free subset Agezt uses in

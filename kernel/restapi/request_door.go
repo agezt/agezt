@@ -33,14 +33,11 @@ package restapi
 // decoded exactly as before.
 
 import (
-	"bytes"
-	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
 
 	"github.com/agezt/agezt/kernel/contract/restapiapi"
-	"github.com/agezt/agezt/kernel/platform/schema"
+	"github.com/agezt/agezt/kernel/httpserver"
 )
 
 // decodeRequestBody reads the request body, checks it against the contract's
@@ -50,54 +47,29 @@ import (
 // The refusal is written the way the surface writes one: a 400 with an
 // `invalid_request` error — except for a body over the size limit, which is
 // the surface's 413 (`request_too_large`).
-func decodeRequestBody(w http.ResponseWriter, r *http.Request, endpointID string, target any) bool {
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		var mbe *http.MaxBytesError
-		if errors.As(err, &mbe) {
-			writeErr(w, http.StatusRequestEntityTooLarge, "request_too_large",
-				"request body exceeds the size limit")
-			return false
-		}
-		writeErr(w, http.StatusBadRequest, "invalid_request", "invalid JSON body: "+err.Error())
-		return false
-	}
-	// The handler's decoder reads the FIRST value in the body, so the door
-	// checks that value — not a stricter one. A body with trailing bytes
-	// after a valid object keeps behaving as it always did.
-	value, err := firstJSONValue(body)
-	if err != nil {
-		writeErr(w, http.StatusBadRequest, "invalid_request", "invalid JSON body: "+err.Error())
-		return false
-	}
-	if shape, ok := restapiapi.RequestSchema(endpointID); ok {
-		if err := schema.ValidateJSON(shape, value); err != nil {
-			writeErr(w, http.StatusBadRequest, "invalid_request",
-				"operation "+endpointID+" input: "+err.Error())
-			return false
-		}
-	}
-	if err := json.NewDecoder(bytes.NewReader(value)).Decode(target); err != nil {
-		writeErr(w, http.StatusBadRequest, "invalid_request", "invalid JSON body: "+err.Error())
-		return false
-	}
-	return true
-}
-
-// firstJSONValue returns the bytes of the first JSON value in body — the value
-// a decoder reads from it, and so the value the door must check.
 //
-// An empty body is an EOF error, which is the error the surface has always
-// answered an empty body with.
-func firstJSONValue(body []byte) ([]byte, error) {
-	decoder := json.NewDecoder(bytes.NewReader(body))
-	var probe any
-	if err := decoder.Decode(&probe); err != nil {
-		return nil, err
+// The CHECK is the transport's shared core (kernel/httpserver); this file is
+// the REST surface's voice of it — the JSON error envelope the surface has
+// always answered with.
+func decodeRequestBody(w http.ResponseWriter, r *http.Request, endpointID string, target any) bool {
+	var shape []byte
+	if declared, ok := restapiapi.RequestSchema(endpointID); ok {
+		shape = declared
 	}
-	rest, err := io.ReadAll(decoder.Buffered())
-	if err != nil {
-		return nil, err
+	err := httpserver.DecodeJSONBody(r, shape, endpointID, target)
+	if err == nil {
+		return true
 	}
-	return body[:len(body)-len(rest)], nil
+	if errors.Is(err, httpserver.ErrBodyTooLarge) {
+		writeErr(w, http.StatusRequestEntityTooLarge, "request_too_large",
+			"request body exceeds the size limit")
+		return false
+	}
+	var refusal *httpserver.SchemaRefusal
+	if errors.As(err, &refusal) {
+		writeErr(w, http.StatusBadRequest, "invalid_request", refusal.Error())
+		return false
+	}
+	writeErr(w, http.StatusBadRequest, "invalid_request", "invalid JSON body: "+err.Error())
+	return false
 }

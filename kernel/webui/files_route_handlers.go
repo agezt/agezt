@@ -155,27 +155,24 @@ func (s *Server) handleFileRaw(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleFileMkdir creates a directory under the workspace root. POST body
-// shape (form-urlencoded or JSON): {path, parents?}. `parents` lets callers
-// create intermediate directories the same way `mkdir -p` does — required
-// because the UI's "new folder" affordance doesn't always know the depth.
+// shape (JSON): {path, parents?}. `parents` lets callers create intermediate
+// directories the same way `mkdir -p` does — required because the UI's "new
+// folder" affordance doesn't always know the depth.
 func (s *Server) handleFileMkdir(w http.ResponseWriter, r *http.Request) {
-	body, ok := fileMutationBody(w, r)
-	if !ok {
+	var body fileMkdirBody
+	if !fileMutationBody(w, r, opapi.NativeFilesMkdir, &body) {
 		return
 	}
-	rel, _ := body["path"].(string)
-	parents, _ := body["parents"].(bool)
-	s.callFileMutation(w, r, opapi.FileMkdir, map[string]any{"path": rel, "parents": parents})
+	s.callFileMutation(w, r, opapi.FileMkdir, map[string]any{"path": body.Path, "parents": body.Parents})
 }
 
 // handleFileRename preserves the console's request and result contract.
 func (s *Server) handleFileRename(w http.ResponseWriter, r *http.Request) {
-	body, ok := fileMutationBody(w, r)
-	if !ok {
+	var body fileRenameBody
+	if !fileMutationBody(w, r, opapi.NativeFilesRename, &body) {
 		return
 	}
-	from, _ := body["from"].(string)
-	to, _ := body["to"].(string)
+	from, to := body.From, body.To
 	if from == "" || to == "" {
 		http.Error(w, "from and to are required", http.StatusBadRequest)
 		return
@@ -185,13 +182,11 @@ func (s *Server) handleFileRename(w http.ResponseWriter, r *http.Request) {
 
 // handleFileDelete preserves the explicit recursive opt-in.
 func (s *Server) handleFileDelete(w http.ResponseWriter, r *http.Request) {
-	body, ok := fileMutationBody(w, r)
-	if !ok {
+	var body fileDeleteBody
+	if !fileMutationBody(w, r, opapi.NativeFilesDelete, &body) {
 		return
 	}
-	rel, _ := body["path"].(string)
-	recursive, _ := body["recursive"].(bool)
-	s.callFileMutation(w, r, opapi.FileDelete, map[string]any{"path": rel, "recursive": recursive})
+	s.callFileMutation(w, r, opapi.FileDelete, map[string]any{"path": body.Path, "recursive": body.Recursive})
 }
 
 // typeOf returns "dir" or "file" for an os.DirEntry — keeping the JSON

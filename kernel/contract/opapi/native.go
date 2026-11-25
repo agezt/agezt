@@ -3,6 +3,7 @@
 package opapi
 
 import (
+	"encoding/json"
 	"net/http"
 	"strings"
 )
@@ -72,12 +73,37 @@ const (
 //
 // Mutation is NOT derived from the method: the OAuth callback is a GET that
 // stores a channel token, so the flag has to be stated.
+//
+// Body is the JSON Schema of the request body this endpoint takes — empty
+// when it takes none. It is the console's own half of the request side: the
+// console's operation-bound routes get their body shapes from the daemon's
+// operation specs, but these endpoints are not operation bindings, so their
+// shapes live HERE, next to the path they are served at. The console checks
+// an arriving body against it before the handler reads it (kernel/webui), and
+// refuses a mistyped one in the operation registry's words.
+//
+// Two rules keep the schema the registry's shape: it carries no `required`
+// list (the registry's door checks TYPES; presence is the handler's business)
+// and it allows a field it does not name (a schema is the stable subset of a
+// body).
 type NativeRoute struct {
 	Name     NativeRouteName
 	Path     string
 	Method   string
 	Public   bool
 	Mutation bool
+	Body     json.RawMessage
+}
+
+// ConsoleNativeBodySchema returns the request-body schema of one console-native
+// endpoint. An endpoint that takes no body answers false.
+func ConsoleNativeBodySchema(name NativeRouteName) (json.RawMessage, bool) {
+	for _, route := range consoleNativeRoutes {
+		if route.Name == name && len(route.Body) > 0 {
+			return route.Body, true
+		}
+	}
+	return nil, false
 }
 
 // IsWrite reports whether the route answers a state-changing verb. It is the
@@ -123,7 +149,8 @@ var consoleNativeRoutes = []NativeRoute{
 	// how a token-less browser gets in. authmeta leaks only "is there a
 	// password gate" (no data); login is bounded by the failed-attempt lockout.
 	{Name: NativeAuthMeta, Path: "/api/authmeta", Method: "GET", Public: true},
-	{Name: NativeLogin, Path: "/api/login", Method: "POST", Public: true, Mutation: true},
+	{Name: NativeLogin, Path: "/api/login", Method: "POST", Public: true, Mutation: true,
+		Body: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"password":{"type":"string"}}}`)},
 	{Name: NativeLogout, Path: "/api/logout", Method: "POST", Public: true, Mutation: true},
 	// The hashed bundle and favicon are PUBLIC: the browser loads them as
 	// subresources of index.html and cannot attach the ?token= (only fetch /
@@ -134,7 +161,8 @@ var consoleNativeRoutes = []NativeRoute{
 	{Name: NativeFavicon, Path: "/favicon.ico", Method: "GET", Public: true},
 	{Name: NativeEvents, Path: "/events", Method: "GET"},
 	{Name: NativeRollbackList, Path: "/api/rollback/checkpoints", Method: "GET"},
-	{Name: NativeRollbackApply, Path: "/api/rollback/apply", Method: "POST", Mutation: true},
+	{Name: NativeRollbackApply, Path: "/api/rollback/apply", Method: "POST", Mutation: true,
+		Body: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"id":{"type":"string"}}}`)},
 	// SSE token endpoint (VULN query-string-token fix): returns the ephemeral
 	// SSE-only token the SPA embeds in the EventSource URL (?st=...) instead of
 	// reusing the main console token. Requires valid WebUI data authorization.
@@ -145,7 +173,8 @@ var consoleNativeRoutes = []NativeRoute{
 	{Name: NativeTranscribe, Path: "/api/transcribe", Method: "POST", Mutation: true},
 	// Text-to-speech for the console Voice Mode (M998): POST {"text":…} and the
 	// server streams synthesized audio from the configured TTS backend.
-	{Name: NativeTTS, Path: "/api/tts", Method: "POST", Mutation: true},
+	{Name: NativeTTS, Path: "/api/tts", Method: "POST", Mutation: true,
+		Body: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"text":{"type":"string"}}}`)},
 	// Binary artifact serving (M822): streams the raw bytes for a content ref with
 	// a sanitized Content-Type, so an <img src> / download link can render stored
 	// images and files. Proxies opapi.ArtifactGet (which re-verifies the bytes).
@@ -156,9 +185,12 @@ var consoleNativeRoutes = []NativeRoute{
 	// the chokepoint.
 	{Name: NativeFilesTree, Path: "/api/files/tree", Method: "GET"},
 	{Name: NativeFilesRaw, Path: "/api/files/raw", Method: "GET"},
-	{Name: NativeFilesMkdir, Path: "/api/files/mkdir", Method: "POST", Mutation: true},
-	{Name: NativeFilesRename, Path: "/api/files/rename", Method: "POST", Mutation: true},
-	{Name: NativeFilesDelete, Path: "/api/files/delete", Method: "POST", Mutation: true},
+	{Name: NativeFilesMkdir, Path: "/api/files/mkdir", Method: "POST", Mutation: true,
+		Body: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"path":{"type":"string"},"parents":{"type":"boolean"}}}`)},
+	{Name: NativeFilesRename, Path: "/api/files/rename", Method: "POST", Mutation: true,
+		Body: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"from":{"type":"string"},"to":{"type":"string"}}}`)},
+	{Name: NativeFilesDelete, Path: "/api/files/delete", Method: "POST", Mutation: true,
+		Body: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"path":{"type":"string"},"recursive":{"type":"boolean"}}}`)},
 	// Workflow webhooks (M809): the ONE deliberately console-token-free
 	// path. Authentication is the per-workflow secret, verified by the
 	// control plane (constant-time); all this handler can ever do is ask

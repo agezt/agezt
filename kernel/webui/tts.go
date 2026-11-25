@@ -12,8 +12,9 @@ package webui
 // failing opaquely.
 
 import (
-	"encoding/json"
 	"net/http"
+
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 // ttsTextMaxBytes caps the text to synthesize. A spoken chat reply is short;
@@ -32,12 +33,13 @@ func (s *Server) handleTTS(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	var in struct {
-		Text string `json:"text"`
-	}
+	var in ttsBody
 	r.Body = http.MaxBytesReader(w, r.Body, ttsTextMaxBytes)
-	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "expected JSON body {\"text\": …}: " + err.Error()})
+	ok, err := decodeNativeBody(w, r, opapi.NativeTTS, &in)
+	if !ok {
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "expected JSON body {\"text\": …}: " + err.Error()})
+		}
 		return
 	}
 	if in.Text == "" {

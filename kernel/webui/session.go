@@ -11,10 +11,11 @@ package webui
 
 import (
 	"crypto/subtle"
-	"encoding/json"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 // Console password (M817 second factor → M933 alternative door). When
@@ -139,12 +140,12 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "too many attempts — try again later", http.StatusTooManyRequests)
 		return
 	}
-	var body struct {
-		Password string `json:"password"`
-	}
-	dec := json.NewDecoder(r.Body)
-	if err := dec.Decode(&body); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	var body loginBody
+	ok, err := decodeNativeBody(w, r, opapi.NativeLogin, &body)
+	if !ok {
+		if err != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+		}
 		return
 	}
 	if subtle.ConstantTimeCompare([]byte(body.Password), []byte(password)) != 1 {
