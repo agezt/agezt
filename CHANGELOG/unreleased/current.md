@@ -837,6 +837,46 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The OpenAI-compatible surface gets a contract and a door.** The
+  OpenAI-compatible surface is the daemon's door to any OpenAI client, SDK or
+  IDE, and its **5 routes** were registered by hand in
+  `kernel/openaiapi/openaiapi_server.go` while its **2** JSON bodies —
+  `POST /v1/chat/completions` and `POST /v1/responses` — had **no contract and
+  no door**. The bodies were typed structs (`chatRequest`,
+  `responsesRequest`), but what happened to a mistyped body was decided by
+  Go's `encoding/json`, and the answer named a Go struct (*"invalid JSON body:
+  json: cannot unmarshal number into Go struct field chatRequest.model of type
+  string"*); for a body that was not an object it printed the handler's
+  **private struct name** into the wire (*"…Go value of type
+  openaiapi.chatRequest"*). A **null** was not refused at all: it became the
+  zero value and the request went on — **15 of the 18** measured nulls were
+  **accepted** (`{"model":null,…}` was a run against the default model,
+  `{"stream_options":null,…}` a run without usage). The surface now has **one
+  home** (`kernel/contract/openaiapi`): every route names its path, its method
+  and the body it takes, and the server registers **from** that table — so a
+  route in the contract without a handler fails at boot instead of at the call
+  site. The two bodies are JSON Schemas and the surface checks an arriving
+  body against them with the **same validator the registry uses**: a mistyped
+  body is refused as `operation chat_completions input: $.model has wrong type:
+  got number, want string`, and a null is refused instead of becoming the zero
+  value. The surface keeps its own **voice** — the OpenAI error envelope every
+  OpenAI client already reads (`{"error":{"message":…,"type":
+  "invalid_request_error"}}`) — and the OpenAI field names are the vendor's and
+  stay as they are; only what the daemon expects of them is now written down.
+  **One union**, and it is the vendor's: a chat message's `content` is either
+  the text itself or an array of typed parts, and the Responses `input` is
+  either the text itself or an array of message items, so those two fields
+  name both shapes (`string|array`). The surface's own refusals are untouched
+  (a message list with no usable content is still *"no usable message
+  content"*), the valid bodies behave exactly as before, and the multipart
+  audio route is left alone. Measured: bodies the contract names a shape for
+  **0 → 2**; endpoints behind a door **0 → 2**; request fields checked before
+  the handler reads them **0 → 18**; probes refused with the registry's
+  sentence **0 → 36**; nulls refused **3 → 18**; nulls accepted **15 → 0**;
+  answers naming a private Go struct **18 → 0**; routes registered from the
+  contract **0 → 5**. Eight guards hold the line, and six reverted mutations
+  prove them.
+
 - **The agent gateway's surface gets a contract and a door.** The gateway is
   the daemon's door to agent subprocess code — the bus, the memory, the log,
   the token mint and the config center — and its **16 routes** lived as string

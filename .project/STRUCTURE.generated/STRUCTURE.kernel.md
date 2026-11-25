@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-232 package(s):
+233 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/agentgw`** — Package agentgw provides a secure gateway for AI agent subprocess code to communicate with the AGEZT kernel.
@@ -106,6 +106,7 @@
 - **`kernel/contract/memoryapi`** — —
 - **`kernel/contract/okrapi`** — Package okrapi is the contract layer's home for the OKR rows: the durable goal and its key results, the lifecycle state of a goal, the computed rollup, the input that authors one, and the filter that reads them back.
 - **`kernel/contract/opapi`** — Package opapi defines transport-independent operation metadata and host ports.
+- **`kernel/contract/openaiapi`** — Package openaiapi is the single home of the OpenAI-compatible surface.
 - **`kernel/contract/overseerapi`** — Package overseerapi is the contract the supervisory surface and the implementations that answer it agree on.
 - **`kernel/contract/pluginapi`** — Package pluginapi is the contract for out-of-process plugins.
 - **`kernel/contract/policyapi`** — Package policyapi defines the tool-policy verdict and callback contract.

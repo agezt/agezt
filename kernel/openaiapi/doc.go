@@ -17,4 +17,13 @@
 //
 // Security (SPEC-06): loopback-bound by the operator, token-authed on every
 // request (Authorization: Bearer <token>). Empty token fails closed.
+//
+// The surface has ONE home: kernel/contract/openaiapi names every route —
+// path, method and the request body it takes — and the server registers from
+// that table, so a route in the contract without a handler stops the daemon at
+// boot. An arriving JSON body is measured against the contract's schema
+// before the handler reads it, with the operation registry's own words
+// ("operation chat_completions input: $.model has wrong type: got number,
+// want string") inside the OpenAI error envelope every OpenAI client reads.
+// The OpenAI field names are the vendor's and are not changed here.
 package openaiapi
