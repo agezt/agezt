@@ -67,11 +67,12 @@ that list yet, and neither has been measured — so measure them first:
 
 - **The agent gateway** (`kernel/agentgw`): five bodies — `POST
   /v1/eventbus/publish`, `POST /v1/memory/write`, `POST /v1/log/write`,
-  `POST /v1/token/create`, `POST /v1/config` — and every one of them is read
-  into an **anonymous struct** (`var req struct { … }`), on a surface that has
-  **no contract table at all**. A mistyped body is decided by Go's decoder
-  there, and there is nowhere that names what those bodies look like. The
-  gateway is the daemon's *agent* door — the same programme, one surface over.
+  `POST /v1/token/create`, `POST /v1/config` — and four of them are read into
+  an **anonymous struct** (`var req struct { … }`; the config one uses a named
+  `ConfigSetRequest`), on a surface that has **no contract table at all**. A
+  mistyped body is decided by Go's decoder there, and there is nowhere that
+  names what those bodies look like. The gateway is the daemon's *agent* door
+  — the same programme, one surface over.
 - **The OpenAI-compatible surface** (`kernel/openaiapi`): `POST
   /v1/chat/completions` and the responses endpoint read **typed** structs
   (`chatRequest`, `responsesRequest`), but no contract names them and no door
