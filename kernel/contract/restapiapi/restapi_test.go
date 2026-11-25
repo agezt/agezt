@@ -3,6 +3,7 @@
 package restapiapi
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -118,6 +119,64 @@ func TestEverySDKEndpointHasARowAndTheRestDoNot(t *testing.T) {
 		}
 		if !e.SDK && e.Path == "" {
 			t.Fatalf("endpoint %q has no path", e.ID)
+		}
+	}
+}
+
+// TestEveryRowRendersASchemaTheDoorCanCheck holds the shape the daemon's
+// request door measures a body against.
+//
+// Three rules, and each one is a rule the door has:
+//   - every field renders a TYPE the validator speaks — a wire type the
+//     mapping does not know would render an empty type, and the door would
+//     then accept anything for that field;
+//   - the schema carries no `required` list — the registry's door checks
+//     TYPES, and presence is the handler's business;
+//   - an undeclared field stays allowed — a row is the stable SUBSET of a
+//     body, so the daemon may read more than the contract names.
+//
+// It walks every row of the vocabulary, so a row added later is covered
+// without this test knowing its name.
+func TestEveryRowRendersASchemaTheDoorCanCheck(t *testing.T) {
+	for _, r := range Rows() {
+		raw, ok := rowSchema(r)
+		if !ok {
+			t.Fatalf("the %q row renders no schema", r.Name)
+		}
+		var doc struct {
+			Type                 string                     `json:"type"`
+			AdditionalProperties bool                       `json:"additionalProperties"`
+			Required             []string                   `json:"required"`
+			Properties           map[string]json.RawMessage `json:"properties"`
+		}
+		if err := json.Unmarshal(raw, &doc); err != nil {
+			t.Fatalf("the %q row renders an unreadable schema: %v", r.Name, err)
+		}
+		if doc.Type != "object" {
+			t.Fatalf("the %q row renders the %q schema, want object", r.Name, doc.Type)
+		}
+		if len(doc.Required) != 0 {
+			t.Fatalf("the %q row's schema carries the required list %v — the door checks types, not presence",
+				r.Name, doc.Required)
+		}
+		if !doc.AdditionalProperties {
+			t.Fatalf("the %q row's schema does not allow an undeclared field — a row is the stable subset of a body",
+				r.Name)
+		}
+		if len(doc.Properties) != len(r.Fields) {
+			t.Fatalf("the %q row renders %d properties, want %d", r.Name, len(doc.Properties), len(r.Fields))
+		}
+		for name, raw := range doc.Properties {
+			var prop struct {
+				Type string `json:"type"`
+			}
+			if err := json.Unmarshal(raw, &prop); err != nil {
+				t.Fatalf("the %q row's %q renders an unreadable property: %v", r.Name, name, err)
+			}
+			if prop.Type == "" {
+				t.Fatalf("the %q row's %q renders no type — the door would accept anything for it",
+					r.Name, name)
+			}
 		}
 	}
 }

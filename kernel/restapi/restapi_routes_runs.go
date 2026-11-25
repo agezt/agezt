@@ -10,13 +10,12 @@ package restapi
 // Public API unchanged.
 
 import (
-	"encoding/json"
-	"errors"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"github.com/agezt/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/contract/restapiapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/httpserver"
 	"github.com/agezt/agezt/kernel/meshctx"
@@ -69,14 +68,7 @@ func (s *Server) handleRunsRoot(w http.ResponseWriter, r *http.Request) {
 	r = r.WithContext(meshctx.WithHop(r.Context(), hopIn))
 
 	var req runRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		var mbe *http.MaxBytesError
-		if errors.As(err, &mbe) {
-			writeErr(w, http.StatusRequestEntityTooLarge, "request_too_large",
-				"request body exceeds the size limit")
-			return
-		}
-		writeErr(w, http.StatusBadRequest, "invalid_request", "invalid JSON body: "+err.Error())
+	if !decodeRequestBody(w, r, restapiapi.EndpointRun, &req) {
 		return
 	}
 	intent := strings.TrimSpace(req.Intent)

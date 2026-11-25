@@ -10,13 +10,12 @@ package restapi
 // Public API unchanged.
 
 import (
-	"encoding/json"
-	"errors"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/agezt/agezt/kernel/contract/boardapi"
+	"github.com/agezt/agezt/kernel/contract/restapiapi"
 )
 
 func (s *Server) handleMailboxMessages(w http.ResponseWriter, r *http.Request) {
@@ -35,14 +34,7 @@ func (s *Server) handleMailboxMessages(w http.ResponseWriter, r *http.Request) {
 
 	case http.MethodPost:
 		var req mailboxSendRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			var mbe *http.MaxBytesError
-			if errors.As(err, &mbe) {
-				writeErr(w, http.StatusRequestEntityTooLarge, "request_too_large",
-					"request body exceeds the size limit")
-				return
-			}
-			writeErr(w, http.StatusBadRequest, "invalid_request", "invalid JSON body: "+err.Error())
+		if !decodeRequestBody(w, r, restapiapi.EndpointMailboxSend, &req) {
 			return
 		}
 		if strings.TrimSpace(req.Text) == "" {
@@ -161,8 +153,7 @@ func (s *Server) handleMailboxMessageSub(w http.ResponseWriter, r *http.Request)
 			return
 		}
 		var req mailboxAckRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			writeErr(w, http.StatusBadRequest, "invalid_request", "invalid JSON body: "+err.Error())
+		if !decodeRequestBody(w, r, restapiapi.EndpointMailboxAck, &req) {
 			return
 		}
 		if strings.TrimSpace(req.By) == "" {
