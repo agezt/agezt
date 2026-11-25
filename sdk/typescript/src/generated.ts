@@ -2,8 +2,10 @@
 //
 // DO NOT EDIT: regenerate with 'go run ./tools/sdkgen'.
 //
-// The daemon's /api/v1 contract as TypeScript: the paths the SDK calls and
-// the wire rows the daemon answers with.
+// The daemon's /api/v1 contract as TypeScript: the paths the SDK calls,
+// the wire rows the daemon answers with, and the request rows it accepts.
+// A request row also carries a 'toWire' function, so the wire names of a
+// request body live here — not in the client.
 
 /** The daemon's REST paths. */
 export const PATHS = {
@@ -40,6 +42,22 @@ export interface RunRequest {
   stream?: boolean;
 }
 
+/** The wire body of a run request. */
+export function runRequestToWire(row: RunRequest): Record<string, unknown> {
+  const body: Record<string, unknown> = {};
+  body["intent"] = row.intent;
+  if (row.model) body["model"] = row.model;
+  if (row.stream) body["stream"] = row.stream;
+  return body;
+}
+
+/** The local names of the body of a run request.'s fields, by wire name. */
+export const RUN_REQUEST_NAMES: Record<string, string> = {
+  "intent": "intent",
+  "model": "model",
+  "stream": "stream",
+};
+
 /** A completed (non-streaming) run. */
 export interface RunResult {
   correlation_id: string;
@@ -75,12 +93,49 @@ export interface MailDraft {
   topic?: string;
   replyTo?: string;
   help?: boolean;
+  correlation_id?: string;
 }
+
+/** The wire body of a message to leave on the shared mailbox. */
+export function mailDraftToWire(row: MailDraft): Record<string, unknown> {
+  const body: Record<string, unknown> = {};
+  body["text"] = row.text;
+  if (row.from) body["from"] = row.from;
+  if (row.to) body["to"] = row.to;
+  if (row.topic) body["topic"] = row.topic;
+  if (row.replyTo) body["reply_to"] = row.replyTo;
+  if (row.help) body["help"] = row.help;
+  if (row.correlation_id) body["correlation_id"] = row.correlation_id;
+  return body;
+}
+
+/** The local names of a message to leave on the shared mailbox.'s fields, by wire name. */
+export const MAIL_DRAFT_NAMES: Record<string, string> = {
+  "text": "text",
+  "from": "from",
+  "to": "to",
+  "topic": "topic",
+  "reply_to": "replyTo",
+  "help": "help",
+  "correlation_id": "correlation_id",
+};
 
 /** The body of an ack. */
 export interface MailAck {
   by: string;
 }
+
+/** The wire body of an ack. */
+export function mailAckToWire(row: MailAck): Record<string, unknown> {
+  const body: Record<string, unknown> = {};
+  body["by"] = row.by;
+  return body;
+}
+
+/** The local names of the body of an ack.'s fields, by wire name. */
+export const MAIL_ACK_NAMES: Record<string, string> = {
+  "by": "by",
+};
 
 /** The answer to an ack. */
 export interface MailAcked {

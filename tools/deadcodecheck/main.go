@@ -128,6 +128,13 @@ var testOnlyCrossPackageSeams = map[string]bool{
 	// the specs (that is the dependency direction), so the seam stays
 	// exported.
 	"kernel/contract/toolregapi/registry.go|Names": true,
+	// restapiapi's row renderer is how the REST contract turns a request row
+	// into the bytes on the wire. Its only consumer is kernel/restapi's golden
+	// test, which records the fixture every SDK reads — a test in another
+	// package, so the seam has to stay exported.
+	"kernel/contract/restapiapi/restapi.go|RowBody":       true,
+	"kernel/contract/restapiapi/restapi.go|rowValue":      true,
+	"kernel/contract/restapiapi/restapi.go|rowValueEmpty": true,
 }
 
 // isAllowedTestOnlySeam reports whether a finding is a pinned cross-package

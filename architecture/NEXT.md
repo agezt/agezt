@@ -1,5 +1,63 @@
 # NEXT — handoff for the next coding agent
 
+## Current checkpoint — W5.10 the SDK's request rows get one home, 2026-11-25
+
+The W0–W5 objective remains open. W5.8 gave the **browser's** request bodies
+their types, W5.9 gave the **daemon's** request side the same truth, and this
+slice gives the **SDK's own** request rows one home: the contract's rows are
+what the clients build, and the catalog is what serializes them.
+
+### What was on the tree
+
+- **Every request body an SDK sends is built from the contract's row.** The
+  REST contract already named **3** request rows and the catalogs already
+  carried them; the Python and TypeScript clients wrote **8** bodies out by
+  hand instead, naming **24** fields between them. Now every body comes from
+  the generated row and the catalog's serializer — a `toWire` function per row
+  in TypeScript, a `to_wire` method per row in Python, and the Rust catalog's
+  `to_value` as it always was.
+- **One rule, in three languages.** A required field is always written; an
+  optional one only when it holds something. An absent optional field and an
+  empty one are not the same request. **The bytes on the wire did not change.**
+- **The wire names live in the catalog.** Each request row carries its
+  local-name map (the draft's `reply_to` is `replyTo` in TypeScript, `from` is
+  `from_` in Python), so the difference between the two spellings is one
+  place and a client never spells a wire name.
+- **One daemon bug the binding found.** The daemon read a `correlation_id` the
+  contract never named, so no SDK could send it and no type could describe it.
+  The contract names it now.
+- **Five guards**: an SDK client may not spell a request body of its own; every
+  request row is built by every SDK; the contract's rows and the daemon's
+  request structs name the same fields in both directions; the three SDKs
+  serialize the same row to the same bytes (the golden fixture the contract
+  renders itself); and the TypeScript compiler checks the client's row.
+
+### What the measurement said
+
+- The SDKs' hand-written request bodies: **8 → 0** (Python **4 → 0**,
+  TypeScript **4 → 0**).
+- The request bodies built from the contract's rows: **3 → 11**.
+- The fields the daemon reads and the contract cannot see: **1 → 0**.
+
+### The evidence
+
+`architecture/330-w510-the-sdk-request-rows-get-one-home-evidence.md` — the
+measurement, the rule, the guards, the four mutations and the gates.
+
+### What the next slice should do
+
+The `/api/v1` surface still has **two** homes for its request vocabulary: the
+contract's rows and the daemon's own private request structs
+(`runRequest`, `mailboxSendRequest`, `mailboxAckRequest`). This slice made the
+two **agree** — a ratchet holds both directions — but the daemon still decodes
+its bodies into structs of its own, so a mistyped body is still a silent
+default on this surface (`{"help": "yes"}` is ignored, `{"limit": "ten"}` is
+not a number). The next slice is the **door**: the daemon refuses a mistyped
+request body against the contract's row, with the same message the registry's
+door gives (`operation <op> input: $.<field> has wrong type: got <got>, want
+<want>`). The contract's rows are already typed and already the one home for
+the names — the door only has to check them.
+
 ## Current checkpoint — W5.9 the registry's own request side gets its types, 2026-11-25
 
 The W0–W5 objective remains open. W5.8 gave the **browser's** request bodies

@@ -15,7 +15,15 @@
  */
 export { Client } from "./client.js";
 export type { ClientOptions, StreamEvent } from "./client.js";
-export { PATHS } from "./generated.js";
+export {
+  MAIL_ACK_NAMES,
+  MAIL_DRAFT_NAMES,
+  PATHS,
+  RUN_REQUEST_NAMES,
+  mailAckToWire,
+  mailDraftToWire,
+  runRequestToWire,
+} from "./generated.js";
 export type {
   ApiError,
   Artifacts,

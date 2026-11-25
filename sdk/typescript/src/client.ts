@@ -1,5 +1,14 @@
-import { PATHS } from "./generated.js";
-import type { Health, Mail, MailDraft, Models, RunArc, RunResult } from "./generated.js";
+import { PATHS, mailAckToWire, mailDraftToWire, runRequestToWire } from "./generated.js";
+import type {
+  Health,
+  Mail,
+  MailAck,
+  MailDraft,
+  Models,
+  RunArc,
+  RunRequest,
+  RunResult,
+} from "./generated.js";
 import { APIError } from "./errors.js";
 
 /** One Server-Sent Event from a streaming run. `event` is one of
@@ -52,9 +61,9 @@ export class Client {
   /** Execute an intent and resolve with the final answer (blocking). Throws
    * APIError if the run fails or the request is rejected. */
   async run(intent: string, model?: string): Promise<RunResult> {
-    const body: Record<string, unknown> = { intent };
-    if (model) body.model = model;
-    const res = await this.fetch("POST", PATHS.run, JSON.stringify(body));
+    const row: RunRequest = { intent };
+    if (model) row.model = model;
+    const res = await this.fetch("POST", PATHS.run, JSON.stringify(runRequestToWire(row)));
     if (!res.ok) throw await apiError(res);
     return (await res.json()) as RunResult;
   }
@@ -62,9 +71,14 @@ export class Client {
   /** Execute an intent, yielding StreamEvents (start/token/done/error) as the
    * agent produces them. */
   async *runStream(intent: string, model?: string): AsyncGenerator<StreamEvent> {
-    const body: Record<string, unknown> = { intent, stream: true };
-    if (model) body.model = model;
-    const res = await this.fetch("POST", PATHS.run, JSON.stringify(body), "text/event-stream");
+    const row: RunRequest = { intent, stream: true };
+    if (model) row.model = model;
+    const res = await this.fetch(
+      "POST",
+      PATHS.run,
+      JSON.stringify(runRequestToWire(row)),
+      "text/event-stream",
+    );
     if (!res.ok) throw await apiError(res);
     if (!res.body) return;
     yield* parseSSE(res.body);
@@ -78,13 +92,11 @@ export class Client {
 
   /** Leave a message on the shared mailbox. See MailDraft for addressing. */
   async mailboxSend(draft: MailDraft): Promise<Mail> {
-    const body: Record<string, unknown> = { text: draft.text };
-    if (draft.from) body.from = draft.from;
-    if (draft.to) body.to = draft.to;
-    if (draft.topic) body.topic = draft.topic;
-    if (draft.replyTo) body.reply_to = draft.replyTo;
-    if (draft.help) body.help = true;
-    const res = await this.fetch("POST", PATHS.mailboxMessages, JSON.stringify(body));
+    const res = await this.fetch(
+      "POST",
+      PATHS.mailboxMessages,
+      JSON.stringify(mailDraftToWire(draft)),
+    );
     if (!res.ok) throw await apiError(res);
     const out = (await res.json()) as { message: Mail };
     return out.message;
@@ -109,10 +121,11 @@ export class Client {
   /** Mark a message read for one reader (it leaves that reader's inbox without
    * a reply). Per-reader and idempotent. */
   async mailboxAck(messageId: string, by: string): Promise<void> {
+    const row: MailAck = { by };
     const res = await this.fetch(
       "POST",
       PATHS.mailboxAck.replace("{id}", encodeURIComponent(messageId)),
-      JSON.stringify({ by }),
+      JSON.stringify(mailAckToWire(row)),
     );
     if (!res.ok) throw await apiError(res);
     await res.body?.cancel();

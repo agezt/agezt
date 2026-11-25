@@ -2,9 +2,11 @@
 
 DO NOT EDIT: regenerate with 'go run ./tools/sdkgen'.
 
-The daemon's /api/v1 contract as Python: the paths the SDK calls and the
-wire rows the daemon answers with. The client in client.py uses these
-names, so a path or a field exists in exactly one place.
+The daemon's /api/v1 contract as Python: the paths the SDK calls, the wire rows
+the daemon answers with, and the request rows it accepts. A request row also
+carries 'to_wire', so the wire names of a request body live here — not in the
+client. The client in client.py uses these names, so a path or a field exists
+in exactly one place.
 """
 from __future__ import annotations
 
@@ -25,6 +27,33 @@ class Paths:
     MODELS = "/api/v1/models"
     RUN = "/api/v1/runs"
     RUN_ARC = "/api/v1/runs/{id}"
+
+
+@dataclass
+class RunRequest:
+    """The body of a run request."""
+
+    intent: str = ""
+    model: str = ""
+    stream: bool = False
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "RunRequest":
+        return cls(
+            intent=str(d.get("intent") or ""),
+            model=str(d.get("model") or ""),
+            stream=bool(d.get("stream") or False),
+        )
+
+    def to_wire(self) -> Dict[str, Any]:
+        """The row as the daemon's request body."""
+        body: Dict[str, Any] = {}
+        body["intent"] = self.intent
+        if self.model:
+            body["model"] = self.model
+        if self.stream:
+            body["stream"] = self.stream
+        return body
 
 
 @dataclass
@@ -83,6 +112,7 @@ class MailDraft:
     topic: str = ""
     reply_to: str = ""
     help: bool = False
+    correlation_id: str = ""
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "MailDraft":
@@ -93,7 +123,45 @@ class MailDraft:
             topic=str(d.get("topic") or ""),
             reply_to=str(d.get("reply_to") or ""),
             help=bool(d.get("help") or False),
+            correlation_id=str(d.get("correlation_id") or ""),
         )
+
+    def to_wire(self) -> Dict[str, Any]:
+        """The row as the daemon's request body."""
+        body: Dict[str, Any] = {}
+        body["text"] = self.text
+        if self.from_:
+            body["from"] = self.from_
+        if self.to:
+            body["to"] = self.to
+        if self.topic:
+            body["topic"] = self.topic
+        if self.reply_to:
+            body["reply_to"] = self.reply_to
+        if self.help:
+            body["help"] = self.help
+        if self.correlation_id:
+            body["correlation_id"] = self.correlation_id
+        return body
+
+
+@dataclass
+class MailAck:
+    """The body of an ack."""
+
+    by: str = ""
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "MailAck":
+        return cls(
+            by=str(d.get("by") or ""),
+        )
+
+    def to_wire(self) -> Dict[str, Any]:
+        """The row as the daemon's request body."""
+        body: Dict[str, Any] = {}
+        body["by"] = self.by
+        return body
 
 
 class Health(TypedDict):
@@ -112,26 +180,12 @@ class Models(TypedDict):
     models: List[str]
 
 
-class RunRequest(TypedDict, total=False):
-    """The body of a run request."""
-
-    intent: str
-    model: str
-    stream: bool
-
-
 class RunArc(TypedDict):
     """The journaled event arc of one run."""
 
     correlation_id: str
     count: int
     events: List[Any]
-
-
-class MailAck(TypedDict):
-    """The body of an ack."""
-
-    by: str
 
 
 class MailAcked(TypedDict):

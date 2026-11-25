@@ -86,3 +86,8 @@ type mailboxSendRequest struct {
 	Help          bool   `json:"help"`
 	CorrelationID string `json:"correlation_id"`
 }
+
+// mailboxAckRequest is the body of an ack: whose inbox to clear.
+type mailboxAckRequest struct {
+	By string `json:"by"`
+}

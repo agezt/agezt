@@ -32,7 +32,16 @@ and never blocks the event loop::
     asyncio.run(main())
 """
 
-from ._generated import Health, Mail, MailDraft, Models, RunArc, RunResult
+from ._generated import (
+    Health,
+    Mail,
+    MailAck,
+    MailDraft,
+    Models,
+    RunArc,
+    RunRequest,
+    RunResult,
+)
 from .aio import AsyncClient
 from .agent import AgentClient, Capability, AgentError
 from .client import Client, StreamEvent
@@ -43,9 +52,11 @@ __all__ = [
     "AsyncClient",
     "Health",
     "Mail",
+    "MailAck",
     "MailDraft",
     "Models",
     "RunArc",
+    "RunRequest",
     "AgentClient",
     "Capability",
     "AgentError",

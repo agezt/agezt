@@ -160,9 +160,7 @@ func (s *Server) handleMailboxMessageSub(w http.ResponseWriter, r *http.Request)
 			methodNotAllowed(w, http.MethodPost)
 			return
 		}
-		var req struct {
-			By string `json:"by"`
-		}
+		var req mailboxAckRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeErr(w, http.StatusBadRequest, "invalid_request", "invalid JSON body: "+err.Error())
 			return

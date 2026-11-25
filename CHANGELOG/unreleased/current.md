@@ -837,6 +837,36 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The SDKs' request rows get one home.** W5.8 gave the **browser's** request
+  bodies their types and W5.9 gave the **daemon's** request side the same
+  truth; the half that was left was the **SDK's own** — the Python, TypeScript
+  and Rust clients that speak the daemon's native REST surface. The REST
+  contract already named **3** request rows and the generated catalogs already
+  carried them, but the **clients did not use them**: Python and TypeScript
+  wrote **8** request bodies out by hand, naming **24** fields between them, so
+  a field renamed in the contract was renamed **again** by hand in every client
+  and the declared row sat unused beside it. (Rust already held the line — its
+  client has always built its bodies from the generated rows — so the
+  measurement corrected the handoff note rather than the code.) Every request
+  body is now built from the contract's row and serialized by the catalog:
+  a `toWire` function per row in TypeScript, a `to_wire` method per row in
+  Python, and the rule is one rule in all three — a **required** field is
+  always written, an **optional** one only when it holds something, because an
+  absent optional field and an empty one are not the same request. **The bytes
+  on the wire did not change.** The catalog also carries each row's
+  local-name map, so the difference between the wire name and the name a
+  language calls it lives in one place. **One daemon bug the binding found**:
+  the daemon read a `correlation_id` the contract never named, so no SDK could
+  send it and no type could describe it — the contract names it now. The
+  proof is the golden fixture: the contract renders its own request rows into
+  `sdk/fixtures/requests.json`, and the Python, TypeScript and Rust SDKs each
+  check that their row serializes to **exactly those bytes**. **Five guards**
+  hold the line: an SDK client may not spell a request body of its own, every
+  request row is built by every SDK, the contract's rows and the daemon's
+  request structs name the **same** fields in both directions, the three SDKs
+  agree byte-for-byte, and the TypeScript compiler checks the client's row.
+  Proved by **4** reverted mutations.
+
 - **The registry's own request side gets its types.** W5.8 gave the
   **browser's** request bodies their types; the daemon's own surface — the
   operations a CLI or an SDK calls, the ones no console route names — was the

@@ -1,0 +1,22 @@
+{
+  "note": "The request bodies the daemon's REST contract declares, rendered by the contract itself (kernel/contract/restapiapi's RowBody). Every SDK's request row must serialize to these bytes. Regenerate with AGEZT_UPDATE_GOLDEN=1 go test ./kernel/restapi/ -run TestUpdateTheGoldenFixtures",
+  "rows": {
+    "mail_ack": {
+      "by": "agent-b"
+    },
+    "mail_draft": {
+      "correlation_id": "corr-golden",
+      "from": "agent-a",
+      "help": true,
+      "reply_to": "m-1",
+      "text": "golden message",
+      "to": "agent-b",
+      "topic": "dm"
+    },
+    "run_request": {
+      "intent": "golden intent",
+      "model": "model-a",
+      "stream": true
+    }
+  }
+}
