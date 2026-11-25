@@ -847,7 +847,7 @@ func RowBody(rowName string, values map[string]any) ([]byte, error) {
 		if err != nil {
 			return nil, fmt.Errorf("restapiapi: the %q row's %q: %w", rowName, f.Name, err)
 		}
-		if !f.Required && rowValueEmpty(f, normalized) {
+		if !f.Required && rowValueEmpty(normalized) {
 			continue
 		}
 		body[f.Name] = normalized
@@ -914,7 +914,7 @@ func rowValue(f Field, value any) (any, error) {
 
 // rowValueEmpty reports whether a value holds nothing: an empty string, a
 // zero, a false, an empty list or an empty object.
-func rowValueEmpty(f Field, value any) bool {
+func rowValueEmpty(value any) bool {
 	switch v := value.(type) {
 	case string:
 		return v == ""

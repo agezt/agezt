@@ -427,12 +427,21 @@ func tsToWire(b *bytes.Buffer, r restapiapi.Row) {
 // holds a plain body can still build the row, and the SDK's own tests read
 // the recorded contract body without spelling a field of their own.
 func tsWireNames(b *bytes.Buffer, r restapiapi.Row) {
-	fmt.Fprintf(b, "\n/** The local names of %s's fields, by wire name. */\n", strings.ToLower(r.Doc[:1])+r.Doc[1:])
+	fmt.Fprintf(b, "\n/** The local names of %s's fields, by wire name. */\n", lowerFirst(r.Doc))
 	fmt.Fprintf(b, "export const %s_NAMES: Record<string, string> = {\n", upperSnake(r.Name))
 	for _, f := range r.Fields {
 		fmt.Fprintf(b, "  %q: %q,\n", f.Name, f.LocalName("typescript"))
 	}
 	b.WriteString("};\n")
+}
+
+// lowerFirst lowercases the first letter of a sentence.
+func lowerFirst(s string) string {
+	if s == "" {
+		return s
+	}
+	runes := []rune(s)
+	return strings.ToLower(string(runes[0])) + string(runes[1:])
 }
 
 // tsWireDoc is the one-line prose of a request row's wire body: the row's own
@@ -443,7 +452,7 @@ func tsWireDoc(r restapiapi.Row) string {
 	if doc == "" {
 		return "The wire body of the " + r.Name + " row."
 	}
-	return "The wire body of " + strings.ToLower(doc[:1]) + doc[1:] + "."
+	return "The wire body of " + lowerFirst(doc) + "."
 }
 
 // tsType maps a wire type onto its TypeScript spelling.

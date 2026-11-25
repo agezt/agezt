@@ -38,6 +38,15 @@ func daemonRequestBodies() map[string]reflect.Type {
 	}
 }
 
+// requestRows returns the contract's request rows, by name.
+func requestRows() map[string]restapiapi.Row {
+	out := map[string]restapiapi.Row{}
+	for _, r := range restapiapi.RequestRows() {
+		out[r.Name] = r
+	}
+	return out
+}
+
 // jsonFields reads the wire names of a struct's fields.
 func jsonFields(t reflect.Type) map[string]bool {
 	out := map[string]bool{}
@@ -56,6 +65,7 @@ func jsonFields(t reflect.Type) map[string]bool {
 // fields.
 func TestTheRequestRowsAgreeWithTheDaemonsRequestBodies(t *testing.T) {
 	bodies := daemonRequestBodies()
+	rows := requestRows()
 	for _, e := range restapiapi.Endpoints() {
 		if e.Request == "" {
 			continue
@@ -67,7 +77,7 @@ func TestTheRequestRowsAgreeWithTheDaemonsRequestBodies(t *testing.T) {
 				e.ID, e.Request)
 			continue
 		}
-		row, ok := restapiapi.RowByName(e.Request)
+		row, ok := rows[e.Request]
 		if !ok {
 			t.Errorf("the %q endpoint takes the %q request body, which the contract has no row for",
 				e.ID, e.Request)
