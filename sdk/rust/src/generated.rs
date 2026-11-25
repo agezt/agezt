@@ -298,6 +298,8 @@ pub struct MailDraft {
     pub reply_to: String,
     /// Raise an assistance request instead of a message.
     pub help: bool,
+    /// The correlation id the message's board event carries.
+    pub correlation_id: String,
 }
 
 impl MailDraft {
@@ -310,6 +312,7 @@ impl MailDraft {
             topic: v.str("topic").unwrap_or("").to_string(),
             reply_to: v.str("reply_to").unwrap_or("").to_string(),
             help: v.get("help").and_then(Value::as_bool).unwrap_or(false),
+            correlation_id: v.str("correlation_id").unwrap_or("").to_string(),
         }
     }
 
@@ -331,6 +334,12 @@ impl MailDraft {
         }
         if self.help {
             m.insert("help".to_string(), Value::Bool(self.help));
+        }
+        if !self.correlation_id.is_empty() {
+            m.insert(
+                "correlation_id".to_string(),
+                Value::Str(self.correlation_id.clone()),
+            );
         }
         Value::Object(m)
     }

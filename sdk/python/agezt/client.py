@@ -9,7 +9,17 @@ import urllib.request
 from dataclasses import dataclass, field
 from typing import Any, Dict, Iterator, List, Optional
 
-from ._generated import Health, Mail, Models, Paths, RunArc, RunResult
+from ._generated import (
+    Health,
+    Mail,
+    MailAck,
+    MailDraft,
+    Models,
+    Paths,
+    RunArc,
+    RunRequest,
+    RunResult,
+)
 from .errors import APIError
 
 __all__ = ["Client", "Mail", "RunResult", "StreamEvent"]
@@ -127,10 +137,8 @@ class Client:
 
         Raises APIError if the run fails or the request is rejected.
         """
-        body: Dict[str, Any] = {"intent": intent}
-        if model:
-            body["model"] = model
-        return RunResult.from_dict(self._post_json(Paths.RUN, body))
+        row = RunRequest(intent=intent, model=model or "")
+        return RunResult.from_dict(self._post_json(Paths.RUN, row.to_wire()))
 
     def run_stream(
         self, intent: str, model: Optional[str] = None
@@ -138,10 +146,8 @@ class Client:
         """Execute an intent, yielding StreamEvents (start/token/done/error) as
         the agent produces them.
         """
-        body: Dict[str, Any] = {"intent": intent, "stream": True}
-        if model:
-            body["model"] = model
-        data = json.dumps(body).encode("utf-8")
+        row = RunRequest(intent=intent, model=model or "", stream=True)
+        data = json.dumps(row.to_wire()).encode("utf-8")
         req = self._request("POST", Paths.RUN, data=data, accept="text/event-stream")
         try:
             resp = self._opener.open(req, timeout=self.timeout)
@@ -176,18 +182,15 @@ class Client:
         to the original sender); ``help=True`` raises an assistance request.
         A directed message wakes a standing order watching ``board.dm.<name>``.
         """
-        body: Dict[str, Any] = {"text": text}
-        if from_:
-            body["from"] = from_
-        if to:
-            body["to"] = to
-        if topic:
-            body["topic"] = topic
-        if reply_to:
-            body["reply_to"] = reply_to
-        if help:
-            body["help"] = True
-        res = self._post_json(Paths.MAILBOX_MESSAGES, body)
+        draft = MailDraft(
+            text=text,
+            from_=from_,
+            to=to,
+            topic=topic,
+            reply_to=reply_to,
+            help=help,
+        )
+        res = self._post_json(Paths.MAILBOX_MESSAGES, draft.to_wire())
         return Mail.from_dict(res.get("message", {}))
 
     def mailbox_broadcast(self, from_: str, text: str) -> Mail:
@@ -211,9 +214,10 @@ class Client:
     def mailbox_ack(self, message_id: str, by: str) -> None:
         """Mark a message read for one reader (it leaves that reader's inbox
         without a reply). Per-reader and idempotent."""
+        row = MailAck(by=by)
         self._post_json(
             Paths.MAILBOX_ACK.replace("{id}", urllib.parse.quote(message_id, safe="")),
-            {"by": by},
+            row.to_wire(),
         )
 
     def mailbox_replies(self, message_id: str, limit: int = 0) -> List[Mail]:

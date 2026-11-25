@@ -71,6 +71,78 @@ type goldenManifest struct {
 // goldenDir is where the fixtures live, relative to this package.
 const goldenDir = "../../sdk/fixtures"
 
+// goldenRequestsFile is the request-body fixture's name inside goldenDir.
+const goldenRequestsFile = "requests.json"
+
+// goldenRequests is the request-body fixture: the wire bodies the daemon's
+// REST contract declares.
+//
+// The fixtures above are what the daemon ANSWERS; this one is what it ACCEPTS.
+// The contract's request rows are rendered by the contract itself
+// (restapiapi.RowBody), so the Python, TypeScript and Rust SDKs all have to
+// serialize their rows to the very same bytes — one vocabulary, three
+// languages.
+type goldenRequests struct {
+	// Note says what the fixture is.
+	Note string `json:"note"`
+	// Rows are the request bodies, by row name.
+	Rows map[string]json.RawMessage `json:"rows"`
+}
+
+// goldenRequestRows are the request bodies the contract's request rows
+// declare, with the values this recorder renders them from. The rows are the
+// contract's; the values are this file's.
+var goldenRequestRows = []struct {
+	// Row is the contract's row name.
+	Row string
+	// Values are the row's field values.
+	Values map[string]any
+}{
+	{restapiapi.RowRunRequest, map[string]any{
+		"intent": "golden intent",
+		"model":  "model-a",
+		"stream": true,
+	}},
+	{restapiapi.RowMailDraft, map[string]any{
+		"text":           "golden message",
+		"from":           "agent-a",
+		"to":             "agent-b",
+		"topic":          "dm",
+		"reply_to":       "m-1",
+		"help":           true,
+		"correlation_id": "corr-golden",
+	}},
+	{restapiapi.RowMailAck, map[string]any{
+		"by": "agent-b",
+	}},
+}
+
+// goldenRequestFixture renders the request-body fixture: the contract's own
+// rows, rendered by the contract.
+func goldenRequestFixture(t *testing.T) []byte {
+	t.Helper()
+	rows := map[string]json.RawMessage{}
+	for _, c := range goldenRequestRows {
+		body, err := restapiapi.RowBody(c.Row, c.Values)
+		if err != nil {
+			t.Fatalf("render the %q row: %v", c.Row, err)
+		}
+		rows[c.Row] = json.RawMessage(body)
+	}
+	fixture := goldenRequests{
+		Note: "The request bodies the daemon's REST contract declares, rendered by the " +
+			"contract itself (kernel/contract/restapiapi's RowBody). Every SDK's request " +
+			"row must serialize to these bytes. Regenerate with " +
+			"AGEZT_UPDATE_GOLDEN=1 go test ./kernel/restapi/ -run TestUpdateTheGoldenFixtures",
+		Rows: rows,
+	}
+	out, err := json.MarshalIndent(fixture, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal the request fixture: %v", err)
+	}
+	return append(out, '\n')
+}
+
 // goldenCases are the requests the recorder makes, in order.
 func goldenCases() []struct {
 	id     string
@@ -369,6 +441,12 @@ func TestTheGoldenFixturesAreInSync(t *testing.T) {
 			t.Errorf("sdk/fixtures/%s is stale — regenerate the golden fixtures", name)
 		}
 	}
+	haveRequests, err := os.ReadFile(filepath.Join(goldenDir, goldenRequestsFile))
+	if err != nil {
+		t.Errorf("read %s: %v", goldenRequestsFile, err)
+	} else if want := goldenRequestFixture(t); !bytes.Equal(haveRequests, want) {
+		t.Errorf("sdk/fixtures/%s is stale — regenerate the golden fixtures", goldenRequestsFile)
+	}
 }
 
 // TestUpdateTheGoldenFixtures rewrites the fixtures. It only runs when the
@@ -401,4 +479,8 @@ func TestUpdateTheGoldenFixtures(t *testing.T) {
 		}
 		t.Log("wrote sdk/fixtures/" + name)
 	}
+	if err := os.WriteFile(filepath.Join(goldenDir, goldenRequestsFile), goldenRequestFixture(t), 0o644); err != nil {
+		t.Fatalf("write %s: %v", goldenRequestsFile, err)
+	}
+	t.Log("wrote sdk/fixtures/" + goldenRequestsFile)
 }

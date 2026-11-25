@@ -4,9 +4,11 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -55,6 +57,13 @@ type sdkLang struct {
 	Clients []string
 	// Ref renders the reference to a path constant in this language.
 	Ref func(name string) string
+	// FreeForm is the shape of a hand-built request body in this language: a
+	// body the client spells itself, free of the catalog's types. Empty when
+	// the language has no such shape to forbid.
+	FreeForm string
+	// WireKey is how this language spells a wire name as a body key, with %s
+	// the wire name. Empty when the plain quoted key covers it.
+	WireKey string
 }
 
 // sdks are the SDKs wired to the generated catalog. The Go SDK is not among
@@ -68,6 +77,7 @@ func sdks() []sdkLang {
 			Generated: "sdk/python/agezt/_generated.py",
 			Clients:   []string{"sdk/python/agezt/client.py"},
 			Ref:       func(name string) string { return "Paths." + upperSnake(name) },
+			FreeForm:  `Dict\[str, Any\] = \{[^}]`,
 		},
 		{
 			Name:      "typescript",
@@ -75,6 +85,7 @@ func sdks() []sdkLang {
 			Generated: "sdk/typescript/src/generated.ts",
 			Clients:   []string{"sdk/typescript/src/client.ts"},
 			Ref:       func(name string) string { return "PATHS." + camel(name) },
+			FreeForm:  `Record<string, unknown> = \{[^}]`,
 		},
 		{
 			Name:      "rust",
@@ -82,6 +93,11 @@ func sdks() []sdkLang {
 			Generated: "sdk/rust/src/generated.rs",
 			Clients:   []string{"sdk/rust/src/client.rs"},
 			Ref:       func(name string) string { return "paths::" + upperSnake(name) },
+			// The Rust SDK has no free-form body shape to forbid: it has always
+			// built its bodies from the generated rows, and its `Value::Object`
+			// calls parse the daemon's ANSWERS.
+			FreeForm: "",
+			WireKey:  `insert\(\"%s\"`,
 		},
 	}
 }
@@ -141,6 +157,122 @@ func TestEveryContractPathIsReachedByEverySDK(t *testing.T) {
 			}
 		}
 	}
+}
+
+// TestTheSDKsBuildTheirRequestBodiesFromTheCatalog is the ratchet that keeps
+// the SDK request side single-sourced: an SDK client may not spell a request
+// body of its own.
+//
+// The wire names of a request row live in the contract and in the generated
+// catalog — nowhere else. Three shapes would smuggle a second vocabulary back
+// in:
+//
+//  1. a hand-built body: the free-form literal the client spells itself;
+//  2. a quoted wire-name KEY: the client naming a row's field on the wire
+//     (the contract's query parameters are a different vocabulary and are not
+//     caught here);
+//  3. the wire name of a field the language RENAMES: the difference between
+//     the two spellings lives in the catalog, so the client may not use the
+//     wire one (`reply_to` in TypeScript, `from` in Python).
+//
+// A client that builds its body from the generated row says the field in the
+// language's own name, and the catalog does the rest.
+func TestTheSDKsBuildTheirRequestBodiesFromTheCatalog(t *testing.T) {
+	root := repoRoot(t)
+	for _, lang := range sdks() {
+		for _, c := range lang.Clients {
+			raw, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(c)))
+			if err != nil {
+				t.Fatalf("read %s: %v", c, err)
+			}
+			body := stripProse(string(raw), lang.Name)
+			if lang.FreeForm != "" && regexp.MustCompile(lang.FreeForm).MatchString(body) {
+				t.Errorf("%s builds a request body of its own (%q) — the body's shape belongs to the generated row",
+					c, lang.FreeForm)
+			}
+			for _, row := range restapiapi.RequestRows() {
+				for _, f := range row.Fields {
+					if strings.Contains(body, "\""+f.Name+"\":") || strings.Contains(body, "'"+f.Name+"':") {
+						t.Errorf("%s spells the request field %q on the wire — the wire names live in the generated catalog",
+							c, f.Name)
+					}
+					if lang.WireKey != "" {
+						key := regexp.MustCompile(fmt.Sprintf(lang.WireKey, regexp.QuoteMeta(f.Name)))
+						if key.MatchString(body) {
+							t.Errorf("%s spells the request field %q on the wire — the wire names live in the generated catalog",
+								c, f.Name)
+						}
+					}
+					local := f.LocalName(lang.Name)
+					if local == f.Name {
+						continue
+					}
+					if usesWireName(body, f.Name) {
+						t.Errorf("%s spells the wire name %q of a field it calls %q — the rename lives in the generated catalog",
+							c, f.Name, local)
+					}
+				}
+			}
+		}
+	}
+}
+
+// TestEveryRequestRowIsReachedByEverySDK is the coverage gate for the request
+// side: a row the contract puts in the SDK contract must be built by every
+// SDK, and the only way to build it is through the generated row.
+func TestEveryRequestRowIsReachedByEverySDK(t *testing.T) {
+	root := repoRoot(t)
+	for _, lang := range sdks() {
+		body := ""
+		for _, c := range lang.Clients {
+			raw, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(c)))
+			if err != nil {
+				t.Fatalf("read %s: %v", c, err)
+			}
+			body += string(raw)
+		}
+		for _, row := range restapiapi.RequestRows() {
+			name := pascal(row.Name)
+			if !mentions(body, name) {
+				t.Errorf("the %s SDK never builds the %q request row (%s is missing)",
+					lang.Name, row.Name, name)
+			}
+		}
+	}
+}
+
+// usesWireName reports whether a source uses a wire name as a quoted string or
+// as a property: the two ways a client can spell a field on the wire.
+func usesWireName(body, name string) bool {
+	quoted := regexp.MustCompile(`["']` + regexp.QuoteMeta(name) + `["']`)
+	if quoted.MatchString(body) {
+		return true
+	}
+	// A property access: `.name` and not `.name_something`.
+	prop := regexp.MustCompile(`\.` + regexp.QuoteMeta(name) + `([^A-Za-z0-9_]|$)`)
+	return prop.MatchString(body)
+}
+
+// stripProse removes what is not code: the comments and the doc strings, and
+// (in Rust) the test module — a test may name the wire on purpose, and the
+// SDK's own doc comments show examples that do.
+func stripProse(src, lang string) string {
+	switch lang {
+	case "python":
+		src = regexp.MustCompile(`(?s)"""..*?"""`).ReplaceAllString(src, "")
+		src = regexp.MustCompile(`(?s)'''..*?'''`).ReplaceAllString(src, "")
+		src = regexp.MustCompile(`#[^\n]*`).ReplaceAllString(src, "")
+	case "rust":
+		if i := strings.Index(src, "#[cfg(test)]"); i >= 0 {
+			src = src[:i]
+		}
+		src = regexp.MustCompile(`(?s)/\*.*?\*/`).ReplaceAllString(src, "")
+		src = regexp.MustCompile(`//[^\n]*`).ReplaceAllString(src, "")
+	default:
+		src = regexp.MustCompile(`(?s)/\*.*?\*/`).ReplaceAllString(src, "")
+		src = regexp.MustCompile(`//[^\n]*`).ReplaceAllString(src, "")
+	}
+	return src
 }
 
 // mentions reports whether the body mentions the reference as a WHOLE

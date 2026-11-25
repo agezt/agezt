@@ -32,6 +32,11 @@
 //     the prefix; the SDK substitutes the segment.
 package restapiapi
 
+import (
+	"encoding/json"
+	"fmt"
+)
+
 // Tier is the authorization tier a route is served at.
 type Tier string
 
@@ -669,6 +674,11 @@ func rows() []Row {
 				{Name: "reply_to", Type: TypeString, Names: map[string]string{"typescript": "replyTo"},
 					Doc: "The message this one answers."},
 				{Name: "help", Type: TypeBool, Doc: "Raise an assistance request instead of a message."},
+				// The daemon reads this one: it is the correlation id the message's
+				// board event carries (the header X-Agezt-Correlation is the
+				// fallback). It was read before it was named here — a field the
+				// daemon speaks and the contract could not see.
+				{Name: "correlation_id", Type: TypeString, Doc: "The correlation id the message's board event carries."},
 			},
 		},
 		{
@@ -769,3 +779,158 @@ func Endpoints() []Endpoint { return endpoints() }
 
 // Rows returns the wire vocabulary.
 func Rows() []Row { return rows() }
+
+// RequestRows returns the rows an endpoint takes as a request body, in the
+// order the contract declares them. A request row is a shape the SDK SENDS;
+// every other row is a shape the daemon answers with.
+func RequestRows() []Row {
+	names := map[string]bool{}
+	for _, e := range endpoints() {
+		if e.Request != "" {
+			names[e.Request] = true
+		}
+	}
+	var out []Row
+	for _, r := range rows() {
+		if names[r.Name] {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// RowBody renders a row's wire body from the values it carries.
+//
+// This is the ONE place the contract's request vocabulary becomes bytes: the
+// SDK catalogs render the same rows (tools/sdkgen), the golden fixture is
+// recorded from here, and the SDKs' own tests read that fixture. So the
+// daemon's contract, the Python catalog, the TypeScript catalog and the Rust
+// catalog all say the same thing about a request body.
+//
+// The rule is the SDKs' rule: a required field is always written; an optional
+// one only when it holds something (an empty string, a zero, a false, an empty
+// list) — an absent optional field and an empty one are not the same request.
+//
+// A value that does not match the row's declared type is an error, and so is a
+// value for a field the row does not declare: the contract is the whole shape.
+func RowBody(rowName string, values map[string]any) ([]byte, error) {
+	var row Row
+	found := false
+	for _, r := range rows() {
+		if r.Name == rowName {
+			row, found = r, true
+			break
+		}
+	}
+	if !found {
+		return nil, fmt.Errorf("restapiapi: no %q row", rowName)
+	}
+	known := map[string]Field{}
+	for _, f := range row.Fields {
+		known[f.Name] = f
+	}
+	for name := range values {
+		if _, ok := known[name]; !ok {
+			return nil, fmt.Errorf("restapiapi: the %q row has no %q field", rowName, name)
+		}
+	}
+	body := map[string]any{}
+	for _, f := range row.Fields {
+		value, present := values[f.Name]
+		if !present {
+			if f.Required {
+				return nil, fmt.Errorf("restapiapi: the %q row requires %q", rowName, f.Name)
+			}
+			continue
+		}
+		normalized, err := rowValue(f, value)
+		if err != nil {
+			return nil, fmt.Errorf("restapiapi: the %q row's %q: %w", rowName, f.Name, err)
+		}
+		if !f.Required && rowValueEmpty(f, normalized) {
+			continue
+		}
+		body[f.Name] = normalized
+	}
+	out, err := json.Marshal(body)
+	if err != nil {
+		return nil, fmt.Errorf("restapiapi: render the %q row: %w", rowName, err)
+	}
+	return out, nil
+}
+
+// rowValue checks a value against a field's declared type and normalizes it.
+func rowValue(f Field, value any) (any, error) {
+	switch f.Type {
+	case TypeString:
+		s, ok := value.(string)
+		if !ok {
+			return nil, fmt.Errorf("want a string, got %T", value)
+		}
+		return s, nil
+	case TypeInt:
+		switch n := value.(type) {
+		case int:
+			return int64(n), nil
+		case int64:
+			return n, nil
+		default:
+			return nil, fmt.Errorf("want an integer, got %T", value)
+		}
+	case TypeBool:
+		b, ok := value.(bool)
+		if !ok {
+			return nil, fmt.Errorf("want a boolean, got %T", value)
+		}
+		return b, nil
+	case TypeStringSlice:
+		s, ok := value.([]string)
+		if !ok {
+			return nil, fmt.Errorf("want a list of strings, got %T", value)
+		}
+		return s, nil
+	case TypeAnySlice:
+		s, ok := value.([]any)
+		if !ok {
+			return nil, fmt.Errorf("want a list, got %T", value)
+		}
+		return s, nil
+	case TypeAnyObject:
+		m, ok := value.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("want an object, got %T", value)
+		}
+		return m, nil
+	case TypeIntMap:
+		m, ok := value.(map[string]int)
+		if !ok {
+			return nil, fmt.Errorf("want an object of integers, got %T", value)
+		}
+		return m, nil
+	default:
+		return nil, fmt.Errorf("has no wire body yet")
+	}
+}
+
+// rowValueEmpty reports whether a value holds nothing: an empty string, a
+// zero, a false, an empty list or an empty object.
+func rowValueEmpty(f Field, value any) bool {
+	switch v := value.(type) {
+	case string:
+		return v == ""
+	case int64:
+		return v == 0
+	case bool:
+		return !v
+	case []string:
+		return len(v) == 0
+	case []any:
+		return len(v) == 0
+	case map[string]any:
+		return len(v) == 0
+	case map[string]int:
+		return len(v) == 0
+	default:
+		return false
+	}
+}
