@@ -7,16 +7,29 @@ import (
 	"net/http"
 
 	"github.com/agezt/agezt/kernel/app/files"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 )
 
-func fileMutationBody(w http.ResponseWriter, r *http.Request) (map[string]any, bool) {
+// fileMutationBody reads and checks a file manager mutation's body.
+//
+// The body is measured against the schema the console's own endpoint list
+// names for the endpoint, so a mistyped field is refused in the registry's
+// words instead of becoming a silent zero value.
+func fileMutationBody(w http.ResponseWriter, r *http.Request, name opapi.NativeRouteName, target any) bool {
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", "POST")
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return nil, false
+		return false
 	}
-	return readJSONBody(w, r)
+	ok, err := decodeNativeBody(w, r, name, target)
+	if !ok {
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		}
+		return false
+	}
+	return true
 }
 
 func (s *Server) callFileMutation(w http.ResponseWriter, r *http.Request, command string, args map[string]any) {

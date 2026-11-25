@@ -1,5 +1,72 @@
 # NEXT — handoff for the next coding agent
 
+## Current checkpoint — W5.12 the console's own request bodies get a door, 2026-11-25
+
+The W0–W5 objective remains open. W5.8 gave the **browser's** request bodies
+their types, W5.9 gave the **daemon's** request side the same truth, W5.10
+gave the **SDK's** request rows one home, W5.11 gave the `/api/v1` surface the
+**door** — and this slice gives the **console's own endpoints** the same
+door, and the refusal sentence one home.
+
+### What was on the tree
+
+- **The console's own endpoints name their bodies.** The console's own
+  endpoint list (`kernel/contract/opapi/native.go`) names **21** endpoints
+  with their path, method, tier and mutation flag. **6** of them take a
+  request body, and **none** said what the body looks like: three read their
+  body into a free-form `map[string]any`, where a mistyped field was not
+  decided at all — `body["path"].(string)` turned a number into the empty
+  string and the mutation went to the daemon anyway.
+- **The console has the registry's door.** A mistyped body is refused as
+  `operation files_mkdir input: $.path has wrong type: got number, want
+  string` — the same validator, the same words.
+- **One home for the check and one for the sentence.** The check moved to
+  `kernel/httpserver.DecodeJSONBody` (one place where a request body becomes
+  a value, so the REST surface and the console read the same bytes the same
+  way), and the sentence to `schema.InputError` — the registry itself wraps
+  its input failures with it now, so the registry and every door say one
+  thing.
+- **The file manager's bodies are typed.** Named structs instead of a map, so
+  the *"a wrong type became a zero value and the caller was never told"*
+  pattern is gone from the console.
+- **Six guards**: every body the list names is a schema the door can check;
+  the console's structs and the contract's schemas name the **same fields
+  with the same type**, in both directions, and every schema belongs to an
+  endpoint the console reads a body for; a mistyped field — and a null — is
+  refused with the registry's words; and a body that fits the contract still
+  gets through.
+
+### What the measurement said
+
+- Bodies the contract names a shape for: **0 → 6**.
+- Endpoints behind a door: **0 → 6**.
+- Request fields checked before the handler reads them: **0 → 9**.
+- The seven measured mistyped bodies accepted with a **silent default**:
+  **3 → 0**.
+- Places that write the registry's refusal sentence: **2 → 1**.
+
+### The evidence
+
+`architecture/332-w512-the-consoles-own-request-bodies-get-a-door-evidence.md`
+— the measurement, the rule, the guards, the five mutations (two of which
+escaped the first run, which is how the test's own free loop was found) and
+the gates.
+
+### What the next slice should do
+
+One hole is left, and W5.11 named it:
+
+- **`POST /api/v1/update/apply` still has no request row.** The endpoint reads
+  `{"version","sha256","url","notes"}` and the REST contract does not
+  describe it, so the door has no schema to measure it against — it is the
+  one body on `/api/v1` the door cannot reach. Naming it is not a door change
+  but a **contract** change: a request row in the REST contract is a row the
+  generated SDK catalogs carry, and the SDKs deliberately do not expose the
+  self-update surface. So the slice that names it has to make the SDK
+  catalog's row set the **SDK contract's** rows (the catalog renders every row
+  in the vocabulary today, so a new row would reach three SDKs' public API),
+  and then give the update endpoint its row and its door.
+
 ## Current checkpoint — W5.11 the daemon's request door gets the contract, 2026-11-25
 
 The W0–W5 objective remains open. W5.8 gave the **browser's** request bodies

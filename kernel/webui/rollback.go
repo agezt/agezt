@@ -3,7 +3,6 @@
 package webui
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -74,12 +73,12 @@ func (s *Server) handleRollbackApply(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusMethodNotAllowed, map[string]any{"error": "POST required"})
 		return
 	}
-	var body struct {
-		ID string `json:"id"`
-	}
-	dec := json.NewDecoder(r.Body)
-	if err := dec.Decode(&body); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid JSON body: " + err.Error()})
+	var body rollbackApplyBody
+	ok, err := decodeNativeBody(w, r, opapi.NativeRollbackApply, &body)
+	if !ok {
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid JSON body: " + err.Error()})
+		}
 		return
 	}
 	id := strings.TrimSpace(body.ID)
