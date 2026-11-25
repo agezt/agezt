@@ -16,14 +16,18 @@ package restapi
 // untouched, and the refusal is the registry's message — not a lookalike.
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/contract/restapiapi"
+	"github.com/agezt/agezt/kernel/contract/updateapi"
 	"github.com/agezt/agezt/kernel/platform/schema"
 )
 
@@ -33,6 +37,30 @@ type doorEndpoint struct {
 	ID   string
 	Path string
 	Row  restapiapi.Row
+}
+
+// doorUpdateBackend is the self-update service the door tests drive.
+//
+// The update endpoint answers "update is disabled" BEFORE it reads a body, so
+// a door test that reaches that endpoint needs a service behind it.
+type doorUpdateBackend struct{}
+
+func (doorUpdateBackend) Check(context.Context) (*updateapi.CheckResult, error) {
+	return &updateapi.CheckResult{Current: brand.Version}, nil
+}
+
+func (doorUpdateBackend) Apply(context.Context, *updateapi.UpdateInfo,
+	func(context.Context, time.Duration) updateapi.DrainResult) error {
+	return nil
+}
+
+// doorServer is the server the door tests drive: every endpoint that takes a
+// body, with the self-update service wired.
+func doorServer(t *testing.T) *Server {
+	t.Helper()
+	s, _ := mailboxServer(t, "tok")
+	s.SetUpdateService(doorUpdateBackend{})
+	return s
 }
 
 // doorEndpoints returns every endpoint that takes a request body.
@@ -142,7 +170,7 @@ func doorErrorMessage(t *testing.T, rec *httptest.ResponseRecorder) string {
 // contract, so an endpoint the contract gives a request row but nobody wired
 // behind the door fails here.
 func TestTheRequestDoorRefusesAMistypedField(t *testing.T) {
-	s, _ := mailboxServer(t, "tok")
+	s := doorServer(t)
 	for _, e := range doorEndpoints(t) {
 		for _, f := range e.Row.Fields {
 			wrong, words, ok := doorWrongValue(f)
@@ -167,7 +195,7 @@ func TestTheRequestDoorRefusesAMistypedField(t *testing.T) {
 // TestTheRequestDoorRefusesANullField covers the arm the daemon's own decoder
 // used to swallow: a null is not a value, and it is not a default either.
 func TestTheRequestDoorRefusesANullField(t *testing.T) {
-	s, _ := mailboxServer(t, "tok")
+	s := doorServer(t)
 	for _, e := range doorEndpoints(t) {
 		for _, f := range e.Row.Fields {
 			if _, ok := doorValue(f); !ok {
@@ -206,7 +234,7 @@ func schemaTypeWord(t restapiapi.Type) string {
 // the surface: a body that fits the contract reaches the handler and gets the
 // handler's own answer.
 func TestTheRequestDoorLetsAContractBodyThrough(t *testing.T) {
-	s, _ := mailboxServer(t, "tok")
+	s := doorServer(t)
 	for _, e := range doorEndpoints(t) {
 		rec := do(t, s, http.MethodPost, e.Path, doorBody(t, e.Row, "", nil), "tok")
 		if rec.Code == http.StatusBadRequest && strings.Contains(doorErrorMessage(t, rec), "has wrong type") {
@@ -220,7 +248,7 @@ func TestTheRequestDoorLetsAContractBodyThrough(t *testing.T) {
 // registry's door: a row is the stable SUBSET of a body, so a caller may send
 // a field the contract does not declare.
 func TestTheRequestDoorAllowsAFieldTheContractDoesNotName(t *testing.T) {
-	s, _ := mailboxServer(t, "tok")
+	s := doorServer(t)
 	for _, e := range doorEndpoints(t) {
 		rec := do(t, s, http.MethodPost, e.Path, doorBody(t, e.Row, "extra_field", 1), "tok")
 		if rec.Code == http.StatusBadRequest {
@@ -233,7 +261,7 @@ func TestTheRequestDoorAllowsAFieldTheContractDoesNotName(t *testing.T) {
 // TestTheRequestDoorRefusesABodyThatIsNotAnObject covers the root: a body
 // that is not an object does not fit any row.
 func TestTheRequestDoorRefusesABodyThatIsNotAnObject(t *testing.T) {
-	s, _ := mailboxServer(t, "tok")
+	s := doorServer(t)
 	for _, e := range doorEndpoints(t) {
 		rec := do(t, s, http.MethodPost, e.Path, "[]", "tok")
 		want := "operation " + e.ID + " input: $ has wrong type: got array, want object"
@@ -263,7 +291,7 @@ func TestTheRequestDoorSpeaksTheRegistrysLanguage(t *testing.T) {
 	}
 	registry := fmt.Errorf("operation %s input: %w", restapiapi.EndpointRun, schemaErr).Error()
 
-	s, _ := mailboxServer(t, "tok")
+	s := doorServer(t)
 	rec := do(t, s, http.MethodPost, "/api/v1/runs", `{"intent":42}`, "tok")
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("a mistyped run body answered %d %s, want 400", rec.Code, rec.Body.String())
@@ -277,7 +305,7 @@ func TestTheRequestDoorSpeaksTheRegistrysLanguage(t *testing.T) {
 // the surface's own answers with it: an empty body and a malformed body are
 // still the errors the surface has always given.
 func TestTheRequestDoorKeepsTheSurfacesOwnRefusals(t *testing.T) {
-	s, _ := mailboxServer(t, "tok")
+	s := doorServer(t)
 	cases := []struct {
 		name string
 		body string

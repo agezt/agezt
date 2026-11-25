@@ -177,6 +177,10 @@ func TestEveryContractPathIsReachedByEverySDK(t *testing.T) {
 //
 // A client that builds its body from the generated row says the field in the
 // language's own name, and the catalog does the rest.
+//
+// The rows it walks are the SDK CONTRACT's request rows. A request body of an
+// endpoint the SDKs do not expose (the self-update body) is not theirs to
+// spell, and the catalog does not carry it.
 func TestTheSDKsBuildTheirRequestBodiesFromTheCatalog(t *testing.T) {
 	root := repoRoot(t)
 	for _, lang := range sdks() {
@@ -190,7 +194,7 @@ func TestTheSDKsBuildTheirRequestBodiesFromTheCatalog(t *testing.T) {
 				t.Errorf("%s builds a request body of its own (%q) — the body's shape belongs to the generated row",
 					c, lang.FreeForm)
 			}
-			for _, row := range restapiapi.RequestRows() {
+			for _, row := range restapiapi.SDKRequestRows() {
 				for _, f := range row.Fields {
 					if strings.Contains(body, "\""+f.Name+"\":") || strings.Contains(body, "'"+f.Name+"':") {
 						t.Errorf("%s spells the request field %q on the wire — the wire names live in the generated catalog",
@@ -217,6 +221,31 @@ func TestTheSDKsBuildTheirRequestBodiesFromTheCatalog(t *testing.T) {
 	}
 }
 
+// TestTheSDKCatalogCarriesNoRequestRowOfANonSDKEndpoint holds the catalog's
+// row set to the SDK contract's rows.
+//
+// A request row of an endpoint the SDKs do not expose is a body no SDK would
+// build — and the SDKs' own ratchets would then demand one. So the catalog
+// must not carry it: the self-update body stays in the contract and out of
+// the SDKs' public API.
+func TestTheSDKCatalogCarriesNoRequestRowOfANonSDKEndpoint(t *testing.T) {
+	cat := buildCatalog()
+	carried := map[string]bool{}
+	for _, r := range cat.Rows {
+		carried[r.Name] = true
+	}
+	for _, e := range restapiapi.Endpoints() {
+		if e.SDK || e.Request == "" {
+			continue
+		}
+		if carried[e.Request] {
+			t.Errorf("the SDK catalog carries the %q row — it is the request body of the %q endpoint "+
+				"the SDKs do not expose, so no SDK would build it",
+				e.Request, e.ID)
+		}
+	}
+}
+
 // TestEveryRequestRowIsReachedByEverySDK is the coverage gate for the request
 // side: a row the contract puts in the SDK contract must be built by every
 // SDK, and the only way to build it is through the generated row.
@@ -231,7 +260,7 @@ func TestEveryRequestRowIsReachedByEverySDK(t *testing.T) {
 			}
 			body += string(raw)
 		}
-		for _, row := range restapiapi.RequestRows() {
+		for _, row := range restapiapi.SDKRequestRows() {
 			name := pascal(row.Name)
 			if !mentions(body, name) {
 				t.Errorf("the %s SDK never builds the %q request row (%s is missing)",

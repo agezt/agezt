@@ -16,8 +16,11 @@ package restapi
 //     the contract, and so unsendable by any SDK);
 //   - a field the contract names and the daemon ignores: the caller is told
 //     it is accepted, and it is not.
+//   - a field whose two types disagree: the door would measure the body
+//     against a type the handler cannot hold.
 //
-// This ratchet holds both directions, for every endpoint that takes a body.
+// This ratchet holds both directions, for every endpoint that takes a body —
+// the names AND the types.
 
 import (
 	"reflect"
@@ -35,6 +38,7 @@ func daemonRequestBodies() map[string]reflect.Type {
 		restapiapi.EndpointRun:         reflect.TypeOf(runRequest{}),
 		restapiapi.EndpointMailboxSend: reflect.TypeOf(mailboxSendRequest{}),
 		restapiapi.EndpointMailboxAck:  reflect.TypeOf(mailboxAckRequest{}),
+		restapiapi.EndpointUpdateApply: reflect.TypeOf(updateApplyArgs{}),
 	}
 }
 
@@ -47,22 +51,61 @@ func requestRows() map[string]restapiapi.Row {
 	return out
 }
 
-// jsonFields reads the wire names of a struct's fields.
-func jsonFields(t reflect.Type) map[string]bool {
-	out := map[string]bool{}
+// jsonFields reads the wire names of a struct's fields, with their Go types.
+func jsonFields(t reflect.Type) map[string]reflect.Type {
+	out := map[string]reflect.Type{}
 	for i := 0; i < t.NumField(); i++ {
 		name, _, _ := strings.Cut(t.Field(i).Tag.Get("json"), ",")
 		if name == "" || name == "-" {
 			continue
 		}
-		out[name] = true
+		out[name] = t.Field(i).Type
 	}
 	return out
 }
 
+// goTypesFor is the Go types the daemon's struct may use for a wire type.
+//
+// The contract's row says what the field is on the wire; the daemon's struct
+// says what it is in Go. A field whose two types disagree is a field the door
+// would measure against a type the handler cannot hold — so the two must
+// agree, not merely share a name.
+func goTypesFor(t restapiapi.Type) []reflect.Type {
+	switch t {
+	case restapiapi.TypeString:
+		return []reflect.Type{reflect.TypeOf("")}
+	case restapiapi.TypeBool:
+		return []reflect.Type{reflect.TypeOf(false)}
+	case restapiapi.TypeInt:
+		return []reflect.Type{
+			reflect.TypeOf(int(0)), reflect.TypeOf(int64(0)), reflect.TypeOf(uint64(0)),
+		}
+	case restapiapi.TypeStringSlice:
+		return []reflect.Type{reflect.TypeOf([]string{})}
+	case restapiapi.TypeAnySlice:
+		return []reflect.Type{reflect.TypeOf([]any{})}
+	case restapiapi.TypeAnyObject:
+		return []reflect.Type{reflect.TypeOf(map[string]any{})}
+	case restapiapi.TypeIntMap:
+		return []reflect.Type{reflect.TypeOf(map[string]int{})}
+	default:
+		return nil
+	}
+}
+
+// typeAgrees reports whether the daemon's Go type is one the wire type allows.
+func typeAgrees(wire restapiapi.Type, got reflect.Type) bool {
+	for _, want := range goTypesFor(wire) {
+		if got == want {
+			return true
+		}
+	}
+	return false
+}
+
 // TestTheRequestRowsAgreeWithTheDaemonsRequestBodies is the ratchet: the
 // contract's request rows and the daemon's request structs name the same
-// fields.
+// fields, with the same types.
 func TestTheRequestRowsAgreeWithTheDaemonsRequestBodies(t *testing.T) {
 	bodies := daemonRequestBodies()
 	rows := requestRows()
@@ -95,9 +138,15 @@ func TestTheRequestRowsAgreeWithTheDaemonsRequestBodies(t *testing.T) {
 			}
 		}
 		for _, f := range row.Fields {
-			if !read[f.Name] {
+			got, ok := read[f.Name]
+			if !ok {
 				t.Errorf("the contract's %q row names %q, which the %q endpoint does not read",
 					row.Name, f.Name, e.ID)
+				continue
+			}
+			if !typeAgrees(f.Type, got) {
+				t.Errorf("the contract's %q row names %q as %q, the %q endpoint reads it as %s",
+					row.Name, f.Name, f.Type, e.ID, got)
 			}
 		}
 	}

@@ -837,6 +837,29 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The self-update body gets its row and its door, and the SDK catalogs carry
+  the SDK contract's rows.** `POST /api/v1/update/apply` was the one body on
+  `/api/v1` the contract did not describe: the endpoint read
+  `{"version","sha256","url","notes"}` into a struct of its own, so the
+  daemon's request door had no schema to measure it against — a mistyped body
+  was refused with a Go decoder's sentence (*"invalid JSON body: json: cannot
+  unmarshal number into Go struct field updateApplyArgs.version of type
+  string"*), and a **null** was not refused at all: `{"notes":null}` was an
+  update that was **applied**. The REST contract names that body now
+  (`update_apply`), and the door measures an arriving body against it with the
+  **same validator the registry uses**: a mistyped body is refused as
+  `operation update_apply input: $.version has wrong type: got number, want
+  string`, and a null is refused instead of silently becoming the zero value.
+  The **SDK catalogs carry the SDK contract's rows** now: the contract
+  publishes a row to the SDKs (`Row.SDK`), so the self-update body — the one
+  request body the SDKs deliberately do not expose — stays in the contract and
+  out of three SDKs' public API, and **not a line** of Python, TypeScript or
+  Rust moved. The endpoint's own answers are kept: an empty body is still
+  `empty_body`, a missing field is still `missing_fields`, a disabled
+  self-update still answers `update_disabled` before it reads a body, and a
+  body over the route's cap now answers the surface's 413
+  (`request_too_large`) like its siblings.
+
 - **The console's own endpoints get a request door.** The console's **own**
   endpoints — the ones that are not operation bindings: the login surface, the
   rollback surface, the file manager, the voice surface — answer the
