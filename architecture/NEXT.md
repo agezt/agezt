@@ -1,5 +1,97 @@
 # NEXT — handoff for the next coding agent
 
+## Current checkpoint — W5.14 the agent gateway's surface gets a contract and a door, 2026-11-25
+
+The W0–W5 objective remains open. W5.8–W5.10 gave the **browser**, the
+**registry** and the **SDKs** their request vocabulary; W5.11–W5.13 gave the
+**`/api/v1` surface** and the **console** the registry's **door** — and this
+slice gives the **agent gateway** the same: a contract that names its surface
+and a door that measures its bodies.
+
+### What was on the tree
+
+- **The gateway's surface had no contract.** Its **16 routes** lived as string
+  literals in `kernel/agentgw/gateway.go`, and **5** of them take a request
+  body. **None** said what the body looks like: four of them were read into an
+  **anonymous struct**, so a mistyped body was refused with a Go decoder's
+  sentence — and for a body that was not an object, the answer printed the
+  handler's **private struct definition** into the wire.
+- **A null was not refused at all.** It became the zero value, and **two** of
+  the measured nulls then answered a **500** (*"event: subject required"*,
+  *"memory: empty content"*) — a caller's null is not a server error — while a
+  third was **accepted** and logged as an empty message.
+- **The surface has one home now** (`kernel/contract/agentgwapi`): every route
+  names its path, method, capability, query arguments and body, and the
+  gateway registers **from** that table — so a route in the contract without a
+  handler fails at boot instead of at the call site.
+- **The gateway has the registry's door**, with the same validator and the same
+  words: `operation eventbus_publish input: $.event has wrong type: got number,
+  want string`. The gateway keeps its own **voice** — the
+  `{"error":{"code":"INVALID_REQUEST","message":…}}` envelope its subprocesses
+  already read.
+- **The bodies are typed**: the four anonymous structs are named now, and the
+  contract's schema and the daemon's struct name the **same fields with the
+  same types** — a ratchet, not a convention.
+- **Seven guards**: the route table is well-formed; every body schema is a
+  schema the door can check; the schema lookup answers the table; the contract
+  and the daemon name the same body; a mistyped field — and a null — is
+  refused with the registry's words; a body that fits gets through and an
+  undeclared field stays allowed; and the gateway's own refusals are still the
+  gateway's.
+
+### What the measurement said
+
+- Bodies the contract names a shape for: **0 → 5**.
+- Endpoints behind a door: **0 → 5**.
+- Request fields checked before the handler reads them: **0 → 22**.
+- Bodies refused with the registry's sentence: **0 → 22**.
+- Nulls refused instead of silently zero: **0 → 22**.
+- The measured nulls that answered a **500**: **2 → 0**.
+- The null that was **accepted**: **1 → 0**.
+- Routes registered from the contract: **0 → 16**.
+- The daemon's own body structs: 1 named + **4 anonymous** → **5 named**.
+
+### The evidence
+
+`architecture/334-w514-the-agent-gateways-surface-gets-a-contract-and-a-door-evidence.md`
+— the measurement on `origin/main`, the contract, the seven guards, the five
+mutations (one of which — the undeclared field — escaped the first run, which
+is how the guard's status-code check was found to be the wrong discriminator)
+and the gates.
+
+### What the next slice should do
+
+One surface is left, and it is **measured** now (on the tree at `origin/main`,
+`d5a99d76`):
+
+- **The OpenAI-compatible surface** (`kernel/openaiapi`): **5** routes —
+  `POST /v1/chat/completions`, `POST /v1/responses`, `POST
+  /v1/audio/transcriptions` (multipart), `GET /v1/models`, `GET
+  /v1/models/{id}` — and **2** of them take a JSON body. The bodies are
+  **typed** structs (`chatRequest`, `responsesRequest`), but no contract names
+  them and no door measures them, so what happens to a mistyped body is Go's
+  decision:
+
+  | the body | the answer today |
+  |---|---|
+  | `POST /v1/chat/completions {"model":42,…}` | 400 `invalid_request_error` — *"invalid JSON body: json: cannot unmarshal number into Go struct field chatRequest.model of type string"* |
+  | `POST /v1/chat/completions {"messages":null}` | 400 `invalid_request_error` — *"no usable message content"* (the null became an empty slice) |
+  | `POST /v1/chat/completions []` | 400 — *"…Go value of type openaiapi.chatRequest"* (the private struct leaks into the wire) |
+  | `POST /v1/responses {"model":42,…}` | 400 — *"…Go struct field responsesRequest.model of type string"* |
+  | `POST /v1/responses {"input":null}` | 400 — *"no usable input content"* |
+
+  The slice has **one constraint the others did not have**: this surface's
+  wire shape is **OpenAI's**, so its contract may not rename a field — it can
+  only say what OpenAI says (`model`, `messages`, `stream`, `input`, …). Its
+  error envelope is OpenAI's too (`invalid_request_error`), so the registry's
+  sentence belongs **inside** that envelope, the way the gateway's belongs
+  inside the gateway's.
+
+So the programme's last sentence is nearly closed: **every HTTP surface's
+request body is named in a contract, and every surface answers a mistyped body
+in the registry's words.** The OpenAI-compatible surface is the one left, and
+its rule is the sharpest one: *name what OpenAI names*.
+
 ## Current checkpoint — W5.13 the last body on `/api/v1` gets its row and its door, 2026-11-25
 
 The W0–W5 objective remains open. W5.8 gave the **browser's** request bodies

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/agezt/agezt/kernel/contract/agentgwapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/httpserver"
 )
@@ -80,6 +81,16 @@ func (g *Gateway) handleEventbusSubscribe(w http.ResponseWriter, r *http.Request
 	}
 }
 
+// eventPublishRequest is the body of an event publish.
+//
+// The contract names the body (agentgwapi.RouteEventbusPublish) and the door
+// measures an arriving body against that shape before this handler reads it.
+type eventPublishRequest struct {
+	Event   string                 `json:"event"`
+	Payload map[string]interface{} `json:"payload,omitempty"`
+	Tags    map[string]string      `json:"tags,omitempty"`
+}
+
 // handleEventbusPublish handles publishing events to the bus.
 func (g *Gateway) handleEventbusPublish(w http.ResponseWriter, r *http.Request) {
 	claims := getClaims(r)
@@ -98,14 +109,8 @@ func (g *Gateway) handleEventbusPublish(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	var req struct {
-		Event   string                 `json:"event"`
-		Payload map[string]interface{} `json:"payload,omitempty"`
-		Tags    map[string]string      `json:"tags,omitempty"`
-	}
-
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBodyBytes)).Decode(&req); err != nil {
-		responseError(w, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
+	var req eventPublishRequest
+	if !decodeGatewayBody(w, r, agentgwapi.RouteEventbusPublish, &req) {
 		return
 	}
 

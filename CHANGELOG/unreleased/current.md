@@ -837,6 +837,32 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The agent gateway's surface gets a contract and a door.** The gateway is
+  the daemon's door to agent subprocess code — the bus, the memory, the log,
+  the token mint and the config center — and its **16 routes** lived as string
+  literals in `kernel/agentgw/gateway.go` while its **5** request bodies were
+  read into whatever the handler happened to use: four of them into an
+  **anonymous struct**. A mistyped body was therefore refused with a Go
+  decoder's sentence (*"json: cannot unmarshal number into Go struct field
+  .event of type string"*) — and, for a body that was not an object, the
+  answer printed the handler's **private struct definition** into the wire. A
+  **null** was not refused at all: it became the zero value, and **two** of
+  the measured nulls then answered a **500** (*"event: subject required"*,
+  *"memory: empty content"*) while a third was **accepted** and logged as an
+  empty message. The surface now has **one home** (`kernel/contract/agentgwapi`):
+  every route names its path, method, capability, query arguments and body,
+  and the gateway registers **from** that table — so a route in the contract
+  without a handler fails at boot instead of at the call site. The five bodies
+  are JSON Schemas and the gateway checks an arriving body against them with
+  the **same validator the registry uses**: a mistyped body is refused as
+  `operation eventbus_publish input: $.event has wrong type: got number,
+  want string`, and a null is refused instead of becoming the zero value. The
+  four anonymous structs are **named** now, and the gateway keeps its own
+  voice — the `{"error":{"code":"INVALID_REQUEST","message":…}}` envelope its
+  subprocesses already read. The gateway's own refusals are untouched: a
+  missing key is still `MISSING_KEY`, a missing capability still `FORBIDDEN`,
+  and the config route's ACL fields are still refused with **403**.
+
 - **The self-update body gets its row and its door, and the SDK catalogs carry
   the SDK contract's rows.** `POST /api/v1/update/apply` was the one body on
   `/api/v1` the contract did not describe: the endpoint read

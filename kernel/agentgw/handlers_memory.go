@@ -10,13 +10,24 @@ package agentgw
 // Public API unchanged.
 
 import (
-	"encoding/json"
 	"net/http"
 	"strconv"
 	"strings"
 
+	"github.com/agezt/agezt/kernel/contract/agentgwapi"
 	"github.com/agezt/agezt/kernel/contract/memoryapi"
 )
+
+// memoryWriteRequest is the body of a memory write.
+//
+// The contract names the body (agentgwapi.RouteMemoryWrite) and the door
+// measures an arriving body against that shape before this handler reads it.
+type memoryWriteRequest struct {
+	Type    string            `json:"type"`
+	Subject string            `json:"subject"`
+	Content string            `json:"content"`
+	Tags    map[string]string `json:"tags,omitempty"`
+}
 
 func (g *Gateway) handleMemoryWrite(w http.ResponseWriter, r *http.Request) {
 	claims := getClaims(r)
@@ -30,15 +41,8 @@ func (g *Gateway) handleMemoryWrite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req struct {
-		Type    string            `json:"type"`
-		Subject string            `json:"subject"`
-		Content string            `json:"content"`
-		Tags    map[string]string `json:"tags,omitempty"`
-	}
-
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBodyBytes)).Decode(&req); err != nil {
-		responseError(w, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
+	var req memoryWriteRequest
+	if !decodeGatewayBody(w, r, agentgwapi.RouteMemoryWrite, &req) {
 		return
 	}
 

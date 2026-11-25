@@ -17,6 +17,7 @@ import (
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/configcenter"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
+	"github.com/agezt/agezt/kernel/contract/agentgwapi"
 	"github.com/agezt/agezt/kernel/contract/memoryapi"
 	"github.com/agezt/agezt/kernel/journal"
 	"log/slog"
@@ -154,45 +155,67 @@ func listenTarget(sockPath string) (network, addr string) {
 	}
 }
 
+// Handler builds the gateway's HTTP handler from the contract's route table.
+//
+// The table (kernel/contract/agentgwapi) is the one home of the surface: the
+// path, the method, the capability and the request body of every route. The
+// gateway registers FROM it, and the drift is caught at boot instead of at
+// the call site: a route in the contract without a handler — or a handler
+// without a route — panics here rather than answering 404 to a caller the
+// contract promised.
+func (g *Gateway) Handler() http.Handler {
+	mux := http.NewServeMux()
+
+	handlers := map[string]http.HandlerFunc{
+		agentgwapi.RouteEventbusSubscribe: g.handleEventbusSubscribe,
+		agentgwapi.RouteEventbusPublish:   g.handleEventbusPublish,
+		agentgwapi.RouteMemoryWrite:       g.handleMemoryWrite,
+		agentgwapi.RouteMemoryDelete:      g.handleMemoryDelete,
+		agentgwapi.RouteMemorySearch:      g.handleMemorySearch,
+		agentgwapi.RouteLogRead:           g.handleLogRead,
+		agentgwapi.RouteLogWrite:          g.handleLogWrite,
+		agentgwapi.RouteAgentList:         g.handleAgentList,
+		agentgwapi.RouteAgentQuery:        g.handleAgentQuery,
+		agentgwapi.RouteTokenCreate:       g.handleTokenCreate,
+		agentgwapi.RouteHealth:            g.handleHealth,
+	}
+	if g.configHandler != nil {
+		handlers[agentgwapi.RouteConfigGet] = g.configHandler.handleConfigGet
+		handlers[agentgwapi.RouteConfigList] = g.configHandler.handleConfigList
+		handlers[agentgwapi.RouteConfigSearch] = g.configHandler.handleConfigSearch
+		handlers[agentgwapi.RouteConfigSet] = g.configHandler.handleConfigSet
+		handlers[agentgwapi.RouteConfigAudit] = g.configHandler.handleConfigAudit
+	}
+
+	for _, r := range agentgwapi.Routes() {
+		h, ok := handlers[r.ID]
+		if !ok {
+			if r.Config && g.configHandler == nil {
+				// The config center is not wired: the route is not served.
+				continue
+			}
+			panic("agentgw: contract route has no handler: " + r.ID)
+		}
+		delete(handlers, r.ID)
+		if r.Public {
+			mux.HandleFunc(r.Method+" "+r.Path, h)
+			continue
+		}
+		mux.HandleFunc(r.Method+" "+r.Path, g.withAuth(h))
+	}
+	if len(handlers) != 0 {
+		for id := range handlers {
+			panic("agentgw: handler has no contract route: " + id)
+		}
+	}
+	return mux
+}
+
 // Listen starts the gateway server.
 // Supports both Unix domain sockets and TCP sockets.
 // Use tcp://host:port format for TCP, or a Unix socket path otherwise.
 func (g *Gateway) Listen(ctx context.Context) error {
-	mux := http.NewServeMux()
-
-	// Eventbus endpoints
-	mux.HandleFunc("GET /v1/eventbus/subscribe", g.withAuth(g.handleEventbusSubscribe))
-	mux.HandleFunc("POST /v1/eventbus/publish", g.withAuth(g.handleEventbusPublish))
-
-	// Memory endpoints
-	mux.HandleFunc("POST /v1/memory/write", g.withAuth(g.handleMemoryWrite))
-	mux.HandleFunc("DELETE /v1/memory/delete", g.withAuth(g.handleMemoryDelete))
-	mux.HandleFunc("GET /v1/memory/search", g.withAuth(g.handleMemorySearch))
-
-	// Log endpoints
-	mux.HandleFunc("GET /v1/log/read", g.withAuth(g.handleLogRead))
-	mux.HandleFunc("POST /v1/log/write", g.withAuth(g.handleLogWrite))
-
-	// Agent endpoints
-	mux.HandleFunc("GET /v1/agent/list", g.withAuth(g.handleAgentList))
-	mux.HandleFunc("GET /v1/agent/query", g.withAuth(g.handleAgentQuery))
-
-	// Token endpoint (for creating SUBPROCESS tokens from an authenticated
-	// parent token). Behind withAuth: minting requires a valid parent token and
-	// the result is capped to the parent's capabilities (see handleTokenCreate).
-	mux.HandleFunc("POST /v1/token/create", g.withAuth(g.handleTokenCreate))
-
-	// Config endpoints (require configCenter to be set)
-	if g.configHandler != nil {
-		mux.HandleFunc("GET /v1/config/", g.withAuth(g.configHandler.handleConfigGet))
-		mux.HandleFunc("GET /v1/config", g.withAuth(g.configHandler.handleConfigList))
-		mux.HandleFunc("GET /v1/config/search", g.withAuth(g.configHandler.handleConfigSearch))
-		mux.HandleFunc("POST /v1/config", g.withAuth(g.configHandler.handleConfigSet))
-		mux.HandleFunc("GET /v1/config/audit", g.withAuth(g.configHandler.handleConfigAudit))
-	}
-
-	// Health endpoint (no auth)
-	mux.HandleFunc("GET /health", g.handleHealth)
+	mux := g.Handler()
 
 	srv := &http.Server{
 		Handler:        mux,

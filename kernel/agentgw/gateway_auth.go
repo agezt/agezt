@@ -13,6 +13,8 @@ import (
 
 	"encoding/json"
 	"net/http"
+
+	"github.com/agezt/agezt/kernel/contract/agentgwapi"
 )
 
 func (g *Gateway) withAuth(handler http.HandlerFunc) http.HandlerFunc {
@@ -176,6 +178,18 @@ func (g *Gateway) handleHealth(w http.ResponseWriter, r *http.Request) {
 	responseJSON(w, http.StatusOK, map[string]string{"status": "healthy"})
 }
 
+// tokenCreateRequest is the body of a token mint.
+//
+// The contract names the body (agentgwapi.RouteTokenCreate) and the door
+// measures an arriving body against that shape before this handler reads it.
+type tokenCreateRequest struct {
+	SubID    string   `json:"sub_id"`
+	Caps     []string `json:"caps"`
+	MaxRate  int      `json:"max_rpm"`
+	MaxBurst int      `json:"max_burst"`
+	ExpiryMs int64    `json:"expiry_ms"`
+}
+
 // handleTokenCreate mints a SUBPROCESS token derived from the caller's
 // (authenticated) parent token. It runs behind withAuth, so getClaims is the
 // parent. The minted token can never exceed the parent: capabilities are
@@ -194,16 +208,8 @@ func (g *Gateway) handleTokenCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req struct {
-		SubID    string   `json:"sub_id"`
-		Caps     []string `json:"caps"`
-		MaxRate  int      `json:"max_rpm"`
-		MaxBurst int      `json:"max_burst"`
-		ExpiryMs int64    `json:"expiry_ms"`
-	}
-
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBodyBytes)).Decode(&req); err != nil {
-		responseError(w, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
+	var req tokenCreateRequest
+	if !decodeGatewayBody(w, r, agentgwapi.RouteTokenCreate, &req) {
 		return
 	}
 
