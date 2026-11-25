@@ -1,5 +1,120 @@
 # NEXT — handoff for the next coding agent
 
+## Current checkpoint — W5.15 the OpenAI-compatible surface gets a contract and a door, 2026-11-25
+
+The W0–W5 objective remains open. W5.8–W5.10 gave the **browser**, the
+**registry** and the **SDKs** their request vocabulary; W5.11–W5.13 gave the
+**`/api/v1` surface** and the **console** the registry's **door**; W5.14 gave
+the **agent gateway** the same — and this slice gives the **OpenAI-compatible
+surface** its contract and its door, the last of the daemon's own HTTP
+surfaces.
+
+### What was on the tree
+
+- **The OpenAI-compatible surface had no contract.** Its **5 routes** were
+  registered by hand in `kernel/openaiapi/openaiapi_server.go`, and its **2** JSON
+  bodies — `POST /v1/chat/completions` and `POST /v1/responses` — were read into
+  **typed** structs (`chatRequest`, `responsesRequest`) that **no contract named
+  and no door measured**. What happened to a mistyped body was therefore Go's
+  decision, and the answer named a Go struct: *"invalid JSON body: json: cannot
+  unmarshal number into Go struct field chatRequest.model of type string"*.
+- **A null was not refused at all.** It became the zero value and the request
+  went on: in the measured set, **15 of the 18** nulls were **accepted** with a
+  **200** (`{"model":null,…}` was a run against the default model,
+  `{"stream_options":null,…}` a run without usage). The other three were refused
+  — but by the handler, in the surface's own words.
+- **The surface has one home now** (`kernel/contract/openaiapi`): every route
+  names its path, its method and the body it takes, and the server registers
+  **from** that table — so a route in the contract without a handler fails at
+  boot instead of at the call site.
+- **The surface has the registry's door**, with the same validator and the same
+  words: `operation chat_completions input: $.model has wrong type: got number,
+  want string`. The surface keeps its own **voice** — the OpenAI error envelope
+  every OpenAI client already reads
+  (`{"error":{"message":…,"type":"invalid_request_error"}}`).
+- **One union, and it is the vendor's**: a chat message's `content` is either
+  the text itself or an array of typed parts, and the Responses `input` is
+  either the text itself or an array of message items — the two fields the
+  daemon genuinely reads in two shapes, and the two the schema names as
+  `string|array`.
+- **The surface's private decoder is gone.** `decodeBody` is deleted: both
+  body-taking handlers now go through the door, so there is exactly one place
+  where a request body becomes a value on this surface.
+- **Eight guards**: the route table is well-formed; every body schema is a
+  schema the door can check (at every level); the schema lookup answers the
+  table; a route that takes an **upload** has no JSON body; the contract and the
+  daemon name the same fields **with the same types**; a mistyped field — and a
+  null — is refused with the registry's words; a body that fits gets through
+  and an undeclared field stays allowed; and the surface's own refusals are
+  still the surface's.
+
+### What the measurement said
+
+- Bodies the contract names a shape for: **0 → 2**.
+- Endpoints behind a door: **0 → 2**.
+- Request fields checked before the handler reads them: **0 → 18**.
+- Probes refused with the registry's sentence (18 wrong + 18 null): **0 → 36**.
+- Nulls refused instead of silently zero: **3 → 18**.
+- Nulls **accepted** with a 200: **15 → 0**.
+- Answers that named a private Go struct: **18 → 0**.
+- Routes registered from the contract: **0 → 5**.
+
+### The evidence
+
+`architecture/335-w515-the-openai-compatible-surface-gets-a-contract-and-a-door-evidence.md`
+— the measurement on `origin/main` (measured in a worktree, with the same probe
+that measured the "after" side), the contract, the eight guards, the six
+mutations (M1 — the wrong route's schema — and M4 — a schema that lets a null
+through — are the two that bite hardest) and the gates.
+
+### What the next slice should do
+
+The daemon's **own** HTTP surfaces are done: the browser's bodies are typed
+(W5.8), the registry's request side is typed (W5.9), the SDKs' rows have one
+home (W5.10), the `/api/v1` surface has the door (W5.11), the console's own
+endpoints have the door (W5.12), the last body on `/api/v1` has its row and its
+door (W5.13), the agent gateway has a contract and a door (W5.14) and the
+OpenAI-compatible surface has a contract and a door (this slice).
+
+One family is left, and it is **measured** now (on the tree at `origin/main`,
+`11caf581`):
+
+- **The channel webhook family** (`plugins/channels/*`): **15** plugins serve an
+  inbound webhook — each opens its **own** `http.ServeMux` (there is no shared
+  surface, no shared contract and no shared door). **13** of them read a **JSON**
+  body; `wecom` reads **XML** and `sms` reads a **form**, so neither has a JSON
+  body to describe. The **13** JSON bodies are read into **15** structs —
+  **11 anonymous** (`var env struct { … }`) and **4 named** (`discordInteraction`,
+  `slackEnvelope`, `inboundEnvelope`, `waWebhook`) — and they name **126** JSON
+  fields between them.
+  The bodies are the **vendors'** shapes (Slack's event envelope, Discord's
+  interaction, Feishu's event, …), so the contract may not rename a field — it
+  can only say what the vendor says, the same rule this slice applied to
+  OpenAI.
+  Measured on the family's generic member (the `webhook` plugin, signed with
+  HMAC-SHA256 as every member is): a **mistyped** field is refused with the
+  plugin's own plain text — **400 "bad json"** — and **not one** answer carries
+  the registry's sentence; of the **6** nulls probed, **4 were accepted** with a
+  **200** and **2** were refused by the handler's own *"channel_id and text are
+  required"*. So the family answers a mistyped body in **its own voice**, never
+  in the registry's, and a null is mostly a silent zero.
+
+One surface is **outside** the programme as it stands, and is named here so the
+decision is deliberate rather than forgotten:
+
+- **The ACP surface** (`kernel/acp`) is a **stdio** JSON-RPC server, not an HTTP
+  one: it reads `acpclient.Request` lines from stdin and decodes the per-method
+  `params` into named structs (`newSessionParams`, `promptParams`), refusing a
+  mistyped one with a JSON-RPC error (*"invalid params: …"*). The programme's
+  sentence is about **HTTP** surfaces, so this one needs an explicit decision —
+  either it stays out, or the door's core is made transport-agnostic enough for
+  a stdio line to be measured against a schema too.
+
+The programme's next sentence is therefore: **every HTTP surface's request body
+is named in a contract, and every surface answers a mistyped body in the
+registry's words** — and the **channel webhook family** is the one family left
+to do it, with the vendor's field names kept as they are.
+
 ## Current checkpoint — W5.14 the agent gateway's surface gets a contract and a door, 2026-11-25
 
 The W0–W5 objective remains open. W5.8–W5.10 gave the **browser**, the

@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	oaiapi "github.com/agezt/agezt/kernel/contract/openaiapi"
 	"github.com/agezt/agezt/kernel/ulid"
 )
 
@@ -54,7 +55,7 @@ func (s *Server) handleResponses(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req responsesRequest
-	if !decodeBody(w, r, &req) {
+	if !decodeOpenAIBody(w, r, oaiapi.RouteResponses, &req) {
 		return
 	}
 	intent := intentFromResponsesInput(req)

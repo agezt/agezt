@@ -8,9 +8,6 @@ package openaiapi
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
-	"net/http"
 
 	kernelauth "github.com/agezt/agezt/kernel/auth"
 	"github.com/agezt/agezt/kernel/bus"
@@ -35,23 +32,6 @@ func redactErr(msg string) string { return errRedactor.Redact(msg) }
 // compromised/buggy client) must not be able to OOM the daemon with a giant JSON
 // body. 16 MiB is far above any legitimate chat/responses request.
 const maxRequestBodyBytes = 16 << 20
-
-// decodeBody reads and decodes a SIZE-BOUNDED JSON request body (M198). On
-// failure it writes the appropriate error (413 over the limit, else 400) and
-// returns false, so callers just `if !decodeBody(...) { return }`.
-func decodeBody(w http.ResponseWriter, r *http.Request, v any) bool {
-	if err := json.NewDecoder(r.Body).Decode(v); err != nil {
-		var mbe *http.MaxBytesError
-		if errors.As(err, &mbe) {
-			writeErr(w, http.StatusRequestEntityTooLarge, "invalid_request_error",
-				"request body exceeds the size limit")
-		} else {
-			writeErr(w, http.StatusBadRequest, "invalid_request_error", "invalid JSON body: "+err.Error())
-		}
-		return false
-	}
-	return true
-}
 
 // Engine is the slice of the kernel this server drives. An interface keeps the
 // package testable with a fake (a canned RunWith that publishes token events on

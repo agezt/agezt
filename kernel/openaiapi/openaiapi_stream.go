@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	oaiapi "github.com/agezt/agezt/kernel/contract/openaiapi"
 	"github.com/agezt/agezt/kernel/ulid"
 )
 
@@ -18,7 +19,7 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req chatRequest
-	if !decodeBody(w, r, &req) {
+	if !decodeOpenAIBody(w, r, oaiapi.RouteChatCompletions, &req) {
 		return
 	}
 	intent := intentFromMessages(req.Messages)
