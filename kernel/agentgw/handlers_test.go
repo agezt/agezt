@@ -73,20 +73,9 @@ func newTestServer(t *testing.T) *testServer {
 		t.Fatalf("CreateToken: %v", err)
 	}
 
-	// Build mux with full routing (same as Listen)
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /v1/eventbus/subscribe", gw.withAuth(gw.handleEventbusSubscribe))
-	mux.HandleFunc("POST /v1/eventbus/publish", gw.withAuth(gw.handleEventbusPublish))
-	mux.HandleFunc("POST /v1/memory/write", gw.withAuth(gw.handleMemoryWrite))
-	mux.HandleFunc("DELETE /v1/memory/delete", gw.withAuth(gw.handleMemoryDelete))
-	mux.HandleFunc("GET /v1/memory/search", gw.withAuth(gw.handleMemorySearch))
-	mux.HandleFunc("GET /v1/log/read", gw.withAuth(gw.handleLogRead))
-	mux.HandleFunc("POST /v1/log/write", gw.withAuth(gw.handleLogWrite))
-	mux.HandleFunc("GET /v1/agent/list", gw.withAuth(gw.handleAgentList))
-	mux.HandleFunc("GET /v1/agent/query", gw.withAuth(gw.handleAgentQuery))
-	mux.HandleFunc("GET /health", gw.handleHealth)
-
-	srv := httptest.NewServer(mux)
+	// Build the mux from the CONTRACT's route table (the same handler the
+	// gateway serves), so the tests drive the surface the daemon serves.
+	srv := httptest.NewServer(gw.Handler())
 	t.Cleanup(srv.Close)
 
 	return &testServer{gw: gw, srv: srv, token: token, mem: mem, bus: b, roster_: ros}

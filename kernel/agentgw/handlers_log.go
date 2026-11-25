@@ -10,11 +10,21 @@ package agentgw
 // Public API unchanged.
 
 import (
-	"encoding/json"
 	"net/http"
 
+	"github.com/agezt/agezt/kernel/contract/agentgwapi"
 	"github.com/agezt/agezt/kernel/event"
 )
+
+// logWriteRequest is the body of a log write.
+//
+// The contract names the body (agentgwapi.RouteLogWrite) and the door
+// measures an arriving body against that shape before this handler reads it.
+type logWriteRequest struct {
+	Level   string                 `json:"level"`
+	Message string                 `json:"message"`
+	Meta    map[string]interface{} `json:"meta,omitempty"`
+}
 
 func (g *Gateway) handleLogWrite(w http.ResponseWriter, r *http.Request) {
 	claims := getClaims(r)
@@ -28,14 +38,8 @@ func (g *Gateway) handleLogWrite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req struct {
-		Level   string                 `json:"level"`
-		Message string                 `json:"message"`
-		Meta    map[string]interface{} `json:"meta,omitempty"`
-	}
-
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBodyBytes)).Decode(&req); err != nil {
-		responseError(w, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
+	var req logWriteRequest
+	if !decodeGatewayBody(w, r, agentgwapi.RouteLogWrite, &req) {
 		return
 	}
 

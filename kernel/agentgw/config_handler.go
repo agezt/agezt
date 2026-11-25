@@ -5,11 +5,11 @@ package agentgw
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 
 	"github.com/agezt/agezt/kernel/configcenter"
+	"github.com/agezt/agezt/kernel/contract/agentgwapi"
 )
 
 // ConfigHandler handles config center API endpoints.
@@ -189,16 +189,8 @@ func (h *ConfigHandler) handleConfigSet(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBodyBytes))
-	if err != nil {
-		responseError(w, http.StatusBadRequest, "INVALID_REQUEST", "failed to read body")
-		return
-	}
-	defer r.Body.Close()
-
 	var req ConfigSetRequest
-	if err := json.Unmarshal(body, &req); err != nil {
-		responseError(w, http.StatusBadRequest, "INVALID_REQUEST", "invalid JSON: "+err.Error())
+	if !decodeGatewayBody(w, r, agentgwapi.RouteConfigSet, &req) {
 		return
 	}
 

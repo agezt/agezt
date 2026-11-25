@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-231 package(s):
+232 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/agentgw`** — Package agentgw provides a secure gateway for AI agent subprocess code to communicate with the AGEZT kernel.
@@ -84,6 +84,7 @@
 - **`kernel/contextselect`** — Package contextselect provides context candidate scoring, selection, and failure analysis for agent runs.
 - **`kernel/contract/acpapi`** — Package acpapi is the contract the ACP-agent bridge and the catalogue of installed ACP agents agree on.
 - **`kernel/contract/agentapi`** — Package agentapi is the contract the agent roster and the tools that steer it agree on.
+- **`kernel/contract/agentgwapi`** — Package agentgwapi is the single home of the agent gateway's surface.
 - **`kernel/contract/approvalapi`** — Package approvalapi is the contract layer's home for the approval verdict: the operator's answer to a pending request.
 - **`kernel/contract/artifactapi`** — Package artifactapi is the contract the artifact index and the tools that read and write it agree on.
 - **`kernel/contract/assureapi`** — Package assureapi is the contract layer's home for the "do-it-for-sure" rows — the completion judgement for one attempt, the record of one run+verify cycle, and the outcome of an assured run — and for the bounded loop that produces them.
