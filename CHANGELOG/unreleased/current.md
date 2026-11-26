@@ -837,6 +837,34 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The channel webhook family gets a contract and a door.** The **15**
+  plugins under `plugins/channels` that serve an inbound webhook each open
+  their **own** HTTP server for one route, and each read the body into
+  whatever struct it happened to use — **nine of the thirteen** JSON bodies
+  into an **anonymous** struct. So what happened to a mistyped body was the
+  plugin's own plain text (*"bad json"*) and never the registry's words, and a
+  **null** was mostly **accepted**: measured on the family's generic member,
+  **four of the six** nulls were **delivered** with a 200 (a null sender, a
+  null id, a null timestamp, null attachments). The family has **one home**
+  now (`kernel/contract/channelhookapi`): every member's body is a JSON
+  Schema, and the door measures an arriving body against it with the **same
+  validator the registry uses** — a mistyped body is refused as `operation
+  webhook input: $.text has wrong type: got number, want string`, in the
+  member's own plain text. The family keeps its own voice (*"bad json"*,
+  *"bad signature"*, *"channel_id and text are required"*), the signature is
+  still verified **before** the body is read, and the allowlist and the replay
+  guards are untouched. The **contract and the member are held together at
+  boot**: the member asks the contract whether they still agree on the body's
+  shape — the **names and the types** — and a contract that mistyped a field,
+  dropped one, or named one the daemon does not read **stops the daemon**
+  instead of quietly disagreeing. One member of the fifteen is wired in this
+  slice — the **generic** one, whose body is Agezt's own shape and whose
+  plugin the other twelve follow. Measured: members the contract names a body
+  for **0 → 1**; members behind a door **0 → 1**; request fields checked
+  before the plugin reads them **0 → 6**; probes refused with the registry's
+  sentence **0 → 12**; nulls refused **2 → 6**; nulls accepted **4 → 0**.
+  Nine guards hold the line, and six reverted mutations prove them.
+
 - **The OpenAI-compatible surface gets a contract and a door.** The
   OpenAI-compatible surface is the daemon's door to any OpenAI client, SDK or
   IDE, and its **5 routes** were registered by hand in
