@@ -145,10 +145,10 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 		ready, reason = s.readiness()
 	}
 	if ready {
-		writeJSON(w, http.StatusOK, map[string]any{"status": "ready"})
+		writeJSON(w, http.StatusOK, restapiapi.ProbeStatus{Status: "ready"})
 		return
 	}
-	writeJSON(w, http.StatusServiceUnavailable, map[string]any{"status": "not_ready", "reason": reason})
+	writeJSON(w, http.StatusServiceUnavailable, restapiapi.ProbeStatus{Reason: reason, Status: "not_ready"})
 }
 
 // --- GET /metrics (token-authed, Prometheus text exposition) ---
@@ -195,11 +195,11 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid_tenant", err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"status":        "ok",
-		"version":       s.version,
-		"default_model": eng.DefaultModel(),
-		"model_count":   len(eng.ModelIDs()),
+	writeJSON(w, http.StatusOK, restapiapi.Health{
+		DefaultModel: eng.DefaultModel(),
+		ModelCount:   len(eng.ModelIDs()),
+		Status:       "ok",
+		Version:      s.version,
 	})
 }
 
@@ -229,7 +229,7 @@ func (s *Server) handleModels(w http.ResponseWriter, r *http.Request) {
 	for _, id := range ids {
 		add(id)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"default": eng.DefaultModel(), "models": out})
+	writeJSON(w, http.StatusOK, restapiapi.Models{Default: eng.DefaultModel(), Models: out})
 }
 
 // --- POST /api/v1/runs ---

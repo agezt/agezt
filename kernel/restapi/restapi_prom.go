@@ -8,9 +8,11 @@ package restapi
 
 import (
 	"encoding/json"
-	"github.com/agezt/agezt/kernel/event"
 	"net/http"
 	"strings"
+
+	"github.com/agezt/agezt/kernel/contract/restapiapi"
+	"github.com/agezt/agezt/kernel/event"
 )
 
 func promName(s string) string {
@@ -59,7 +61,7 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 }
 
 func writeErr(w http.ResponseWriter, code int, typ, msg string) {
-	writeJSON(w, code, map[string]any{"error": map[string]any{"type": typ, "message": msg}})
+	writeJSON(w, code, map[string]any{"error": restapiapi.APIError{Message: msg, Type: typ}})
 }
 
 // tokenText returns the streamed text delta carried by an llm.token event, or

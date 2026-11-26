@@ -83,6 +83,13 @@ func typeAgrees(wire Type, got reflect.Type) bool {
 	if wire == TypeAnySlice && got.Kind() == reflect.Slice {
 		return true
 	}
+	// A field the contract calls a string may be carried as a string OR as a
+	// pointer to one: the pointer is how a row says "absent" (the run row's
+	// answer is present in the successful answer and absent in the failed
+	// one).
+	if wire == TypeString && got.Kind() == reflect.Ptr {
+		return got.Elem() == reflect.TypeOf("")
+	}
 	return false
 }
 

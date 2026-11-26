@@ -10,6 +10,7 @@ package restapi
 // Public API unchanged.
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"strings"
@@ -20,6 +21,13 @@ import (
 	"github.com/agezt/agezt/kernel/httpserver"
 	"github.com/agezt/agezt/kernel/meshctx"
 )
+
+// runField returns a pointer to a value — how the run row says "absent":
+// the row's optional fields are pointers, so an answer that does not carry a
+// field simply leaves it nil.
+func runField(value string) *string {
+	return &value
+}
 
 type runRequest struct {
 	Intent string `json:"intent"`
@@ -95,16 +103,19 @@ func (s *Server) handleRunsRoot(w http.ResponseWriter, r *http.Request) {
 	corr := eng.NewCorrelation()
 	answer, err := eng.RunModel(r.Context(), corr, intent, model, nil, false)
 	if err != nil {
-		writeJSON(w, http.StatusBadGateway, map[string]any{
-			"correlation_id": corr, "model": model, "status": "failed", "error": err.Error(),
+		writeJSON(w, http.StatusBadGateway, restapiapi.RunResult{
+			CorrelationID: corr,
+			Error:         runField(err.Error()),
+			Model:         &model,
+			Status:        runField("failed"),
 		})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"correlation_id": corr,
-		"model":          model,
-		"status":         "completed",
-		"answer":         answer,
+	writeJSON(w, http.StatusOK, restapiapi.RunResult{
+		Answer:        &answer,
+		CorrelationID: corr,
+		Model:         &model,
+		Status:        runField("completed"),
 	})
 }
 
@@ -127,10 +138,10 @@ func (s *Server) streamRun(w http.ResponseWriter, r *http.Request, eng Engine, b
 	}
 	defer sse.Close()
 
-	send := func(eventName string, payload map[string]any) {
+	send := func(eventName string, payload any) {
 		_ = sse.WriteEvent(eventName, payload)
 	}
-	send("start", map[string]any{"correlation_id": corr, "model": model})
+	send("start", restapiapi.RunResult{CorrelationID: corr, Model: &model})
 
 	type result struct {
 		answer string
@@ -155,7 +166,7 @@ func (s *Server) streamRun(w http.ResponseWriter, r *http.Request, eng Engine, b
 			return
 		case ev, ok := <-sub.C:
 			if !ok {
-				send("done", map[string]any{"correlation_id": corr, "status": "completed"})
+				send("done", restapiapi.RunResult{CorrelationID: corr, Status: runField("completed")})
 				return
 			}
 			emit(ev)
@@ -169,9 +180,13 @@ func (s *Server) streamRun(w http.ResponseWriter, r *http.Request, eng Engine, b
 				}
 			}
 			if res.err != nil {
-				send("error", map[string]any{"correlation_id": corr, "error": res.err.Error()})
+				send("error", restapiapi.RunResult{CorrelationID: corr, Error: runField(res.err.Error())})
 			} else {
-				send("done", map[string]any{"correlation_id": corr, "status": "completed", "answer": res.answer})
+				send("done", restapiapi.RunResult{
+					Answer:        &res.answer,
+					CorrelationID: corr,
+					Status:        runField("completed"),
+				})
 			}
 			return
 		}
@@ -204,10 +219,15 @@ func (s *Server) handleRunByID(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusNotFound, "not_found", "no run with correlation id "+corr)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"correlation_id": corr,
-		"count":          len(events),
-		"events":         events,
+	raw, err := json.Marshal(events)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "lookup_error", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, restapiapi.RunArc{
+		CorrelationID: corr,
+		Count:         len(events),
+		Events:        raw,
 	})
 }
 

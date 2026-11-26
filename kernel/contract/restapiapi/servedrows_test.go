@@ -30,10 +30,17 @@ var domainRows = []struct {
 }{
 	{RowArtifacts, reflect.TypeOf(remoteapi.ArtifactList{})},
 	{RowUpdateApply, reflect.TypeOf(updateapi.Release{})},
+	{RowHealth, reflect.TypeOf(Health{})},
+	{RowModels, reflect.TypeOf(Models{})},
+	{RowProbeStatus, reflect.TypeOf(ProbeStatus{})},
+	{RowAPIError, reflect.TypeOf(APIError{})},
+	{RowRunResult, reflect.TypeOf(RunResult{})},
+	{RowRunArc, reflect.TypeOf(RunArc{})},
 }
 
 // TestTheDomainRowsAreTheStableSubsetOfTheRowsTheDaemonSends is the ratchet
-// for the rows a domain contract owns.
+// for the rows the daemon serves: the ones a domain contract owns and the
+// ones the REST surface owns.
 func TestTheDomainRowsAreTheStableSubsetOfTheRowsTheDaemonSends(t *testing.T) {
 	for _, entry := range domainRows {
 		checkSubset(t, entry.ContractRow, entry.Sent)

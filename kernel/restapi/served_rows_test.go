@@ -35,6 +35,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/contract/boardapi"
 	"github.com/agezt/agezt/kernel/contract/remoteapi"
+	"github.com/agezt/agezt/kernel/contract/restapiapi"
 	"github.com/agezt/agezt/kernel/contract/updateapi"
 )
 
@@ -57,6 +58,12 @@ var contractOwnedRows = []struct {
 	{"update_release", reflect.TypeOf(updateapi.Release{})},
 	{"update_check", reflect.TypeOf(updateapi.Check{})},
 	{"update_applied", reflect.TypeOf(updateapi.Applied{})},
+	{"health", reflect.TypeOf(restapiapi.Health{})},
+	{"models", reflect.TypeOf(restapiapi.Models{})},
+	{"probe_status", reflect.TypeOf(restapiapi.ProbeStatus{})},
+	{"api_error", reflect.TypeOf(restapiapi.APIError{})},
+	{"run_result", reflect.TypeOf(restapiapi.RunResult{})},
+	{"run_arc", reflect.TypeOf(restapiapi.RunArc{})},
 }
 
 // rowExceptions are the hand-written views of a contract-owned row that are
