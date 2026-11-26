@@ -113,7 +113,7 @@ func generate() ([]artifact, error) {
 		return nil, err
 	}
 	client := renderClient(opapi.ConsoleRoutes(), opapi.ConsoleNativeRoutes())
-	types, err := renderTypes(opapi.ConsoleRoutes(), doc)
+	types, err := renderTypes(opapi.ConsoleRoutes(), opapi.ConsoleNativeRoutes(), doc)
 	if err != nil {
 		return nil, err
 	}

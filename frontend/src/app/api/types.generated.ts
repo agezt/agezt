@@ -3730,6 +3730,79 @@ export interface WorldLogResponse {
   ops: WorldLogResponseOpsItem[] | null;
 }
 
+/** AuthmetaResponse */
+export interface AuthmetaResponse {
+  authed: boolean;
+  password_required: boolean;
+}
+
+/** LoginResponse */
+export interface LoginResponse {
+  ok: boolean;
+  password_required?: boolean;
+}
+
+/** LogoutResponse */
+export interface LogoutResponse {
+  ok: boolean;
+}
+
+/** RollbackCheckpointsResponseCheckpointsItem */
+export interface RollbackCheckpointsResponseCheckpointsItem {
+  action: string;
+  applied_ms?: number;
+  before?: Record<string, any>;
+  before_status?: string;
+  created_ms: number;
+  id: string;
+  kind: string;
+  reason?: string;
+  run_id?: string;
+  subject_id: string;
+  subject_name?: string;
+}
+
+/** RollbackCheckpointsResponse */
+export interface RollbackCheckpointsResponse {
+  checkpoints: RollbackCheckpointsResponseCheckpointsItem[];
+  count: number;
+  run_id?: string;
+}
+
+/** RollbackApplyResponse */
+export interface RollbackApplyResponse {
+  applied: boolean;
+  checkpoint: RollbackCheckpointsResponseCheckpointsItem;
+  reason?: string;
+  result?: Record<string, any>;
+}
+
+/** SseTokenResponse */
+export interface SseTokenResponse {
+  token: string;
+}
+
+/** VoiceStatusResponseStt */
+export interface VoiceStatusResponseStt {
+  configured: boolean;
+}
+
+/** VoiceStatusResponse */
+export interface VoiceStatusResponse {
+  stt: VoiceStatusResponseStt;
+  tts: VoiceStatusResponseStt;
+}
+
+/** WorkflowHookResponse */
+export interface WorkflowHookResponse {
+  accepted?: boolean;
+  correlation_id: string | null;
+  executed?: any;
+  ok?: boolean;
+  outputs?: any;
+  workflow: string | null;
+}
+
 /** AgentAddResponseProfileHealthPolicy is the same shape as AgentListResponseProfilesItemHealthPolicy. */
 export type AgentAddResponseProfileHealthPolicy = AgentListResponseProfilesItemHealthPolicy;
 
@@ -4162,6 +4235,12 @@ export type WorkflowTestNodeRequest = WorkflowDraftRequest;
 /** WorldForgetResponse is the same shape as MemoryForgetResponse. */
 export type WorldForgetResponse = MemoryForgetResponse;
 
+/** RollbackApplyResponseCheckpoint is the same shape as RollbackCheckpointsResponseCheckpointsItem. */
+export type RollbackApplyResponseCheckpoint = RollbackCheckpointsResponseCheckpointsItem;
+
+/** VoiceStatusResponseTts is the same shape as VoiceStatusResponseStt. */
+export type VoiceStatusResponseTts = VoiceStatusResponseStt;
+
 /**
  * OperationResponseMap binds a path to the shape the console answers it
  * with. A path that is not in this map is not a path the console
@@ -4446,11 +4525,32 @@ export interface OperationRequestMap {
 }
 
 /**
+ * NativeResponseMap binds a console-native path to the shape the console
+ * answers it with. The shape is DERIVED from the row the route names in
+ * the contract, so the browser cannot spell a field the console does not
+ * serve. A native path that names no row has no shape the browser can
+ * name.
+ */
+export interface NativeResponseMap {
+  "/api/authmeta": AuthmetaResponse;
+  "/api/login": LoginResponse;
+  "/api/logout": LogoutResponse;
+  "/api/rollback/checkpoints": RollbackCheckpointsResponse;
+  "/api/rollback/apply": RollbackApplyResponse;
+  "/api/sse-token": SseTokenResponse;
+  "/api/voice/status": VoiceStatusResponse;
+  "/hooks/": WorkflowHookResponse;
+}
+
+/**
  * ResponseOf is the shape the console answers a path with. A path that binds
- * no operation has no shape the browser can name, so it resolves to any.
+ * no operation has no shape the browser can name, so it resolves to any —
+ * unless it is a console-native path, whose row the contract names.
  */
 export type ResponseOf<P extends string> = P extends keyof OperationResponseMap
   ? OperationResponseMap[P]
+  : P extends keyof NativeResponseMap
+  ? NativeResponseMap[P]
   : any;
 
 /**

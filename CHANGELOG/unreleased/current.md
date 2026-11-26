@@ -837,6 +837,37 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The browser's catalogue carries the console's rows: the browser's rollback
+  view is pinned, and it works again.** The console's own answers are Go
+  **structs** in the contracts, and the browser's catalogue is rendered from
+  **schemas** — `tools/openapi` now has the step between the two, and every
+  native route that names the row it answers with is rendered into the
+  catalogue and bound to its path in a **native response map**. The rules are
+  the contract's own: a member without `omitempty` is required, one with it may
+  be absent, and a **pointer** says *may be null*. The browser's rollback view
+  was a hand-written copy of the daemon's row, and it had drifted: **six of its
+  nine members were fields the daemon never sends** — including `reversible`,
+  which decided whether the operator could act at all
+  (`disabled={!cp.reversible}` meant the **Restore button was permanently
+  disabled**, the timestamps rendered as "—" and the daemon's working rollback
+  apply endpoint could not be reached from the browser). The view is now the
+  catalogue's row, it reads the daemon's real fields (`created_ms`,
+  `subject_name`, the snapshot's path, `before_status`), and the **Restore
+  button** follows the **daemon's** rule: a checkpoint that carries `applied_ms`
+  has already been restored and the daemon refuses it, so the button is
+  disabled for exactly those. A **second** copy of the same row — in
+  `components/RunDetail.tsx`, this one spelled correctly — became an alias of
+  the catalogue's row too, and its pin (which bound it to the *artifact* row
+  because the rollback row was not in the catalogue) was deleted. The
+  browser's own ratchet caught that second copy the moment the row entered the
+  catalogue, and the compiler now refuses a view that names a field the daemon
+  does not send. Measured: console rows in the browser's catalogue **0 → 8**;
+  native paths bound to a row **0 → 8**; browser views that copy the daemon's
+  rollback row by hand **2 → 0**; browser members the daemon does not send
+  **6 → 0**. **Five** reverted mutations prove it. The published OpenAPI
+  document did not move — it describes the operation-bound surface, and the
+  console's own endpoints are not operation bindings.
+
 - **The native route names the row it answers with: the console's answer side
   is declared.** The console's own endpoints — the **native** routes, the ones
   that are not operation bindings — declared their **request** side (the body

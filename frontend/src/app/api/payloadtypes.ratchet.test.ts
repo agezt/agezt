@@ -193,16 +193,6 @@ type _pin_RemoteArtifact = Expect<
   >
 >;
 
-// @pin components/RunDetail.tsx:RollbackCheckpoint | ArtifactCollectResponseCandidatesItem | pinned=id,kind,created_ms | own=
-type _pin_RollbackCheckpoint = Expect<
-  AllTrue<
-    FieldsComparable<
-      Pick<ArtifactCollectResponseCandidatesItem, "id" | "kind" | "created_ms">,
-      Pick<RollbackCheckpoint, "id" | "kind" | "created_ms">
-    >
-  >
->;
-
 // @pin components/RunDetail.tsx:RunPhaseStep | AutonomyFeedResponseItemsItem | pinned=kind,phase,detail | own=
 type _pin_RunPhaseStep = Expect<
   AllTrue<
@@ -589,7 +579,6 @@ type _pin_ToolCall = Expect<
 // ── the browser's own vocabulary ──────────────────────────────────────────
 // @own components/configcenter/page.tsx:QuickConfigAction | the browser's quick-action card (icon, counters, tone), not a daemon row
 // @own components/ui/tab-nav.tsx:TabDef | the browser's tab bar, not a daemon row
-// @own features/admin/components/Backups.tsx:Checkpoint | the daemon's rollback op is not in the generated catalog yet
 // @own features/agents/components/agentdetail/capability.tsx:WorkflowToolAccessSummary | the browser's badge summary, not the daemon's next_action row
 // @own features/agents/components/agentdetail/comms.tsx:AgentInboxPrioritySummary | the browser's badge summary, not the daemon's next_action row
 // @own features/agents/components/agentdetail/lifecycle.tsx:AgentLifecycleActionResultSummary | the browser's badge summary, not the daemon's next_action row
