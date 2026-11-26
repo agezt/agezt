@@ -20,3 +20,21 @@ type Artifact struct {
 	CreatedMS int64  `json:"created_ms"`
 	Caption   string `json:"caption,omitempty"`
 }
+
+// ArtifactList is the answer to "what does the artifact index hold?": the
+// entries themselves, how many matched, the limit that was applied and
+// whether entries were dropped.
+//
+// It lives here, beside the row it carries, for the same reason the row does:
+// the REST surface serves this answer, the mirror reads it, and the row's
+// field names must be written once.
+//
+// The fields are declared in the order the wire speaks them (alphabetically),
+// because the field order IS the member order of the served JSON.
+type ArtifactList struct {
+	Count      int        `json:"count"`
+	Entries    []Artifact `json:"entries"`
+	Limit      int        `json:"limit"`
+	TotalCount int        `json:"total_count"`
+	Truncated  bool       `json:"truncated"`
+}

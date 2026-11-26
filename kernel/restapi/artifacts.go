@@ -81,12 +81,12 @@ func (s *Server) handleArtifacts(w http.ResponseWriter, r *http.Request) {
 	if truncated {
 		entries = entries[:limit]
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"count":       len(entries),
-		"total_count": total,
-		"limit":       limit,
-		"truncated":   truncated,
-		"entries":     entries,
+	writeJSON(w, http.StatusOK, remoteapi.ArtifactList{
+		Count:      len(entries),
+		Entries:    entries,
+		Limit:      limit,
+		TotalCount: total,
+		Truncated:  truncated,
 	})
 }
 

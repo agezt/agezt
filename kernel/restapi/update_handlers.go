@@ -28,10 +28,10 @@ func (s *Server) handleUpdateCheck(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if s.updateSvc == nil {
-		writeJSON(w, http.StatusOK, map[string]any{
-			"current":    brand.Version,
-			"up_to_date": true,
-			"status":     "update is disabled",
+		writeJSON(w, http.StatusOK, updateapi.Check{
+			Current:  brand.Version,
+			Status:   "update is disabled",
+			UpToDate: true,
 		})
 		return
 	}
@@ -46,21 +46,20 @@ func (s *Server) handleUpdateCheck(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if result.Update == nil {
-		writeJSON(w, http.StatusOK, map[string]any{
-			"current":    result.Current,
-			"up_to_date": true,
+		writeJSON(w, http.StatusOK, updateapi.Check{
+			Current:  result.Current,
+			UpToDate: true,
 		})
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{
-		"current":    result.Current,
-		"up_to_date": false,
-		"update": map[string]any{
-			"version": result.Update.Version,
-			"sha256":  result.Update.SHA256,
-			"url":     result.Update.URL,
-			"notes":   result.Update.Notes,
+	writeJSON(w, http.StatusOK, updateapi.Check{
+		Current: result.Current,
+		Update: &updateapi.Release{
+			Notes:   result.Update.Notes,
+			SHA256:  result.Update.SHA256,
+			URL:     result.Update.URL,
+			Version: result.Update.Version,
 		},
 	})
 }
@@ -128,9 +127,9 @@ func (s *Server) handleUpdateApply(w http.ResponseWriter, r *http.Request) {
 	err := s.updateSvc.Apply(ctx, info, drainFn)
 	if err != nil {
 		if errors.Is(err, updateapi.ErrDrainTimeout) {
-			writeJSON(w, http.StatusConflict, map[string]any{
-				"applied": false,
-				"error":   "drain timed out: in-flight runs did not complete",
+			writeJSON(w, http.StatusConflict, updateapi.Applied{
+				Applied: false,
+				Error:   "drain timed out: in-flight runs did not complete",
 			})
 			return
 		}
@@ -143,9 +142,9 @@ func (s *Server) handleUpdateApply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{
-		"applied": true,
-		"version": args.Version,
+	writeJSON(w, http.StatusOK, updateapi.Applied{
+		Applied: true,
+		Version: args.Version,
 	})
 }
 

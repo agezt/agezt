@@ -837,6 +837,32 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The artifact and update answers have one home, and the surface guard covers
+  the whole surface.** W5.22 gave the board's **message row** one home and
+  W5.23 gave the **envelopes around it** one home; two more surfaces were still
+  writing their answers by hand — one `map[string]any` per answer, spelling
+  the row's field names a second time, in an *implementation* package, while the
+  contract declared the same shapes for the SDKs. **6** hand-written views and
+  **15** field names, and the update surface spelled the **same four release
+  fields** (version, sha256, url, notes) inside a nested map of its own. The
+  domain contracts were already there, holding the rows: `remoteapi` owns the
+  artifact row and `updateapi` owns the release and the check outcome — the
+  surface simply did not use them for its answers. They do now:
+  `remoteapi.ArtifactList`, `updateapi.Release`, `updateapi.Check` and
+  `updateapi.Applied`, declared in the order the wire speaks them, so the
+  served bytes did not move. The contract's `artifacts` row is checked against
+  the row the daemon serves, and the contract's `update_apply` row (the
+  release the client sends) against the release the daemon reports back — by
+  name **and** by type; one rule was added for it, that a free-form array
+  (`any[]`) is served by **any** slice, which is what lets the artifacts row's
+  `entries` be `[]remoteapi.Artifact`. And the surface's own guard now covers
+  the **whole surface** (**11** files, **12** contract-owned rows) instead of
+  the mailbox's three — a map literal that spells a contract-owned row's field
+  names fails, and a declared exception that no longer matches fails too.
+  Measured: hand-written views of a contract-owned row **6 → 0**; the guard's
+  reach **3 files → 11**. **Five** reverted mutations prove it. The SDK
+  catalogs and the generated OpenAPI catalog are byte-identical.
+
 - **The mailbox's envelope rows have one home: the surface serves the contract's
   rows.** W5.22 gave the board's **message row** one home — the contract owns
   `Mail` (the wire row) and `Draft` (the request row) — but the **answers
