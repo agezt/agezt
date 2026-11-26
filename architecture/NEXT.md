@@ -55,18 +55,49 @@ measurement, the five reverted mutations, and what remains open.
 
 ### What the next slice should do
 
-- **The console's own answers** (`kernel/webui`) have not been measured: the
-  guard reads the REST surface's files, and the console's rows are served
-  elsewhere. The same rule applies there.
-- **The console's rollback endpoints are still outside the generated
-  catalog**, so the browser's `Checkpoint` view is still in W5.21's ledger
-  ("the daemon's rollback op is not in the generated catalog yet"). Bringing
-  them in is a real decision (an operation, a row, a contract).
+**The console's own answers — and the browser's ledger entry with them.** The
+programme named this end in W5.21, and the measurements since then say what it
+takes:
+
+- **The console's surface writes its own answers by hand**: the rollback
+  answers (`{"checkpoints":…, "count":…}` and the two apply answers), the auth
+  meta, the voice status, the workflow hook, the file tree. The console's
+  *proxied* answers are typed already — they come from the app layer through
+  the operation registry.
+- **The console's native routes declare a request body but no answer.**
+  `opapi.NativeRoute` carries `Body json.RawMessage` and nothing for the
+  response, so the generated browser catalogue has **no** type for those
+  answers — which is exactly why the browser's `Checkpoint` view sits in
+  W5.21's ledger ("the daemon's rollback op is not in the generated catalog
+  yet").
+- **The design that closes it**: the console's answer rows become **structs in
+  the console's contract** (`kernel/contract/opapi`), the native route names
+  the row it answers with, the console serves that struct, and
+  `tools/openapi` renders the struct into the browser's catalogue — so the
+  browser's view becomes a **pin** instead of a ledger entry. One home: the
+  struct's field names are written once, and the catalogue is derived from it
+  (the same way `tools/sdkgen` derives the SDKs' rows).
+- **The rows that need a home**: the rollback list answer (its `checkpoints`
+  field carries the platform's `rollbackstore.Checkpoint` rows, which already
+  have their json tags — so only the *envelope* needs a home), the apply
+  answers, the auth meta, the voice status, the workflow hook and the file
+  tree.
+- **The console's surface needs the same guard** the REST surface got in
+  W5.23–W5.25: a map literal that spells a contract-owned row's field names
+  fails, and a declared exception that no longer matches fails too. The
+  console's files, voice and workflow answers are the candidates.
+
+One honest limit to name: the console's answers are **not** in the REST
+contract's vocabulary, so there is no SDK-facing declaration to check them
+against — until the native routes carry their rows, the console's answers are
+the daemon's own shapes, and the check that holds them is the type system
+alone.
+
+- **The OpenAI-compatible surface's rows** have their own shape and were out
+  of scope.
 - **The contract's vocabulary cannot say "a row inside a row"**, so the error
   body's envelope and the update check's envelope are checked by the type
   system alone; a nested-row type would close that.
-- **The OpenAI-compatible surface's rows** have their own shape and were out
-  of scope.
 
 ## Current checkpoint — W5.24 the artifact and update answers have one home, 2026-11-26
 
