@@ -2,7 +2,11 @@
 
 package webui
 
-import "net/http"
+import (
+	"net/http"
+
+	"github.com/agezt/agezt/kernel/contract/consoleapi"
+)
 
 // handleVoiceStatus reports which server-side speech halves are wired without
 // invoking either provider. It intentionally exposes no endpoint, model, or
@@ -14,8 +18,8 @@ func (s *Server) handleVoiceStatus(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusMethodNotAllowed, map[string]any{"error": "GET required"})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"stt": map[string]any{"configured": s.transcriber != nil},
-		"tts": map[string]any{"configured": s.synthesizer != nil},
+	writeJSON(w, http.StatusOK, consoleapi.VoiceStatus{
+		STT: consoleapi.VoiceHalf{Configured: s.transcriber != nil},
+		TTS: consoleapi.VoiceHalf{Configured: s.synthesizer != nil},
 	})
 }

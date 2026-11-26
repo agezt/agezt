@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/consoleapi"
 	"github.com/agezt/agezt/kernel/contract/rollbackapi"
 )
 
@@ -20,7 +21,9 @@ import (
 // The console's PROXIED answers are typed already — they come from the app
 // layer through the operation registry. The console's OWN answers are the
 // rows the contracts own: the rollback catalogue's checkpoints and the
-// envelopes around them.
+// envelopes around them, and the console's own rows — the auth meta, the
+// login, the voice status, the workflow hook's answers and the stream's
+// frames.
 //
 // A hand-written map is how a row got two homes in the first place: the
 // contract named the fields, the surface named them again, and nothing said
@@ -42,6 +45,19 @@ var contractOwnedRows = []struct {
 	{"rollback_checkpoint", reflect.TypeOf(rollbackapi.Checkpoint{})},
 	{"rollback_list", reflect.TypeOf(rollbackapi.List{})},
 	{"rollback_applied", reflect.TypeOf(rollbackapi.Applied{})},
+	{"console_auth_meta", reflect.TypeOf(consoleapi.AuthMeta{})},
+	{"console_login", reflect.TypeOf(consoleapi.Login{})},
+	{"console_logout", reflect.TypeOf(consoleapi.Logout{})},
+	{"console_sse_token", reflect.TypeOf(consoleapi.SSEToken{})},
+	{"console_voice_status", reflect.TypeOf(consoleapi.VoiceStatus{})},
+	{"console_voice_half", reflect.TypeOf(consoleapi.VoiceHalf{})},
+	{"console_workflow_reply", reflect.TypeOf(consoleapi.WorkflowReply{})},
+	{"console_workflow_accepted", reflect.TypeOf(consoleapi.WorkflowAccepted{})},
+	{"console_stream_open", reflect.TypeOf(consoleapi.StreamOpen{})},
+	{"console_stream_event", reflect.TypeOf(consoleapi.StreamEvent{})},
+	{"console_run_stream_event", reflect.TypeOf(consoleapi.RunStreamEvent{})},
+	{"console_stream_error", reflect.TypeOf(consoleapi.StreamError{})},
+	{"console_stream_result", reflect.TypeOf(consoleapi.StreamResult{})},
 }
 
 // rowExceptions are the hand-written views of a contract-owned row that are

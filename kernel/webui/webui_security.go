@@ -10,6 +10,7 @@ package webui
 import (
 	"context"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/contract/consoleapi"
 	"github.com/agezt/agezt/kernel/contract/convoapi"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
@@ -127,19 +128,19 @@ func (s *Server) handleWorkflowHook(w http.ResponseWriter, r *http.Request) {
 	// Reply mode (M812): the run finished synchronously — hand its outputs
 	// back to the caller with a 200.
 	if outputs, ok := res["outputs"]; ok {
-		writeJSON(w, http.StatusOK, map[string]any{
-			"ok":             true,
-			"workflow":       res["workflow"],
-			"correlation_id": res["correlation_id"],
-			"executed":       res["executed"],
-			"outputs":        outputs,
+		writeJSON(w, http.StatusOK, consoleapi.WorkflowReply{
+			CorrelationID: optString(res["correlation_id"]),
+			Executed:      res["executed"],
+			OK:            true,
+			Outputs:       outputs,
+			Workflow:      optString(res["workflow"]),
 		})
 		return
 	}
-	writeJSON(w, http.StatusAccepted, map[string]any{
-		"accepted":       true,
-		"workflow":       res["workflow"],
-		"correlation_id": res["correlation_id"],
+	writeJSON(w, http.StatusAccepted, consoleapi.WorkflowAccepted{
+		Accepted:      true,
+		CorrelationID: optString(res["correlation_id"]),
+		Workflow:      optString(res["workflow"]),
 	})
 }
 
@@ -179,23 +180,23 @@ func (s *Server) runStreamProxy() http.HandlerFunc {
 		}
 		defer sse.Close()
 		write := func(obj any) { _ = sse.WriteJSON(obj) }
-		write(map[string]any{"kind": "open"})
+		write(consoleapi.StreamOpen{Kind: "open"})
 
 		ctx, cancel := context.WithTimeout(r.Context(), planRunTimeout)
 		defer cancel()
 		res, err := s.client.Stream(ctx, opapi.Run, args, func(ev *event.Event) {
-			write(map[string]any{
-				"kind":           string(ev.Kind),
-				"subject":        ev.Subject,
-				"payload":        ev.Payload,
-				"correlation_id": ev.CorrelationID,
+			write(consoleapi.RunStreamEvent{
+				CorrelationID: ev.CorrelationID,
+				Kind:          string(ev.Kind),
+				Payload:       ev.Payload,
+				Subject:       ev.Subject,
 			})
 		})
 		if err != nil {
-			write(map[string]any{"kind": "error", "error": err.Error()})
+			write(consoleapi.StreamError{Error: err.Error(), Kind: "error"})
 			return
 		}
-		write(map[string]any{"kind": "done", "result": res})
+		write(consoleapi.StreamResult{Kind: "done", Result: res})
 	}
 }
 
@@ -221,22 +222,22 @@ func (s *Server) toolInstallProxy() http.HandlerFunc {
 		}
 		defer sse.Close()
 		write := func(obj any) { _ = sse.WriteJSON(obj) }
-		write(map[string]any{"kind": "open"})
+		write(consoleapi.StreamOpen{Kind: "open"})
 
 		ctx, cancel := context.WithTimeout(r.Context(), planRunTimeout)
 		defer cancel()
 		res, err := s.client.Stream(ctx, opapi.ToolboxInstall, args, func(ev *event.Event) {
-			write(map[string]any{
-				"kind":    string(ev.Kind),
-				"subject": ev.Subject,
-				"payload": ev.Payload,
+			write(consoleapi.StreamEvent{
+				Kind:    string(ev.Kind),
+				Payload: ev.Payload,
+				Subject: ev.Subject,
 			})
 		})
 		if err != nil {
-			write(map[string]any{"kind": "error", "error": err.Error()})
+			write(consoleapi.StreamError{Error: err.Error(), Kind: "error"})
 			return
 		}
-		write(map[string]any{"kind": "done", "result": res})
+		write(consoleapi.StreamResult{Kind: "done", Result: res})
 	}
 }
 
@@ -259,18 +260,22 @@ func (s *Server) marketStreamProxy(cmd string) http.HandlerFunc {
 		}
 		defer sse.Close()
 		write := func(obj any) { _ = sse.WriteJSON(obj) }
-		write(map[string]any{"kind": "open"})
+		write(consoleapi.StreamOpen{Kind: "open"})
 
 		ctx, cancel := context.WithTimeout(r.Context(), planRunTimeout)
 		defer cancel()
 		res, err := s.client.Stream(ctx, cmd, args, func(ev *event.Event) {
-			write(map[string]any{"kind": string(ev.Kind), "subject": ev.Subject, "payload": ev.Payload})
+			write(consoleapi.StreamEvent{
+				Kind:    string(ev.Kind),
+				Payload: ev.Payload,
+				Subject: ev.Subject,
+			})
 		})
 		if err != nil {
-			write(map[string]any{"kind": "error", "error": err.Error()})
+			write(consoleapi.StreamError{Error: err.Error(), Kind: "error"})
 			return
 		}
-		write(map[string]any{"kind": "done", "result": res})
+		write(consoleapi.StreamResult{Kind: "done", Result: res})
 	}
 }
 

@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-237 package(s):
+238 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/agentgw`** — Package agentgw provides a secure gateway for AI agent subprocess code to communicate with the AGEZT kernel.
@@ -95,6 +95,7 @@
 - **`kernel/contract/channelapi`** — Package channelapi is the messaging-channel contract: the platform-neutral inbound message every channel normalises to (UnifiedMessage, SPEC-04 §1.3), what the kernel hands a channel to deliver (Outbound, Attachment, Reply), the Channel interface a duplex surface implements, and the Manifest a channel registers to describe itself.
 - **`kernel/contract/channelhookapi`** — Package channelhookapi is the one home of the channel webhook family's inbound bodies.
 - **`kernel/contract/configapi`** — Package configapi is the contract the config tool and the implementation that answers it agree on.
+- **`kernel/contract/consoleapi`** — Package consoleapi is the contract the console's own answers agree on.
 - **`kernel/contract/convoapi`** — Package convoapi is the contract layer's home for the conversation collapse: the one conversational turn, and the rule that folds a multi-turn conversation into a single Agezt intent.
 - **`kernel/contract/datalakeapi`** — Package datalakeapi is the contract layer's home for the Personal Data Lake's rows: one collection's definition (its schema and the columns it carries), one record (a row with a stable id and a free-form field map), the query that narrows a listing, and the summary a listing shows.
 - **`kernel/contract/eventapi`** — Package eventapi is the contract layer's home for the event rows: the kind discriminator, the caller-provided portion of an event, and the port through which a durable kernel event is published.

@@ -1,5 +1,85 @@
 # NEXT — handoff for the next coding agent
 
+## Current checkpoint — W5.27 the console's own answers have one home, 2026-11-26
+
+The W0–W5 objective remains open. W5.8–W5.15 gave the **browser**, the
+**registry** and the **SDKs** their request vocabulary; W5.11–W5.19 gave
+**every surface** that reads a request body its contract, its door and the
+boot-time check that holds the two together; W5.20 put a **gate** behind that
+sentence so it cannot decay; W5.21 closed W5.1's open end on the browser's
+**response** side; W5.22–W5.26 gave the daemon's own rows one home, one family
+at a time. **This slice finishes the console's own answers**: the surface
+spells **no** answer by hand.
+
+### What was on the tree
+
+- **The console's other answers were written by hand** — one `map[string]any`
+  per answer: the auth meta, the login, the logout, the SSE token, the voice
+  status, the workflow hook's two answers and the stream's frames. **14**
+  hand-written views of a contract-owned row and **34** field-name spellings, in
+  an *implementation* package, for rows **nobody had declared**.
+- **The stream frames were the worst of them**: **one** frame shape spelled
+  **three** times (the run stream, the toolbox install stream, the marketplace
+  stream), and the run stream's frame carried a **fourth** field the others did
+  not — nothing said which was which.
+- **A new pure contract** (`kernel/contract/consoleapi`) holds the console's
+  own rows — the same rule the REST surface follows, where a surface's own rows
+  live in the surface's own contract (`restapiapi`).
+- **Two rows say *absent* with a pointer**: the login's `password_required`
+  (absent = "the gate is there and you are through it") and the workflow hook's
+  `correlation_id` and `workflow` (the daemon omits them when it has nothing to
+  say). The console forwards the daemon's absence instead of inventing an empty
+  string.
+- **The bytes are pinned** (`kernel/webui/console_rows_test.go`): five tests
+  hold the console's own answers exactly, because a struct's member order **is**
+  the member order of the JSON — and nothing else would notice a reorder.
+
+### What the measurement said
+
+- Hand-written views of a contract-owned row in the console: **14 → 1** — and
+  that one is the **declared exception** (the skill restore's operation
+  **arguments**, forwarded to the daemon, not an answer).
+- Hand-spelled field names in those views: **34 → 2**.
+- Map literals with two or more keys in the console: **23 → 9**, and all nine
+  are operation arguments.
+- Contract-owned rows the console's guard watches: **3 → 16**.
+- The served bytes: **unchanged**; the SDK catalogs and the generated OpenAPI
+  catalog: **byte-identical**.
+
+### The evidence
+
+`architecture/347-w527-the-consols-own-answers-have-one-home-evidence.md` —
+where the rows live, the pointer that says *absent*, one frame serving three
+proxies, the two guards, the measurement, the five reverted mutations, and what
+remains open.
+
+### What the next slice should do
+
+**The native route names its answer, and the browser's view becomes a pin.**
+The programme named this end in W5.21; W5.26 and W5.27 gave the console's rows
+a home, and the last two pieces are the same piece:
+
+- **The console's native routes declare a request body but no answer.**
+  `opapi.NativeRoute` carries `Body json.RawMessage` and nothing for the
+  response, so the generated browser catalogue has **no** type for those
+  answers — which is exactly why the browser's `Checkpoint` view sits in
+  W5.21's ledger ("the daemon's rollback op is not in the generated catalog
+  yet").
+- **The design that closes it**: the native route names the row it answers
+  with (the row now lives in `kernel/contract/consoleapi`), the console serves
+  that struct — which it already does — and `tools/openapi` renders the row
+  into the browser's catalogue. Then the browser's views stop being
+  hand-written names: the `Checkpoint` view and the auth meta's
+  `password_required`/`authed` become **pins**, a compile-time assertion that
+  the browser still reads the fields the console serves.
+- **One home, end to end**: the struct's field names are written once (in the
+  contract), the catalogue is derived from it (the way `tools/sdkgen` derives
+  the SDKs' rows), and the browser is checked against it — no second spelling
+  anywhere.
+- **The contract's vocabulary cannot say "a row inside a row"**, so the voice
+  status's nested half and the console's error envelopes are checked by the
+  type system alone; a nested-row type would close that.
+
 ## Current checkpoint — W5.26 the console's rollback answers have one home, 2026-11-26
 
 The W0–W5 objective remains open. W5.8–W5.15 gave the **browser**, the
