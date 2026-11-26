@@ -78,6 +78,11 @@ func typeAgrees(wire Type, got reflect.Type) bool {
 			return true
 		}
 	}
+	// A free-form array is served by ANY slice: the contract says the values
+	// are free-form, not that the array holds one particular Go type.
+	if wire == TypeAnySlice && got.Kind() == reflect.Slice {
+		return true
+	}
 	return false
 }
 

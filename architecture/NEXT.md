@@ -1,5 +1,73 @@
 # NEXT — handoff for the next coding agent
 
+## Current checkpoint — W5.24 the artifact and update answers have one home, 2026-11-26
+
+The W0–W5 objective remains open. W5.8–W5.15 gave the **browser**, the
+**registry** and the **SDKs** their request vocabulary; W5.11–W5.19 gave
+**every surface** that reads a request body its contract, its door and the
+boot-time check that holds the two together; W5.20 put a **gate** behind that
+sentence so it cannot decay; W5.21 closed W5.1's open end on the browser's
+**response** side; W5.22–W5.24 gave the daemon's own rows one home, one family
+at a time. **This slice finishes the artifact and update surfaces** and —
+the more reusable half — **widens the surface's own guard** from the mailbox's
+three files to the whole surface.
+
+### What was on the tree
+
+- **Two more surfaces wrote their answers by hand**: the artifacts list
+  (one map) and the update surface (**five** maps — the check's three cases and
+  the apply's two). The update surface spelled the **same four release fields**
+  (version, sha256, url, notes) inside a nested map of its own.
+- **The domain contracts were already there**, holding the rows: `remoteapi`
+  owns the artifact row, `updateapi` owns the release and the check outcome.
+  The surface simply did not use them for its answers. Now it does:
+  `remoteapi.ArtifactList`, `updateapi.Release`, `updateapi.Check`,
+  `updateapi.Applied` — declared in the order the wire speaks them, so the
+  served bytes did not move.
+- **The contract's rows are checked against the served ones** — the
+  `artifacts` row against the list the daemon serves, the `update_apply` row
+  (the release the client sends) against the release the daemon reports back.
+  One rule was added: a free-form array (`any[]`) is served by **any** slice,
+  which is what lets `entries` be `[]remoteapi.Artifact` and not `[]any`.
+- **The surface's guard now covers the whole surface** — **11** files and
+  **12** contract-owned rows, instead of the mailbox's three files. It is a
+  ratchet in both directions: a map literal that spells a contract-owned row's
+  field names fails, and a declared exception that no longer matches fails too.
+
+### What the measurement said
+
+- Hand-written views of a contract-owned row in the surface: **6 → 0**.
+- Hand-spelled field names in the surface (this slice): **15 → 0**.
+- Files the surface guard measures: **3 → 11**; contract-owned rows it
+  watches: **9 → 12**.
+- The served bytes: **unchanged**; the SDK catalogs and the generated OpenAPI
+  catalog: **byte-identical**.
+
+### The evidence
+
+`architecture/344-w524-the-artifact-and-update-answers-have-one-home-evidence.md`
+— the rule, the two guards, the measurement, the five reverted mutations, and
+what remains open.
+
+### What the next slice should do
+
+- **The REST surface still writes four rows by hand**: the health answer, the
+  run result (in three places) and the run arc. The cure is the same — the
+  row moves into the contract and the surface serves it — but each has a
+  wrinkle: the run result's **failure** answer carries an `error` and no
+  `answer` (so it is not the run result row at all), the run arc carries the
+  daemon's own event type, and the **health row has no domain contract** to
+  live in. Those are decisions, not transcriptions.
+- **The contract's vocabulary cannot say "a row inside a row"**, so the update
+  check's envelope (`current`, `up_to_date`) is held by the type system alone;
+  a nested-row type would close that.
+- **The watch stream's fallback frame stays hand-written** — it is the event's
+  metadata view, not a row, and it is declared as such in the guard.
+- **The console's rollback endpoints are still outside the generated
+  catalog**, so the browser's `Checkpoint` view is still in W5.21's ledger
+  ("the daemon's rollback op is not in the generated catalog yet"). Bringing
+  them in is a real decision (an operation, a row, a contract).
+
 ## Current checkpoint — W5.23 the mailbox's envelope rows have one home, 2026-11-26
 
 The W0–W5 objective remains open. W5.8–W5.15 gave the **browser**, the

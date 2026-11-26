@@ -85,6 +85,41 @@ type CheckResult struct {
 	Err     error
 }
 
+// Release is the release a check reports, as it travels on the wire.
+//
+// It is the same shape the update body is written in — a version, a checksum,
+// a download URL and the release notes — so the release travels as the contract
+// row and not as a hand-written map.
+//
+// The fields are declared in the order the wire speaks them (alphabetically),
+// because the field order IS the member order of the served JSON.
+type Release struct {
+	Notes   string `json:"notes"`
+	SHA256  string `json:"sha256"`
+	URL     string `json:"url"`
+	Version string `json:"version"`
+}
+
+// Check is the answer to "is there a newer release?": the running version,
+// whether it is up to date, and the release when there is one.
+//
+// Status carries the surface's own note ("update is disabled") — the server
+// may add a field to a response, and the contract's row does not name it.
+type Check struct {
+	Current  string   `json:"current"`
+	Status   string   `json:"status,omitempty"`
+	UpToDate bool     `json:"up_to_date"`
+	Update   *Release `json:"update,omitempty"`
+}
+
+// Applied is the answer to "was the release staged?": whether it was, the
+// version that was staged, and the reason when it was not.
+type Applied struct {
+	Applied bool   `json:"applied"`
+	Error   string `json:"error,omitempty"`
+	Version string `json:"version,omitempty"`
+}
+
 // DrainResult describes the outcome of the drain phase.
 type DrainResult struct {
 	Timeout    bool // true if drain timed out
