@@ -31,6 +31,12 @@ import (
 // rawMessageType is the Go type a two-shaped field is read as.
 var rawMessageType = reflect.TypeOf(json.RawMessage{})
 
+// numberType is the Go type a numeric id is read as. A json.Number is a
+// string underneath, but it only ever HOLDS a number — the vendor sends it as
+// one, and the decoder refuses a JSON string for it — so the registry's word
+// for it is "number", not "string".
+var numberType = reflect.TypeOf(json.Number(""))
+
 // Field is one field a member's body names: its wire name and the types the
 // contract declares for it.
 type Field struct {
@@ -277,6 +283,9 @@ func hasField(typ reflect.Type, name string) bool {
 func shapeWords(typ reflect.Type) []string {
 	if typ == rawMessageType {
 		return []string{"any"}
+	}
+	if typ == numberType {
+		return []string{"number"}
 	}
 	switch derefType(typ).Kind() {
 	case reflect.String:

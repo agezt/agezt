@@ -14,27 +14,40 @@ import (
 	"github.com/agezt/agezt/kernel/channel"
 )
 
+// decodeGW decodes a body into the member's own body type.
+//
+// The route does this at the door; the parse tests do it themselves, so the
+// scenario stays the scenario and only the call changes.
+func decodeGW(t *testing.T, body string) whatsappgwBody {
+	t.Helper()
+	var b whatsappgwBody
+	if err := json.Unmarshal([]byte(body), &b); err != nil {
+		t.Fatalf("decode %q: %v", body, err)
+	}
+	return b
+}
+
 func TestParseWAHA(t *testing.T) {
-	body := []byte(`{"event":"message","session":"default","payload":{"from":"12345@c.us","body":"hi there","id":"AAA","fromMe":false}}`)
-	msgs := parseWAHA(body)
+	body := `{"event":"message","session":"default","payload":{"from":"12345@c.us","body":"hi there","id":"AAA","fromMe":false}}`
+	msgs := parseWAHA(decodeGW(t, body))
 	if len(msgs) != 1 || msgs[0].from != "12345" || msgs[0].text != "hi there" || msgs[0].id != "AAA" {
 		t.Fatalf("parseWAHA = %+v", msgs)
 	}
 	// fromMe is ignored (our own echoes).
-	if got := parseWAHA([]byte(`{"event":"message","payload":{"from":"1@c.us","body":"x","fromMe":true}}`)); len(got) != 0 {
+	if got := parseWAHA(decodeGW(t, `{"event":"message","payload":{"from":"1@c.us","body":"x","fromMe":true}}`)); len(got) != 0 {
 		t.Fatalf("fromMe should be ignored, got %+v", got)
 	}
 }
 
 func TestParseEvolution(t *testing.T) {
-	body := []byte(`{"event":"messages.upsert","data":{"key":{"remoteJid":"9876@s.whatsapp.net","id":"B1","fromMe":false},"message":{"conversation":"hello"}}}`)
-	msgs := parseEvolution(body)
+	body := `{"event":"messages.upsert","data":{"key":{"remoteJid":"9876@s.whatsapp.net","id":"B1","fromMe":false},"message":{"conversation":"hello"}}}`
+	msgs := parseEvolution(decodeGW(t, body))
 	if len(msgs) != 1 || msgs[0].from != "9876" || msgs[0].text != "hello" {
 		t.Fatalf("parseEvolution = %+v", msgs)
 	}
 	// extendedTextMessage fallback.
-	ext := []byte(`{"event":"messages.upsert","data":{"key":{"remoteJid":"5@s.whatsapp.net","fromMe":false},"message":{"extendedTextMessage":{"text":"quoted reply"}}}}`)
-	if got := parseEvolution(ext); len(got) != 1 || got[0].text != "quoted reply" {
+	ext := `{"event":"messages.upsert","data":{"key":{"remoteJid":"5@s.whatsapp.net","fromMe":false},"message":{"extendedTextMessage":{"text":"quoted reply"}}}}`
+	if got := parseEvolution(decodeGW(t, ext)); len(got) != 1 || got[0].text != "quoted reply" {
 		t.Fatalf("extendedText = %+v", got)
 	}
 }

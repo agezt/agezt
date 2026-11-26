@@ -3,21 +3,39 @@
 package chatwebhook
 
 // Provenance: Package chatwebhook: platform-specific inbound payload parsers
-//             (parseInbound dispatcher + parseMattermost + parseGoogleChat).
+//             (chatwebhookBody + parseMattermost + parseGoogleChat).
 //             Extracted from chatwebhook.go during the Day-211 god-file split.
 //             Public API unchanged.
 
 import (
-	"encoding/json"
 	"net/url"
 	"strings"
 )
 
-func parseInbound(kind string, body []byte) (inbound, bool) {
-	if kind == KindMattermost {
-		return parseMattermost(body)
-	}
-	return parseGoogleChat(body)
+// chatwebhookBody is the Google Chat delivery the daemon reads: the event's
+// type, the message with its sender, and the space it belongs to.
+//
+// The member's OTHER dialect — Mattermost's outgoing webhook — is a FORM, not
+// a JSON body, so the door does not measure it.
+//
+// The shape is named in the contract (kernel/contract/channelhookapi), and the
+// door measures an arriving body against it before the plugin reads it — so
+// this type and the contract's schema must name the SAME fields with the SAME
+// types. The member checks that when it is built.
+type chatwebhookBody struct {
+	Type    string `json:"type"`
+	Message struct {
+		Name   string `json:"name"`
+		Text   string `json:"text"`
+		Sender struct {
+			Name        string `json:"name"`
+			DisplayName string `json:"displayName"`
+			Email       string `json:"email"`
+		} `json:"sender"`
+	} `json:"message"`
+	Space struct {
+		Name string `json:"name"`
+	} `json:"space"`
 }
 
 // parseMattermost reads a Mattermost outgoing-webhook form POST: token, user_name,
@@ -41,25 +59,10 @@ func parseMattermost(body []byte) (inbound, bool) {
 
 // parseGoogleChat reads a Google Chat app event: {type, message:{name, text,
 // sender:{name, displayName, email}}, space:{name}}. Only MESSAGE events are kept.
-func parseGoogleChat(body []byte) (inbound, bool) {
-	var e struct {
-		Type    string `json:"type"`
-		Message struct {
-			Name   string `json:"name"`
-			Text   string `json:"text"`
-			Sender struct {
-				Name        string `json:"name"`
-				DisplayName string `json:"displayName"`
-				Email       string `json:"email"`
-			} `json:"sender"`
-		} `json:"message"`
-		Space struct {
-			Name string `json:"name"`
-		} `json:"space"`
-	}
-	if err := json.Unmarshal(body, &e); err != nil {
-		return inbound{}, false
-	}
+//
+// The body has already been measured against the contract's shape by the door
+// — a mistyped field never reaches this function.
+func parseGoogleChat(e chatwebhookBody) (inbound, bool) {
 	if e.Type != "" && e.Type != "MESSAGE" {
 		return inbound{}, false
 	}

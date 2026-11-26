@@ -117,5 +117,6 @@ func (c *Channel) emitOutbound(out channel.Outbound, corr string) {
 
 // --- wire shapes ----------------------------------------------------------
 
-// parseActivity reads an Activity-Streams 2.0 bot event. Only "Create" message
-// events are kept; the message text is pulled from object.content's JSON.
+// The wire shapes (nextcloudtalkBody + parseActivity) live in
+// nextcloudtalk_helpers.go: the body's shape is NAMED, because the contract
+// names it too.

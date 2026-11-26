@@ -7,6 +7,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -318,15 +319,19 @@ func TestValidSignEmptyFields(t *testing.T) {
 
 func TestParseInboundDrops(t *testing.T) {
 	// Non-text message type is dropped.
-	if _, ok := parseInbound([]byte(`{"msgtype":"image"}`)); ok {
+	var image dingtalkBody
+	if err := json.Unmarshal([]byte(`{"msgtype":"image"}`), &image); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := parseInbound(image); ok {
 		t.Fatal("image msgtype should be dropped")
 	}
-	// Invalid JSON.
-	if _, ok := parseInbound([]byte("not json")); ok {
-		t.Fatal("invalid JSON should return ok=false")
-	}
 	// Fallback to senderNick when staff id is empty.
-	m, ok := parseInbound([]byte(`{"text":{"content":"hi"},"senderNick":"Bob","msgId":"M"}`))
+	var nick dingtalkBody
+	if err := json.Unmarshal([]byte(`{"text":{"content":"hi"},"senderNick":"Bob","msgId":"M"}`), &nick); err != nil {
+		t.Fatal(err)
+	}
+	m, ok := parseInbound(nick)
 	if !ok || m.sender != "Bob" {
 		t.Fatalf("nick fallback = %+v ok=%v", m, ok)
 	}

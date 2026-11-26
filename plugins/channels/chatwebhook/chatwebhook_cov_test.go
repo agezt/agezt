@@ -4,6 +4,7 @@ package chatwebhook
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -299,24 +300,28 @@ func TestSeenBeforeRingEviction(t *testing.T) {
 	}
 }
 
-func TestParseInboundBothDialects(t *testing.T) {
+func TestParseBothDialects(t *testing.T) {
 	// Mattermost form.
-	m, ok := parseInbound(KindMattermost, []byte("user_name=bob&channel_name=ch&text=hi&post_id=P1"))
+	m, ok := parseMattermost([]byte("user_name=bob&channel_name=ch&text=hi&post_id=P1"))
 	if !ok || m.sender != "bob" || m.target != "ch" || m.text != "hi" || m.id != "P1" {
 		t.Fatalf("mattermost = %+v ok=%v", m, ok)
 	}
 	// Google Chat MESSAGE event.
-	g, ok := parseInbound(KindGoogleChat, []byte(`{"type":"MESSAGE","message":{"name":"m1","text":"hello","sender":{"displayName":"Al","email":"al@x.com"}},"space":{"name":"spaces/AAA"}}`))
+	var e chatwebhookBody
+	if err := json.Unmarshal([]byte(`{"type":"MESSAGE","message":{"name":"m1","text":"hello","sender":{"displayName":"Al","email":"al@x.com"}},"space":{"name":"spaces/AAA"}}`), &e); err != nil {
+		t.Fatal(err)
+	}
+	g, ok := parseGoogleChat(e)
 	if !ok || g.text != "hello" {
 		t.Fatalf("googlechat = %+v ok=%v", g, ok)
 	}
 	// Non-MESSAGE google chat event dropped.
-	if _, ok := parseInbound(KindGoogleChat, []byte(`{"type":"ADDED_TO_SPACE"}`)); ok {
-		t.Fatal("non-MESSAGE event should be dropped")
+	var added chatwebhookBody
+	if err := json.Unmarshal([]byte(`{"type":"ADDED_TO_SPACE"}`), &added); err != nil {
+		t.Fatal(err)
 	}
-	// Invalid google chat JSON.
-	if _, ok := parseInbound(KindGoogleChat, []byte("not json")); ok {
-		t.Fatal("invalid JSON should be dropped")
+	if _, ok := parseGoogleChat(added); ok {
+		t.Fatal("non-MESSAGE event should be dropped")
 	}
 }
 

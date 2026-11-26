@@ -17,13 +17,16 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/channel"
+	"github.com/agezt/agezt/kernel/contract/channelhookapi"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/httpserver"
 	"github.com/agezt/agezt/kernel/platform/netout"
 	"github.com/agezt/agezt/kernel/ulid"
 )
@@ -63,6 +66,12 @@ type Channel struct {
 
 // New constructs a chat-webhook channel, applying defaults.
 func New(cfg Config) *Channel {
+	// The contract and this member must agree on the body's shape: a contract
+	// that mistyped a field stops the daemon HERE, instead of the door
+	// measuring arriving bodies against a shape the member cannot hold.
+	if err := channelhookapi.CheckShape(channelhookapi.MemberChatWebhook, reflect.TypeOf(chatwebhookBody{})); err != nil {
+		panic("channels/chatwebhook: the contract and the plugin disagree: " + err.Error())
+	}
 	cfg.Kind = strings.TrimSpace(strings.ToLower(cfg.Kind))
 	if cfg.Path == "" {
 		cfg.Path = "/" + cfg.Kind
@@ -139,11 +148,37 @@ func (c *Channel) handleInbound(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
+	// Mattermost's outgoing webhook is a FORM, not a JSON body: the contract
+	// names no shape for it, so there is nothing to measure here and the
+	// member's own behaviour stands.
+	if c.cfg.Kind == KindMattermost {
+		// Acknowledge promptly; run + reply asynchronously so a long agent run
+		// never times the inbound webhook out.
+		w.WriteHeader(http.StatusOK)
+		if m, ok := parseMattermost(body); ok {
+			c.dispatch(r.Context(), m)
+		}
+		return
+	}
+	// The body's shape is named in the contract (kernel/contract/channelhookapi)
+	// and measured here, before the plugin reads it: a mistyped field is
+	// refused with the operation registry's words, in the plugin's own plain
+	// text. The token is checked FIRST — a body is only read by someone who
+	// proved they may send it — and the refusal comes BEFORE any answer, so a
+	// body that does not fit the contract never gets a 200.
+	//
+	// "bad json" is NEW to this member: the Google Chat dialect used to
+	// answer 200 to a body it could not read, and swallowed it.
+	shape, _ := channelhookapi.Body(channelhookapi.MemberChatWebhook)
+	var b chatwebhookBody
+	if err := httpserver.CheckJSONBody(body, shape, channelhookapi.MemberChatWebhook, &b); err != nil {
+		httpserver.RefuseJSONBody(w, err, "bad json")
+		return
+	}
 	// Acknowledge promptly; run + reply asynchronously so a long agent run never
 	// times the inbound webhook out.
 	w.WriteHeader(http.StatusOK)
-	m, ok := parseInbound(c.cfg.Kind, body)
-	if ok {
+	if m, ok := parseGoogleChat(b); ok {
 		c.dispatch(r.Context(), m)
 	}
 }

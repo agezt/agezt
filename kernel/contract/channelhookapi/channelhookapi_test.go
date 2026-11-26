@@ -17,14 +17,20 @@ import (
 	"testing"
 )
 
-// TestTheMemberTableIsWellFormed: every member has an id and a body, and no
-// two claim the same id.
+// TestTheMemberTableIsWellFormed: every member has an id and no two claim the
+// same id.
+//
+// A member may take NO JSON body — WeCom reads an XML callback and SMS reads a
+// form — and such a member is named in the table precisely so the roster is
+// one table; the lookup answers none for it, and the member says so when it
+// is built.
 func TestTheMemberTableIsWellFormed(t *testing.T) {
 	ids := map[string]bool{}
 	members := Members()
 	if len(members) == 0 {
 		t.Fatal("the table names no member — the family's door has nothing to guard")
 	}
+	withBody := 0
 	for _, m := range members {
 		if m.ID == "" {
 			t.Fatalf("a member has no id: %+v", m)
@@ -33,8 +39,35 @@ func TestTheMemberTableIsWellFormed(t *testing.T) {
 			t.Fatalf("duplicate member id %q", m.ID)
 		}
 		ids[m.ID] = true
-		if len(m.Body) == 0 {
-			t.Errorf("the %q member has no body", m.ID)
+		if len(m.Body) > 0 {
+			withBody++
+		}
+	}
+	if withBody == 0 {
+		t.Fatal("no member names a body — the family's door has nothing to measure")
+	}
+}
+
+// TestTheMembersThatTakeNoJSONBody: the two members that read something other
+// than JSON are named, and they name no body — so the door only ever has to
+// measure JSON, and a caller can tell "this member has no body" from "this
+// member is not in the contract".
+func TestTheMembersThatTakeNoJSONBody(t *testing.T) {
+	for _, id := range []string{MemberWeCom, MemberSMS} {
+		if _, ok := Body(id); ok {
+			t.Errorf("the %q member takes no JSON body, but the lookup answers a schema", id)
+		}
+		found := false
+		for _, m := range Members() {
+			if m.ID == id {
+				found = true
+				if len(m.Body) != 0 {
+					t.Errorf("the %q member takes no JSON body, but the table names one", id)
+				}
+			}
+		}
+		if !found {
+			t.Errorf("the %q member is not in the family's roster", id)
 		}
 	}
 }
@@ -146,6 +179,33 @@ func TestTheShapeGuardCatchesAWrongSchema(t *testing.T) {
 		`"text":{"type":"string"},"ts_ms":{"type":"number"}}}`)
 	if err := checkShapeAgainst(agreed, reflect.TypeOf(daemonBody{})); err != nil {
 		t.Errorf("the guard rejected a schema that agrees with the daemon: %v", err)
+	}
+}
+
+// TestTheShapeGuardReadsANumberAsANumber: a json.Number is a string
+// underneath, but it only ever holds a NUMBER — the vendor sends it as one
+// and the decoder refuses a JSON string for it — so the registry's word for
+// it is "number".
+//
+// OneBot's ids are read that way, and a contract that called them strings
+// would refuse the numbers the vendor actually sends.
+func TestTheShapeGuardReadsANumberAsANumber(t *testing.T) {
+	type daemonBody struct {
+		UserID json.Number `json:"user_id"`
+		Text   string      `json:"text"`
+	}
+	// The schema that agrees: the id is a number.
+	agreed := json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{` +
+		`"user_id":{"type":"number"},"text":{"type":"string"}}}`)
+	if err := checkShapeAgainst(agreed, reflect.TypeOf(daemonBody{})); err != nil {
+		t.Errorf("the guard rejected a schema that agrees with the daemon: %v", err)
+	}
+	// A schema that calls the number a string: the vendor's numbers would be
+	// refused at the door.
+	mistyped := json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{` +
+		`"user_id":{"type":"string"},"text":{"type":"string"}}}`)
+	if err := checkShapeAgainst(mistyped, reflect.TypeOf(daemonBody{})); err == nil {
+		t.Error("the guard accepted a schema that called a json.Number a string")
 	}
 }
 
