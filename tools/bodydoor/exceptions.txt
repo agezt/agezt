@@ -1,0 +1,15 @@
+# The request bodies this tree reads WITHOUT a door, and why.
+#
+# A body read with no door in reach must be declared here — the list is a
+# RATCHET: a declaration whose file no longer reads a body fails the check,
+# so a fixed file must be deleted in the same change.
+#
+# Each line: <file> :: <reason the body is not measured against a schema>.
+
+kernel/httpserver/body.go :: the shared door core: it IS the door — the body it reads is the one it measures against the contract's schema.
+kernel/httpserver/limits.go :: the body-cap wrapper: it re-wraps the body with a limit and reads no content; the handler behind it measures the body.
+kernel/webui/transcribe.go :: an audio upload (multipart), not a JSON body: there is no schema to measure.
+kernel/webui/webui_proxy.go :: the console's forwarding proxy: it turns an allowlisted argument object into a daemon operation's arguments, and the operation registry measures those at their own surface.
+kernel/webui/webui_security.go :: the workflow hook's body is opaque on purpose: it is handed to the hook verbatim (a JSON body becomes a template field, a non-JSON body rides as text).
+plugins/channels/sms/sms.go :: a form, not a JSON body: the door only ever measures JSON.
+plugins/channels/wecom/wecom_message.go :: an XML callback, not a JSON body: the door only ever measures JSON.

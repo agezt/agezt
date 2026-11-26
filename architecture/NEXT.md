@@ -1,5 +1,72 @@
 # NEXT — handoff for the next coding agent
 
+## Current checkpoint — W5.20 the request-body ratchet, 2026-11-26
+
+The W0–W5 objective remains open. W5.8–W5.15 gave the **browser**, the
+**registry** and the **SDKs** their request vocabulary; W5.11–W5.19 gave
+**every surface** that reads a request body its contract, its door and the
+boot-time check that holds the two together. **This slice puts a gate behind
+that sentence**, so it cannot decay: the inventory the programme produced is
+now a check that fails a build.
+
+### What was on the tree
+
+- **The programme's sentence was a document.** A new surface could read a body
+  with no contract, no schema and no door — and nothing would say so. A
+  surface that **had** a door could grow a second, unguarded body beside the
+  measured one, and the surface would still "have a door".
+- **`tools/bodydoor` is the gate.** It walks the tree and asks, per
+  **function**, whether it reads an inbound request body and whether a **door**
+  is in reach — a call to the shared core (`httpserver.DecodeJSONBody`,
+  `httpserver.CheckJSONBody`, `httpserver.RefuseJSONBody`), directly or
+  through a same-package function that does.
+- **A read is a use of `<request>.Body` where `<request>` is a
+  `*http.Request` parameter**, so an outbound client's **response** body is
+  none of the tool's business.
+- **A body read with no door must be declared**, in
+  `tools/bodydoor/exceptions.txt`, with the reason it is not measured — the
+  door core itself, the body-cap wrapper, the console's audio upload, its
+  forwarding proxy, its opaque workflow hook, the SMS member's form and the
+  WeCom member's XML callback — and the list is a **RATCHET**: a declaration
+  whose file no longer reads a body fails the check.
+- **The gate is wired where it is run**: `make body-door-check` and a step in
+  CI's `deps-check` job.
+
+### What the measurement said
+
+- Functions that read an inbound request body: **22**.
+- Of those, behind a door: **15**.
+- Of those, declared as exceptions: **7** — now a checked list, not prose.
+- A probe handler injected into `kernel/restapi`: **named** with its file,
+  line and function, and the build **failed**.
+
+### The evidence
+
+`architecture/340-w520-the-request-body-ratchet-evidence.md` — the gate's own
+question and how it is asked, the seven declarations and why each is honest,
+the ratchet in both directions, the six guards, the eight mutations and the
+gates.
+
+### What the next slice should do
+
+**Every surface that reads a request body has a contract, a door and a gate.**
+The programme's sentence is now enforced rather than asserted.
+
+What is left is small, and both ends are decisions rather than omissions:
+
+- **`chatwebhook`'s Mattermost dialect** is a **form**, so the door does not
+  measure it. Measuring it needs a form-shaped sibling of `CheckJSONBody` — a
+  real decision, not a transcription.
+- The **SDK catalogs** have not moved through W5.11–W5.20: the SDKs speak
+  `/api/v1`, and neither the channel webhook family nor the ACP surface is
+  part of the SDK contract (`sdkgen -check` is in sync).
+
+One honest limit of the new gate is named in the evidence: it matches a door
+by **name** within a package, not by type, so a package with two same-named
+methods — one of them a door — would let one stand for the other. The tree has
+no such pair; a future package could, and the fix is a type-aware resolution
+rather than a longer name list.
+
 ## Current checkpoint — W5.19 the ACP surface gets a contract and a door, 2026-11-26
 
 The W0–W5 objective remains open. W5.8–W5.15 gave the **browser**, the

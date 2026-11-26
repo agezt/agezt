@@ -495,6 +495,16 @@ jobs:
         # were fixed but left in tools/archcheck/allowlist.txt (the allowlist
         # may only shrink), and packages no rule places.
         run: bash scripts/ci-go-retry.sh go run ./tools/archcheck
+      - name: Verify every request body is behind a door (bodydoor ratchet)
+        # The programme's last rule, and the one that was still only a
+        # document: every surface that reads an inbound request body must be
+        # behind the shared door (kernel/httpserver) — or have declared
+        # itself an exception in tools/bodydoor/exceptions.txt, with the
+        # reason it is not measured (an audio upload, an XML callback, a
+        # form). The declarations are a RATCHET in the same shape as
+        # archcheck's: a declaration whose file no longer reads a body fails
+        # the check, so a fixed file must be deleted in the same change.
+        run: bash scripts/ci-go-retry.sh go run ./tools/bodydoor
       - name: Verify generated structure docs are up to date
         # This is the one project gate that had no CI step, and its absence is
         # not hypothetical: three stale files under .project/STRUCTURE.generated/
