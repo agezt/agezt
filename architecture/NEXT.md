@@ -1,5 +1,88 @@
 # NEXT — handoff for the next coding agent
 
+## Current checkpoint — W5.19 the ACP surface gets a contract and a door, 2026-11-26
+
+The W0–W5 objective remains open. W5.8–W5.15 gave the **browser**, the
+**registry** and the **SDKs** their request vocabulary; W5.11–W5.15 gave the
+**`/api/v1` surface**, the **console**, the **agent gateway** and the
+**OpenAI-compatible surface** the registry's **door**; W5.16–W5.18 gave the
+**channel webhook family** its contract, its door and the check that holds the
+two together, member by member, until the family was **fifteen of fifteen**.
+**This slice closes the last open surface: the ACP server** — a **stdio**
+JSON-RPC one — now has its contract, its door and the same boot-time ratchet.
+
+### What was on the tree
+
+- **The ACP surface read its `params` into whatever struct it happened to
+  use.** So a mistyped body was answered by Go's `encoding/json`, and the
+  answer named a **private Go type** of an implementation detail (*"invalid
+  params: json: cannot unmarshal number into Go struct field
+  newSessionParams.cwd of type string"*). A **null** was accepted: it became
+  the field's zero value.
+- **The surface has one home now** (`kernel/contract/acpserverapi`): every
+  method names the wire method, the **operation** the refusal carries and the
+  JSON Schema of the params it takes — and the door measures an arriving
+  params object against it with the **same validator the registry uses**:
+  `operation session_new input: $.cwd has wrong type: got number, want string`.
+- **The surface keeps its own voice**: a JSON-RPC error with the `invalid
+  params` code. And the door checks **types, not presence** — a missing field
+  is still the handler's business.
+- **Three methods read no params** (`initialize`, and the two cancellation
+  notifications) and are named in the contract as methods that take none.
+- **The contract and the server are held together at boot**: the server asks
+  the contract whether they still agree on the params' shape, and a contract
+  that mistyped a field, dropped one or named one the server does not read
+  **stops the daemon**.
+- **The shape vocabulary is now shared** (`kernel/contract/jsonshape`) with
+  the channel webhook family's contract — the two cannot drift.
+- **Fourteen new guards** (six in the contract, eight in the surface).
+
+### What the measurement said
+
+- Methods the contract names: **0 → 5**.
+- Methods it names a shape for: **0 → 2**.
+- Request fields measured before the handler reads them: **0 → 5**.
+- Probes refused with the registry's sentence: **0 → 16**.
+- Answers naming a private Go type: **11 → 0**.
+- Nulls refused instead of silently zero: **0 → 5**.
+- Methods behind a door: **0 → 2**.
+- Methods holding the contract to themselves at boot: **0 → 2**.
+
+### The evidence
+
+`architecture/339-w519-the-acp-surface-gets-a-contract-and-a-door-evidence.md`
+— the measurement on `origin/main` (`f23fbd4b`, the W5.18 merge) with the same
+probe that measured the "after" side, the contract's five methods, the three
+that read no params, the shared shape vocabulary, the fourteen guards, the ten
+mutations and the gates.
+
+### What the next slice should do
+
+**Every surface that reads a request body now has one.** The programme's
+sentence — *every surface's request body is named in a contract, and every
+surface answers a mistyped body in the registry's words* — holds for the
+`/api/v1` surface, the console, the OpenAI-compatible surface, the agent
+gateway, the fifteen channel webhook members and the ACP server.
+
+What is left is not a surface but a **habit**: nothing stops a **new** surface
+from reading a body without a contract, because the inventory above is a
+**document**, and a document does not fail a build. The next slice is an
+**inventory guard** — a repository-wide check that every handler which reads a
+request body is behind a door, or has declared itself an exception (a body
+that is not JSON: `wecom`'s XML callback, `sms`'s form, the console's
+transcription upload, the console's opaque workflow hook). It should be
+written like `tools/archcheck`: a tree-walking check with an **allowlist that
+must shrink**, so the table cannot silently become shorter than the tree.
+
+Two smaller open ends carried over from earlier slices:
+
+- **`chatwebhook`'s Mattermost dialect** is a **form**, so the door does not
+  measure it. Measuring it needs a form-shaped sibling of `CheckJSONBody` — a
+  real decision, not a transcription.
+- The **SDK catalogs** have not moved through W5.11–W5.19: the SDKs speak
+  `/api/v1`, and neither the channel webhook family nor the ACP surface is
+  part of the SDK contract (`sdkgen -check` is in sync).
+
 ## Current checkpoint — W5.18 the channel webhook family is complete, 2026-11-26
 
 The W0–W5 objective remains open. W5.8–W5.15 gave the **browser**, the

@@ -15,6 +15,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/agezt/agezt/kernel/contract/jsonshape"
 )
 
 // TestTheMemberTableIsWellFormed: every member has an id and no two claim the
@@ -92,7 +94,7 @@ func TestEveryBodySchemaIsASchemaTheDoorCanCheck(t *testing.T) {
 			continue
 		}
 		bodies++
-		var doc schemaNode
+		var doc jsonshape.Node
 		if err := json.Unmarshal(m.Body, &doc); err != nil {
 			t.Fatalf("the %q member's schema is not readable JSON: %v", m.ID, err)
 		}
@@ -211,9 +213,9 @@ func TestTheShapeGuardReadsANumberAsANumber(t *testing.T) {
 
 // checkSchemaNode holds ONE node of a body schema to the door's rules: it
 // declares a type, it asks for no presence, and it allows an undeclared field.
-func checkSchemaNode(t *testing.T, memberID, path string, node schemaNode) {
+func checkSchemaNode(t *testing.T, memberID, path string, node jsonshape.Node) {
 	t.Helper()
-	if len(schemaWords(node.Type)) == 0 {
+	if len(jsonshape.SchemaWords(node.Type)) == 0 {
 		t.Fatalf("the %q member's %q property declares no type — the door would accept anything for it",
 			memberID, path)
 	}
@@ -239,7 +241,7 @@ func checkSchemaNode(t *testing.T, memberID, path string, node schemaNode) {
 	if raw[0] != '{' {
 		return
 	}
-	var child schemaNode
+	var child jsonshape.Node
 	if err := json.Unmarshal(raw, &child); err != nil {
 		t.Fatalf("the %q member's %q property has an unreadable value shape: %v", memberID, path, err)
 	}

@@ -837,6 +837,36 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The ACP surface gets a contract and a door.** The daemon's ACP server
+  (`kernel/acp`) — the **stdio** JSON-RPC surface an IDE drives — read its
+  `params` into whatever struct the handler happened to use, so a mistyped
+  body was answered by Go's `encoding/json` and the answer named a **private Go
+  type** of an implementation detail (*"invalid params: json: cannot unmarshal
+  number into Go struct field newSessionParams.cwd of type string"*), and a
+  **null** was accepted: it became the field's zero value. The surface has
+  **one home** now (`kernel/contract/acpserverapi`): every method names the
+  wire method, the **operation** the refusal carries and the JSON Schema of
+  the params it takes — and the door measures an arriving params object
+  against it with the **same validator the registry uses**:
+  `operation session_new input: $.cwd has wrong type: got number, want string`,
+  `operation session_prompt input: $.prompt[0].text has wrong type: got null,
+  want string`. The surface keeps its own **voice** — a JSON-RPC error with the
+  `invalid params` code — and the door checks **types, not presence**, so a
+  missing field is still the handler's business. The three methods that read
+  no params (`initialize` and the two cancellation notifications) are named in
+  the contract as methods that take none. The contract and the server are
+  held together **at boot**: the server asks the contract whether they still
+  agree on the params' shape, and a contract that mistyped a field, dropped
+  one or named one the server does not read **stops the daemon**. The shape
+  vocabulary itself is now **shared** (`kernel/contract/jsonshape`) with the
+  channel webhook family's contract, so the two cannot drift. Measured:
+  methods the contract names **0 → 5**; methods it names a shape for **0 →
+  2**; request fields measured before the handler reads them **0 → 5**;
+  probes refused with the registry's sentence **0 → 16**; answers naming a
+  private Go type **11 → 0**; nulls refused **0 → 5**; methods behind a door
+  **0 → 2**; methods holding the contract to themselves at boot **0 → 2**.
+  Fourteen new guards hold the line, and ten reverted mutations prove them.
+
 - **The channel webhook family gets a contract and a door.** The **15**
   plugins under `plugins/channels` that serve an inbound webhook each open
   their **own** HTTP server for one route, and each read the body into
