@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"encoding/base64"
-	"encoding/json"
 	"net/http"
 	"net/url"
 )
@@ -70,31 +69,41 @@ func (c *Channel) seenBefore(id string) bool {
 
 // ---- wire shapes ---------------------------------------------------------
 
+// imessageWebhook is the BlueBubbles bridge's "new-message" webhook: the
+// event's type and the data it carries.
+//
+// The shape is NAMED, not anonymous: the contract
+// (kernel/contract/channelhookapi) holds the same shape as a JSON Schema, and
+// the plugin compares the two when it is built — so a contract that mistyped a
+// field stops the daemon instead of quietly disagreeing with the member that
+// reads it.
+type imessageWebhook struct {
+	Type string `json:"type"`
+	Data struct {
+		GUID     string `json:"guid"`
+		Text     string `json:"text"`
+		IsFromMe bool   `json:"isFromMe"`
+		Handle   struct {
+			Address string `json:"address"`
+		} `json:"handle"`
+		Chats []struct {
+			GUID string `json:"guid"`
+		} `json:"chats"`
+		Attachments []struct {
+			GUID         string `json:"guid"`
+			MimeType     string `json:"mimeType"`
+			TransferName string `json:"transferName"`
+		} `json:"attachments"`
+	} `json:"data"`
+}
+
 // parseWebhook reads a BlueBubbles "new-message" webhook:
 // {type, data:{guid, text, isFromMe, handle:{address}, chats:[{guid}]}}.
-func parseWebhook(body []byte) (inbound, bool) {
-	var w struct {
-		Type string `json:"type"`
-		Data struct {
-			GUID     string `json:"guid"`
-			Text     string `json:"text"`
-			IsFromMe bool   `json:"isFromMe"`
-			Handle   struct {
-				Address string `json:"address"`
-			} `json:"handle"`
-			Chats []struct {
-				GUID string `json:"guid"`
-			} `json:"chats"`
-			Attachments []struct {
-				GUID         string `json:"guid"`
-				MimeType     string `json:"mimeType"`
-				TransferName string `json:"transferName"`
-			} `json:"attachments"`
-		} `json:"data"`
-	}
-	if err := json.Unmarshal(body, &w); err != nil {
-		return inbound{}, false
-	}
+//
+// The body arrives already DECODED and already MEASURED — the door
+// (handleInbound) holds it to the contract's schema before it gets here — so
+// this function only reads the fields it needs.
+func parseWebhook(w imessageWebhook) (inbound, bool) {
 	if w.Type != "" && w.Type != "new-message" {
 		return inbound{}, false
 	}

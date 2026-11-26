@@ -382,19 +382,15 @@ func TestSeenBeforeRingEviction(t *testing.T) {
 
 func TestParseWebhookDrops(t *testing.T) {
 	// Wrong type dropped.
-	if _, ok := parseWebhook([]byte(`{"type":"typing-indicator","data":{"text":"x"}}`)); ok {
+	if _, ok := parseWebhook(decodeIMessage(t, `{"type":"typing-indicator","data":{"text":"x"}}`)); ok {
 		t.Fatal("non new-message should be dropped")
 	}
 	// isFromMe dropped.
-	if _, ok := parseWebhook([]byte(`{"type":"new-message","data":{"text":"x","isFromMe":true}}`)); ok {
+	if _, ok := parseWebhook(decodeIMessage(t, `{"type":"new-message","data":{"text":"x","isFromMe":true}}`)); ok {
 		t.Fatal("own message should be dropped")
 	}
-	// invalid JSON.
-	if _, ok := parseWebhook([]byte("not json")); ok {
-		t.Fatal("invalid JSON should be dropped")
-	}
 	// attachments with empty guids are skipped.
-	m, ok := parseWebhook([]byte(`{"type":"new-message","data":{"text":"hi","handle":{"address":"s"},"attachments":[{"guid":""},{"guid":"A","mimeType":"image/png"}]}}`))
+	m, ok := parseWebhook(decodeIMessage(t, `{"type":"new-message","data":{"text":"hi","handle":{"address":"s"},"attachments":[{"guid":""},{"guid":"A","mimeType":"image/png"}]}}`))
 	if !ok || len(m.attachments) != 1 || m.attachments[0].guid != "A" {
 		t.Fatalf("attachment filtering = %+v ok=%v", m, ok)
 	}

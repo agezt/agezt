@@ -14,18 +14,31 @@ import (
 	"github.com/agezt/agezt/kernel/channel"
 )
 
+// decodeIMessage reads a webhook body into the member's own named shape.
+//
+// The door measures a body before the plugin reads it, so a test that wants
+// the parsed message decodes the body the same way the door does.
+func decodeIMessage(t *testing.T, raw string) imessageWebhook {
+	t.Helper()
+	var w imessageWebhook
+	if err := json.Unmarshal([]byte(raw), &w); err != nil {
+		t.Fatalf("decode body %s: %v", raw, err)
+	}
+	return w
+}
+
 func TestParseWebhook(t *testing.T) {
-	body := []byte(`{"type":"new-message","data":{"guid":"M1","text":"hi there","isFromMe":false,"handle":{"address":"+15551234567"},"chats":[{"guid":"iMessage;-;+15551234567"}]}}`)
-	m, ok := parseWebhook(body)
+	w := decodeIMessage(t, `{"type":"new-message","data":{"guid":"M1","text":"hi there","isFromMe":false,"handle":{"address":"+15551234567"},"chats":[{"guid":"iMessage;-;+15551234567"}]}}`)
+	m, ok := parseWebhook(w)
 	if !ok || m.text != "hi there" || m.sender != "+15551234567" || m.chatGUID != "iMessage;-;+15551234567" || m.id != "M1" {
 		t.Fatalf("parseWebhook = %+v ok=%v", m, ok)
 	}
 	// our own echoes (isFromMe) are ignored.
-	if _, ok := parseWebhook([]byte(`{"type":"new-message","data":{"text":"x","isFromMe":true}}`)); ok {
+	if _, ok := parseWebhook(decodeIMessage(t, `{"type":"new-message","data":{"text":"x","isFromMe":true}}`)); ok {
 		t.Fatal("isFromMe should be ignored")
 	}
 	// non-message events are ignored.
-	if _, ok := parseWebhook([]byte(`{"type":"typing-indicator","data":{}}`)); ok {
+	if _, ok := parseWebhook(decodeIMessage(t, `{"type":"typing-indicator","data":{}}`)); ok {
 		t.Fatal("non new-message event should be ignored")
 	}
 }

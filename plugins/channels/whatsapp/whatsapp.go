@@ -7,15 +7,17 @@ package whatsapp
 import (
 	"context"
 	"crypto/subtle"
-	"encoding/json"
 	"io"
 	"net/http"
+	"reflect"
 	"strings"
 	"time"
 
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/channel"
+	"github.com/agezt/agezt/kernel/contract/channelhookapi"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/httpserver"
 	"github.com/agezt/agezt/kernel/platform/netout"
 	"github.com/agezt/agezt/kernel/ulid"
 )
@@ -81,6 +83,12 @@ type Channel struct {
 
 // New constructs a WhatsApp Channel from cfg.
 func New(cfg Config) *Channel {
+	// The contract and this member must agree on the body's shape: a contract
+	// that mistyped a field stops the daemon HERE, instead of the door
+	// measuring arriving bodies against a shape the member cannot hold.
+	if err := channelhookapi.CheckShape(channelhookapi.MemberWhatsApp, reflect.TypeOf(waWebhook{})); err != nil {
+		panic("channels/whatsapp: the contract and the plugin disagree: " + err.Error())
+	}
 	path := cfg.Path
 	if path == "" {
 		path = DefaultPath
@@ -167,8 +175,14 @@ func (c *Channel) handleInbound(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var wh waWebhook
-	if err := json.Unmarshal(body, &wh); err != nil {
-		http.Error(w, "bad json", http.StatusBadRequest)
+	// The body's shape is named in the contract (kernel/contract/channelhookapi)
+	// and measured here, before the plugin reads it: a mistyped field is
+	// refused with the operation registry's words, in the plugin's own plain
+	// text. The signature is checked FIRST — a body is only read by someone
+	// who proved they may send it.
+	shape, _ := channelhookapi.Body(channelhookapi.MemberWhatsApp)
+	if err := httpserver.CheckJSONBody(body, shape, channelhookapi.MemberWhatsApp, &wh); err != nil {
+		httpserver.RefuseJSONBody(w, err, "bad json")
 		return
 	}
 	// Acknowledge promptly (Meta retries on non-2xx / slow), then process each

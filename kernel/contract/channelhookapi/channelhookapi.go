@@ -33,6 +33,15 @@
 // A member's body is the VENDOR's shape (Slack's event envelope, Discord's
 // interaction, …), so the contract names the fields the vendor names and may
 // not rename one. Only the generic webhook member's body is Agezt's own.
+//
+// One type word is the family's own: **"any"**. It names a field the daemon
+// reads as RAW JSON — a field whose value may be any JSON value, and which
+// the daemon therefore cannot measure. Discord's slash-command option value
+// is one: Discord sends a string for a text option and a number for a number
+// one, and the plugin reads the value only when the option's TYPE says which.
+// The door does not measure such a field, and the shape guard holds the two
+// together: "any" is the only word a raw field may carry, and only a raw field
+// may carry it.
 package channelhookapi
 
 import "encoding/json"
@@ -52,6 +61,18 @@ const (
 	// MemberWebhook is the generic, vendor-neutral webhook member: any HTTP
 	// caller may post Agezt's own inbound shape to it.
 	MemberWebhook = "webhook"
+	// MemberSlack is Slack's Events API envelope.
+	MemberSlack = "slack"
+	// MemberDiscord is Discord's interaction envelope.
+	MemberDiscord = "discord"
+	// MemberWhatsApp is Meta's WhatsApp Cloud API webhook payload.
+	MemberWhatsApp = "whatsapp"
+	// MemberLine is LINE's webhook payload.
+	MemberLine = "line"
+	// MemberIMessage is the BlueBubbles bridge's "new-message" webhook.
+	MemberIMessage = "imessage"
+	// MemberZalo is a Zalo OA event.
+	MemberZalo = "zalo"
 )
 
 // webhookBody is the generic member's inbound body.
@@ -71,6 +92,12 @@ const webhookBody = `{"type":"object","additionalProperties":true,"properties":{
 func Members() []Member {
 	return []Member{
 		{ID: MemberWebhook, Body: json.RawMessage(webhookBody)},
+		{ID: MemberSlack, Body: json.RawMessage(slackBody)},
+		{ID: MemberDiscord, Body: json.RawMessage(discordBody)},
+		{ID: MemberWhatsApp, Body: json.RawMessage(whatsappBody)},
+		{ID: MemberLine, Body: json.RawMessage(lineBody)},
+		{ID: MemberIMessage, Body: json.RawMessage(imessageBody)},
+		{ID: MemberZalo, Body: json.RawMessage(zaloBody)},
 	}
 }
 

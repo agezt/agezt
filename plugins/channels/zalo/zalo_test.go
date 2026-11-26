@@ -17,14 +17,27 @@ import (
 	"github.com/agezt/agezt/kernel/channel"
 )
 
+// decodeZalo reads an event body into the member's own named shape.
+//
+// The door measures a body before the plugin reads it, so a test that wants
+// the parsed event decodes the body the same way the door does.
+func decodeZalo(t *testing.T, raw string) zaloWebhook {
+	t.Helper()
+	var e zaloWebhook
+	if err := json.Unmarshal([]byte(raw), &e); err != nil {
+		t.Fatalf("decode body %s: %v", raw, err)
+	}
+	return e
+}
+
 func TestParseEvent(t *testing.T) {
-	body := []byte(`{"event_name":"user_send_text","sender":{"id":"U1"},"message":{"msg_id":"M1","text":"hi"},"timestamp":"1700"}`)
-	m, ts, ok := parseEvent(body)
+	e := decodeZalo(t, `{"event_name":"user_send_text","sender":{"id":"U1"},"message":{"msg_id":"M1","text":"hi"},"timestamp":"1700"}`)
+	m, ts, ok := parseEvent(e)
 	if !ok || m.sender != "U1" || m.text != "hi" || m.id != "M1" || ts != "1700" {
 		t.Fatalf("parseEvent = %+v ts=%q ok=%v", m, ts, ok)
 	}
 	// non-text events dropped.
-	if _, _, ok := parseEvent([]byte(`{"event_name":"follow","sender":{"id":"U"}}`)); ok {
+	if _, _, ok := parseEvent(decodeZalo(t, `{"event_name":"follow","sender":{"id":"U"}}`)); ok {
 		t.Fatal("follow should be dropped")
 	}
 }

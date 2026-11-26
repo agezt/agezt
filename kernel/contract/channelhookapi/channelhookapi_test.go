@@ -11,6 +11,7 @@ package channelhookapi
 // must be CAUGHT, or the guard would agree with a wrong schema and pass.
 
 import (
+	"bytes"
 	"encoding/json"
 	"reflect"
 	"testing"
@@ -163,5 +164,93 @@ func checkSchemaNode(t *testing.T, memberID, path string, node schemaNode) {
 	}
 	if node.Items != nil {
 		checkSchemaNode(t, memberID, path+"[]", *node.Items)
+	}
+	// A node may say what the VALUES of a map-shaped field look like, and then
+	// that shape is held to the same rules. It may not FORBID an undeclared
+	// field: a body is the stable subset of what the daemon reads.
+	raw := bytes.TrimSpace(node.AdditionalProperties)
+	if len(raw) == 0 {
+		return
+	}
+	if raw[0] == 'f' {
+		t.Fatalf("the %q member's %q property refuses an undeclared field — a body is the stable subset of what the daemon reads",
+			memberID, path)
+	}
+	if raw[0] != '{' {
+		return
+	}
+	var child schemaNode
+	if err := json.Unmarshal(raw, &child); err != nil {
+		t.Fatalf("the %q member's %q property has an unreadable value shape: %v", memberID, path, err)
+	}
+	checkSchemaNode(t, memberID, path+"{}", child)
+}
+
+// TestTheShapeGuardHoldsARawField: "any" is the contract's word for a field
+// the daemon reads as raw JSON, and the guard holds it to that — in both
+// directions.
+//
+// A raw field Discord sends as a string for one option and as a number for
+// another cannot be measured, so the door does not measure it. But the word
+// must not become a loophole: a schema that types a raw field ("string") is
+// caught, and a schema that says "any" for a field the daemon reads as a
+// plain string is caught too.
+func TestTheShapeGuardHoldsARawField(t *testing.T) {
+	type rawBody struct {
+		Text  string          `json:"text"`
+		Value json.RawMessage `json:"value"`
+	}
+	// The schema that agrees: the raw field is "any".
+	agreed := json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{` +
+		`"text":{"type":"string"},"value":{"type":"any"}}}`)
+	if err := checkShapeAgainst(agreed, reflect.TypeOf(rawBody{})); err != nil {
+		t.Errorf("the guard rejected a schema that agrees with the daemon: %v", err)
+	}
+	// A schema that types the raw field: the daemon cannot promise a shape.
+	mistyped := json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{` +
+		`"text":{"type":"string"},"value":{"type":"string"}}}`)
+	if err := checkShapeAgainst(mistyped, reflect.TypeOf(rawBody{})); err == nil {
+		t.Error("the guard accepted a schema that typed a raw field")
+	}
+	// A schema that calls a plain string "any": a hole in the door.
+	loose := json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{` +
+		`"text":{"type":"any"},"value":{"type":"any"}}}`)
+	if err := checkShapeAgainst(loose, reflect.TypeOf(rawBody{})); err == nil {
+		t.Error("the guard accepted a schema that called a plain string any")
+	}
+}
+
+// TestTheShapeGuardHoldsAMapShape: a map-shaped field holds values the daemon
+// reads one by one, so the schema must say what a value looks like — and the
+// guard must hold it to that.
+//
+// Discord's resolved attachments are a map: the schema names the shape of one
+// attachment, and the guard checks it against the attachment type the daemon
+// reads.
+func TestTheShapeGuardHoldsAMapShape(t *testing.T) {
+	type attachment struct {
+		URL string `json:"url"`
+	}
+	type mapBody struct {
+		Attachments map[string]attachment `json:"attachments"`
+	}
+	agreed := json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{` +
+		`"attachments":{"type":"object","additionalProperties":{"type":"object","additionalProperties":true,` +
+		`"properties":{"url":{"type":"string"}}}}}}`)
+	if err := checkShapeAgainst(agreed, reflect.TypeOf(mapBody{})); err != nil {
+		t.Errorf("the guard rejected a schema that agrees with the daemon: %v", err)
+	}
+	// A schema that names no shape for the values: every value unmeasured.
+	loose := json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{` +
+		`"attachments":{"type":"object","additionalProperties":true}}}`)
+	if err := checkShapeAgainst(loose, reflect.TypeOf(mapBody{})); err == nil {
+		t.Error("the guard accepted a schema that named no shape for a map's values")
+	}
+	// A schema that mistypes a value's field.
+	mistyped := json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{` +
+		`"attachments":{"type":"object","additionalProperties":{"type":"object","additionalProperties":true,` +
+		`"properties":{"url":{"type":"number"}}}}}}`)
+	if err := checkShapeAgainst(mistyped, reflect.TypeOf(mapBody{})); err == nil {
+		t.Error("the guard accepted a schema that mistyped a map value's field")
 	}
 }
