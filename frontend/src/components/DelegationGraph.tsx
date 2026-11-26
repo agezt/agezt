@@ -14,7 +14,7 @@ import { clip } from "@/app/utils";
 import { money } from "@/app/format";
 import { buildDelegationTree, type RunNode } from "@/lib/delegation";
 
-type DelegationData = {
+export type DelegationData = {
   title: string;
   status: string;
   model: string;

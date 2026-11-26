@@ -420,6 +420,10 @@ export type AgentRepairStatus = {
   cooldown_sec?: AgentRepairStatusResponse["cooldown_sec"];
   next_eligible_ms?: AgentRepairStatusResponse["next_eligible_ms"];
   inflight_count?: AgentRepairStatusResponse["inflight_count"];
+  // The browser reads the daemon's rows LENIENTLY — every field may be
+  // absent — so the browser's own types stay, and the pin that holds them to
+  // the daemon's rows is the assertion in app/api/payloadtypes.ratchet.test.ts
+  // (a renamed daemon row is a compile error there).
   history?: AgentRepairEvent[] | null;
   inflight?: AgentRepairEvent[] | null;
   latest?: AgentRepairEvent;

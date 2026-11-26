@@ -17,7 +17,7 @@ import { toneForStatus, toneText } from "@/lib/tone";
 
 // ───────────────────────── Inspector types ─────────────────────────
 
-interface LLMCall {
+export interface LLMCall {
   id: string;
   tsMs: number;
   model?: string;

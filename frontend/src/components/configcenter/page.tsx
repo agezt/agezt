@@ -63,7 +63,7 @@ import type {
 // (presence only, never the value); externally-pinned fields are read-only because
 // the real process environment wins. Each save reports live (provider/model) vs restart.
 
-type Section = {
+export type Section = {
   id: ConfigSchemaResponseSectionsItem["id"];
   name: ConfigSchemaResponseSectionsItem["name"];
   help?: ConfigSchemaResponseSectionsItem["help"];

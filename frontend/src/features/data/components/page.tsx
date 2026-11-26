@@ -73,7 +73,7 @@ type FieldDef = {
   label?: DataCollectionsResponseCollectionsItemFieldsItem["label"];
 };
 
-type Collection = {
+export type Collection = {
   name: DataCollectionsResponseCollectionsItem["name"];
   title?: DataCollectionsResponseCollectionsItem["title"];
   icon?: DataCollectionsResponseCollectionsItem["icon"];

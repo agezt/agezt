@@ -2,15 +2,22 @@ import { Waypoints } from "lucide-react";
 import { cn } from "@/app/utils";
 import { type AgentProfile } from "@/features/agents/components/Roster";
 import { AgentConfigPermissionRow, AgentPermissionRow, AgentWakeAccess, ToolCatalogRow } from "@/features/agents/components/agentdetail/shared";
+import type { AgentCapabilitiesResponsePermissionsItem } from "@/app/api/types.generated";
 
+// The browser's view of ONE effective tool permission.
+//
+// Every field the DAEMON sends is spelled as an access into the generated
+// catalog (`AgentCapabilitiesResponsePermissionsItem["name"]`), so a field the
+// daemon renames is a COMPILE error here, the way it already is in the daemon.
+// `label` is the browser's own — the daemon does not send a label.
 export interface EffectiveToolPermission {
-  name: string;
-  description: string;
-  capability: string;
-  allowed: boolean;
-  ask: boolean;
+  name: AgentCapabilitiesResponsePermissionsItem["name"];
+  description: AgentCapabilitiesResponsePermissionsItem["description"];
+  capability: AgentCapabilitiesResponsePermissionsItem["capability"];
+  allowed: AgentCapabilitiesResponsePermissionsItem["allowed"];
+  ask: AgentCapabilitiesResponsePermissionsItem["ask"];
   label: string;
-  reason: string;
+  reason: AgentCapabilitiesResponsePermissionsItem["reason"];
 }
 
 interface WorkflowToolAccessSummary {

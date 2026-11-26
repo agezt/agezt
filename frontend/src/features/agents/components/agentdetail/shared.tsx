@@ -19,6 +19,7 @@ import type {
   ApprovalsLogResponseApprovalsItem ,
   BoardReadResponseMessagesItem ,
   EdictLogResponseDecisionsItem ,
+  EdictStatsResponse ,
   RoutingGetResponse ,
   ToolListResponseToolsItem ,
   ToolLogResponseInvocationsItem,
@@ -53,12 +54,17 @@ export type ApprovalDecision = {
   status?: ApprovalsLogResponseApprovalsItem["status"];
   resolved_by?: ApprovalsLogResponseApprovalsItem["resolved_by"];};
 export interface PolicyStats {
-  denial_rate?: number;
-  denied?: number;
-  hard_denied?: number;
+  // The daemon's own counters, spelled as accesses into the generated
+  // catalog — so a renamed counter is a compile error in the browser, the way
+  // it already is in the daemon.
+  denial_rate?: EdictStatsResponse["denial_rate"];
+  denied?: EdictStatsResponse["denied"];
+  hard_denied?: EdictStatsResponse["hard_denied"];
+  // allow_rate is the browser's own: the daemon counts denials, and the
+  // browser derives the allowance rate from the same row.
   allow_rate?: number;
-  allowed?: number;
-  total?: number;
+  allowed?: EdictStatsResponse["allowed"];
+  total?: EdictStatsResponse["total"];
 }
 export type ToolCatalogRow = {
   name: ToolListResponseToolsItem["name"];
