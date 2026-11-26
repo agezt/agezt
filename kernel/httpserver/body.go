@@ -97,6 +97,56 @@ func DecodeJSONBody(r *http.Request, shape json.RawMessage, op string, target an
 	return nil
 }
 
+// CheckJSONBody measures a JSON body against a schema and decodes it.
+//
+// It is the sibling of DecodeJSONBody for a surface that must SEE the raw
+// bytes before the body is parsed — a channel webhook verifies a signature
+// over the bytes first, and only then may the body be read.
+//
+// Two things make it different from DecodeJSONBody, and both are the surface's
+// own behaviour rather than the door's:
+//
+//   - the whole body must be ONE JSON value. A body with trailing bytes after
+//     a valid object is refused here, the way it always was on a surface that
+//     decoded it strictly (json.Unmarshal);
+//   - the body is measured BEFORE it is decoded, so a mistyped field is
+//     refused with the registry's words and never with the decoder's.
+//
+// A body that does not fit the schema answers a *SchemaRefusal (the
+// registry's words); a body that is not JSON at all answers the decoder's own
+// error.
+func CheckJSONBody(body []byte, shape json.RawMessage, op string, target any) error {
+	// The decoder's own error for a body that is not one JSON value — the
+	// surface's own words for it, not a shape refusal.
+	var probe any
+	if err := json.Unmarshal(body, &probe); err != nil {
+		return err
+	}
+	if len(bytes.TrimSpace(shape)) > 0 {
+		if err := schema.ValidateJSON(shape, body); err != nil {
+			return &SchemaRefusal{Op: op, Err: err}
+		}
+	}
+	return json.Unmarshal(body, target)
+}
+
+// RefuseJSONBody writes a request body's refusal in the caller's voice.
+//
+// A body that does not fit the shape answers the registry's words — the
+// operation's sentence, as plain text — and a body that is not JSON at all
+// answers notJSON, the caller's own words for it ("bad json").
+//
+// The status is the caller's too: this writes 400, the status a body refusal
+// has everywhere.
+func RefuseJSONBody(w http.ResponseWriter, err error, notJSON string) {
+	var refusal *SchemaRefusal
+	if errors.As(err, &refusal) {
+		http.Error(w, refusal.Error(), http.StatusBadRequest)
+		return
+	}
+	http.Error(w, notJSON, http.StatusBadRequest)
+}
+
 // firstJSONValue returns the bytes of the first JSON value in body — the value
 // a decoder reads from it, and so the value the door must check.
 //

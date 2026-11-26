@@ -1,5 +1,115 @@
 # NEXT — handoff for the next coding agent
 
+## Current checkpoint — W5.16 the channel webhook family gets a contract and a door, 2026-11-26
+
+The W0–W5 objective remains open. W5.8–W5.10 gave the **browser**, the
+**registry** and the **SDKs** their request vocabulary; W5.11–W5.15 gave the
+**`/api/v1` surface**, the **console**, the **agent gateway** and the
+**OpenAI-compatible surface** the registry's **door** — and this slice gives
+the **channel webhook family** its contract, its door and the check that
+holds the two together.
+
+### What was on the tree
+
+- **The family had no contract and no door.** The **15** plugins under
+  `plugins/channels` that serve an inbound webhook each open their **own**
+  `http.ServeMux` for one route, and each reads the body into whatever struct
+  it happened to use — **9 of the 13** JSON bodies into an **anonymous**
+  struct. What happened to a mistyped body was the plugin's own plain text
+  (*"bad json"*), never the registry's words, and a **null** was mostly
+  **accepted**: on the family's generic member, **4 of the 6** nulls were
+  **delivered** with a 200.
+- **The family has one home now** (`kernel/contract/channelhookapi`): every
+  member's body is a JSON Schema, and the door measures an arriving body
+  against it with the **same validator the registry uses**:
+  `operation webhook input: $.text has wrong type: got number, want string` —
+  in the member's own plain text.
+- **The door is the transport's shared core** (`kernel/httpserver`): the
+  family's door reads the **raw bytes** (a webhook verifies a signature over
+  them first), measures the body **before** it decodes it, and stays **strict**
+  — the whole body must be one JSON value, the way it always was.
+- **The contract and the member are held together at boot.** The member asks
+  the contract whether they still agree on the body's shape — the **names and
+  the types** — and a contract that mistyped a field, dropped one, or named
+  one the daemon does not read **stops the daemon**.
+- **One member of the fifteen is wired** — the **generic** one, whose body is
+  Agezt's own shape and whose plugin the other twelve follow.
+- **Nine guards**: the member table is well-formed; every body schema is a
+  schema the door can check (at every level); the lookup answers the table;
+  **the shape guard catches a schema that is wrong on purpose**; the contract
+  and the plugin name the same fields with the same types; every field the
+  contract names is measured; a mistyped field — and a null — is refused with
+  the registry's words; a body that fits gets through and an undeclared field
+  stays allowed; and the member's own refusals are still the member's.
+
+### What the measurement said
+
+- Members the contract names a body for: **0 → 1**.
+- Members behind a door: **0 → 1**.
+- Request fields checked before the plugin reads them: **0 → 6**.
+- Probes refused with the registry's sentence (6 wrong + 6 null): **0 → 12**.
+- Nulls refused instead of silently zero: **2 → 6**.
+- Nulls **accepted** with a 200: **4 → 0**.
+- Members whose contract and daemon are held together at boot: **0 → 1**.
+- Members of the family with a contract row: **0 of 15 → 1 of 15**.
+
+### The evidence
+
+`architecture/336-w516-the-channel-webhook-family-gets-a-contract-and-a-door-evidence.md`
+— the measurement on `origin/main` (`ff5ee100`, with the same probe that
+measured the "after" side), the contract, the door, the boot-time ratchet, the
+nine guards, the six mutations (M2, M3 and M4 are caught by the **production**
+check, not by a test-only one) and the gates.
+
+### What the next slice should do
+
+The family's **machinery** is in place: the contract, the door, the shared
+guard helpers and the boot-time ratchet. What is left is the family's
+**twelve vendor members**, each a vendor's own shape, each with its own
+signature scheme and its own voice. They are **measured** now (on the tree at
+`origin/main`, `ff5ee100`):
+
+| member | the body it reads | JSON fields | notes |
+|---|---|---|---|
+| `slack` | `slackEnvelope` (named) | 3 | the event envelope; HMAC over the timestamp + body |
+| `discord` | `discordInteraction` (named) | 7 | Ed25519 signature; the interaction's `data` |
+| `whatsapp` | `waWebhook` (named) | 16 | Meta's webhook payload |
+| `chatwebhook` | **anonymous** | 10 | a generic chat delivery, not a vendor's |
+| `dingtalk` | **anonymous** | 7 | |
+| `feishu` | **anonymous** ×2 | 16 | the URL-verification handshake and the event |
+| `imessage` | **anonymous** | 13 | the bridge's own shape |
+| `line` | **anonymous** | 10 | |
+| `nextcloudtalk` | **anonymous** | 8 | |
+| `onebot` | **anonymous** | 7 | |
+| `whatsappgw` | **anonymous** ×2 | 16 | two parse sites |
+| `zalo` | **anonymous** | 7 | |
+
+The ten **anonymous** body structs are the ones to **name** first: a body read
+into an anonymous struct cannot be held to a contract by name, and the boot
+check compares the contract's schema with the **type** the plugin reads — so
+the plugin needs a named type to compare.
+
+Two members take **no JSON body** and are not part of the door:
+
+- **`wecom`** reads an **XML** callback (`xml.Unmarshal`), and
+- **`sms`** reads a **form** (`ParseForm` over the captured bytes).
+
+They are named in the contract as members that take no JSON body, so the
+family's roster is one table and the door only ever measures JSON.
+
+One surface is **outside** the programme as it stands, and is named here so the
+decision is deliberate rather than forgotten: the **ACP surface**
+(`kernel/acp`) is a **stdio** JSON-RPC server, not an HTTP one, and it answers
+a mistyped `params` with a JSON-RPC error (*"invalid params: …"*). The
+programme's sentence is about HTTP surfaces, so it needs an explicit decision
+— either it stays out, or the door's core is made transport-agnostic enough
+for a stdio line to be measured against a schema too.
+
+The programme's next sentence is therefore: **every HTTP surface's request body
+is named in a contract, and every surface answers a mistyped body in the
+registry's words** — and the family's twelve vendor members are the ones left
+to do it, with the vendor's field names kept as they are.
+
 ## Current checkpoint — W5.15 the OpenAI-compatible surface gets a contract and a door, 2026-11-25
 
 The W0–W5 objective remains open. W5.8–W5.10 gave the **browser**, the

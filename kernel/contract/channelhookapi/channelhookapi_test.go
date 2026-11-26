@@ -1,0 +1,167 @@
+// SPDX-License-Identifier: MIT
+
+package channelhookapi
+
+// The contract's own guards.
+//
+// The family's door measures an arriving body against the schema this package
+// names, so a schema that is malformed or says nothing about a field would
+// either refuse everything or accept anything. The tests below hold the table
+// to that — and the shape guard to itself: a schema that mistyped a field
+// must be CAUGHT, or the guard would agree with a wrong schema and pass.
+
+import (
+	"encoding/json"
+	"reflect"
+	"testing"
+)
+
+// TestTheMemberTableIsWellFormed: every member has an id and a body, and no
+// two claim the same id.
+func TestTheMemberTableIsWellFormed(t *testing.T) {
+	ids := map[string]bool{}
+	members := Members()
+	if len(members) == 0 {
+		t.Fatal("the table names no member — the family's door has nothing to guard")
+	}
+	for _, m := range members {
+		if m.ID == "" {
+			t.Fatalf("a member has no id: %+v", m)
+		}
+		if ids[m.ID] {
+			t.Fatalf("duplicate member id %q", m.ID)
+		}
+		ids[m.ID] = true
+		if len(m.Body) == 0 {
+			t.Errorf("the %q member has no body", m.ID)
+		}
+	}
+}
+
+// TestEveryBodySchemaIsASchemaTheDoorCanCheck holds the shape the door
+// measures a body against.
+//
+// Three rules, and each one is a rule the door has:
+//   - the schema parses: a schema that does not is refused by the validator
+//     and every body with it would be refused too;
+//   - the schema carries no `required` list — the door checks TYPES, and
+//     presence is the plugin's business;
+//   - an undeclared field stays allowed — a body is the stable SUBSET of what
+//     the daemon reads.
+//
+// And every property declares a type, at every level: a property without one
+// would accept anything, which is the hole the door exists to close.
+func TestEveryBodySchemaIsASchemaTheDoorCanCheck(t *testing.T) {
+	bodies := 0
+	for _, m := range Members() {
+		if len(m.Body) == 0 {
+			continue
+		}
+		bodies++
+		var doc schemaNode
+		if err := json.Unmarshal(m.Body, &doc); err != nil {
+			t.Fatalf("the %q member's schema is not readable JSON: %v", m.ID, err)
+		}
+		if doc.Type != "object" {
+			t.Fatalf("the %q member's schema is the %q schema, want object", m.ID, doc.Type)
+		}
+		var raw struct {
+			Required             []string `json:"required"`
+			AdditionalProperties any      `json:"additionalProperties"`
+		}
+		if err := json.Unmarshal(m.Body, &raw); err != nil {
+			t.Fatalf("the %q member's schema is not readable JSON: %v", m.ID, err)
+		}
+		if len(raw.Required) != 0 {
+			t.Fatalf("the %q member's schema carries the required list %v — the door checks types, not presence",
+				m.ID, raw.Required)
+		}
+		if raw.AdditionalProperties != true {
+			t.Fatalf("the %q member's schema does not allow an undeclared field — a body is the stable subset of what the daemon reads",
+				m.ID)
+		}
+		if len(doc.Properties) == 0 {
+			t.Fatalf("the %q member's schema names no field", m.ID)
+		}
+		checkSchemaNode(t, m.ID, "$", doc)
+	}
+	if bodies == 0 {
+		t.Fatal("no member names a body — the family's door has nothing to guard")
+	}
+}
+
+// TestTheLookupAnswersTheTable: the lookup the door uses answers the schema
+// the table states, and answers none for a member the contract does not know.
+func TestTheLookupAnswersTheTable(t *testing.T) {
+	for _, m := range Members() {
+		got, ok := Body(m.ID)
+		if len(m.Body) == 0 {
+			if ok {
+				t.Errorf("the %q member takes no body, but the lookup answers a schema", m.ID)
+			}
+			continue
+		}
+		if !ok {
+			t.Errorf("the %q member names a body, but the lookup answers none", m.ID)
+			continue
+		}
+		if string(got) != string(m.Body) {
+			t.Errorf("the %q member's schema is %s, the lookup answers %s", m.ID, m.Body, got)
+		}
+	}
+	if _, ok := Body("no_such_member"); ok {
+		t.Error("the lookup answers a schema for a member the contract does not know")
+	}
+}
+
+// TestTheShapeGuardCatchesAWrongSchema: the guard holds a schema to the
+// daemon's own type, so a schema that mistyped a field — or dropped one — is
+// CAUGHT. Without this, the guard would agree with a wrong schema and pass.
+func TestTheShapeGuardCatchesAWrongSchema(t *testing.T) {
+	type daemonBody struct {
+		Text string `json:"text"`
+		TSMS int64  `json:"ts_ms"`
+	}
+	// A schema that mistypes "text" as a number.
+	mistyped := json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{` +
+		`"text":{"type":"number"},"ts_ms":{"type":"number"}}}`)
+	if err := checkShapeAgainst(mistyped, reflect.TypeOf(daemonBody{})); err == nil {
+		t.Error("the guard accepted a schema that mistypes a field")
+	}
+	// A schema that drops a field the daemon reads.
+	dropped := json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{` +
+		`"text":{"type":"string"}}}`)
+	if err := checkShapeAgainst(dropped, reflect.TypeOf(daemonBody{})); err == nil {
+		t.Error("the guard accepted a schema that drops a field the daemon reads")
+	}
+	// A schema that names a field the daemon does not read.
+	extra := json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{` +
+		`"text":{"type":"string"},"ts_ms":{"type":"number"},"nope":{"type":"string"}}}`)
+	if err := checkShapeAgainst(extra, reflect.TypeOf(daemonBody{})); err == nil {
+		t.Error("the guard accepted a schema that names a field the daemon does not read")
+	}
+	// The schema that agrees: it passes.
+	agreed := json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{` +
+		`"text":{"type":"string"},"ts_ms":{"type":"number"}}}`)
+	if err := checkShapeAgainst(agreed, reflect.TypeOf(daemonBody{})); err != nil {
+		t.Errorf("the guard rejected a schema that agrees with the daemon: %v", err)
+	}
+}
+
+// checkSchemaNode holds ONE node of a body schema to the door's rules: it
+// declares a type, it asks for no presence, and it allows an undeclared field.
+func checkSchemaNode(t *testing.T, memberID, path string, node schemaNode) {
+	t.Helper()
+	if len(schemaWords(node.Type)) == 0 {
+		t.Fatalf("the %q member's %q property declares no type — the door would accept anything for it",
+			memberID, path)
+	}
+	if len(node.Properties) > 0 {
+		for name, child := range node.Properties {
+			checkSchemaNode(t, memberID, path+"."+name, child)
+		}
+	}
+	if node.Items != nil {
+		checkSchemaNode(t, memberID, path+"[]", *node.Items)
+	}
+}
