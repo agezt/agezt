@@ -6,22 +6,40 @@
 // back. The view lists checkpoints, lets the operator filter by run / kind,
 // and shows a confirm dialog before applying one. Apply calls
 // /api/rollback/apply and reloads the list on success.
+//
+// The row this view reads is the DAEMON's row, and the view names none of its
+// fields: the console's rollback answer is declared in the contract
+// (kernel/contract/rollbackapi), the browser's catalogue is generated from
+// that declaration, and this file takes the row the catalogue renders. A
+// hand-written copy of the row would be a second contract — and this one had
+// drifted so far that six of its nine members were fields the daemon never
+// sends, which left the Restore button permanently disabled.
 import { useEffect, useMemo, useState } from "react";
 import { Archive, ArrowDownToLine, Filter, RotateCcw, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getJSON, postJSON } from "@/app/api";
 import { useUI } from "@/components/ui/feedback";
 import { cn, fmtAgo, fmtTime } from "@/app/utils/utils";
+import type { RollbackCheckpointsResponse } from "@/app/api/types.generated";
 
-interface Checkpoint {
-  id: string;
-  created_at?: number;
-  run_id?: string;
-  kind?: string;
-  description?: string;
-  affected_paths?: string[];
-  size_bytes?: number;
-  reversible?: boolean;
+// The daemon's checkpoint row, as the generated catalogue renders it.
+type Checkpoint = RollbackCheckpointsResponse["checkpoints"][number];
+
+/** The file a checkpoint restores, when the checkpoint is a file snapshot. */
+function restoredPath(cp: Checkpoint): string | null {
+  const before = cp.before as { abs_path?: unknown } | undefined;
+  const path = before?.abs_path;
+  return typeof path === "string" && path !== "" ? path : null;
+}
+
+/** The name of what the checkpoint rolls back. */
+function subjectLabel(cp: Checkpoint): string {
+  return cp.subject_name || cp.subject_id || cp.action || "—";
+}
+
+/** A checkpoint is already applied when the daemon says so — and it refuses it then. */
+function alreadyApplied(cp: Checkpoint): boolean {
+  return typeof cp.applied_ms === "number" && cp.applied_ms > 0;
 }
 
 export function Backups() {
@@ -149,9 +167,8 @@ export function Backups() {
               <th className="px-3 py-2">ID</th>
               <th className="px-3 py-2">Run</th>
               <th className="px-3 py-2">Kind</th>
-              <th className="px-3 py-2">Description</th>
-              <th className="px-3 py-2">Paths</th>
-              <th className="px-3 py-2">Size</th>
+              <th className="px-3 py-2">Target</th>
+              <th className="px-3 py-2">Before</th>
               <th className="px-3 py-2 text-right">Actions</th>
             </tr>
           </thead>
@@ -173,8 +190,8 @@ export function Backups() {
               filtered.map((cp) => (
                 <tr key={cp.id} className="border-t border-border align-top hover:bg-bg/40">
                   <td className="px-3 py-2 text-xs text-muted">
-                    <div>{fmtAgo(cp.created_at)}</div>
-                    <div className="text-[10px]">{fmtTime(cp.created_at)}</div>
+                    <div>{fmtAgo(cp.created_ms)}</div>
+                    <div className="text-[10px]">{fmtTime(cp.created_ms)}</div>
                   </td>
                   <td className="px-3 py-2 font-mono text-xs text-fg/80" title={cp.id}>
                     {cp.id.slice(0, 12)}
@@ -185,35 +202,31 @@ export function Backups() {
                       {cp.kind || "—"}
                     </span>
                   </td>
-                  <td className="px-3 py-2 text-xs text-fg/90">{cp.description || "—"}</td>
-                  <td className="px-3 py-2 text-xs text-fg/80">
-                    {cp.affected_paths && cp.affected_paths.length > 0 ? (
-                      <ul className="space-y-0.5">
-                        {cp.affected_paths.slice(0, 3).map((p, i) => (
-                          <li key={i} className="truncate" title={p}>
-                            {p}
-                          </li>
-                        ))}
-                        {cp.affected_paths.length > 3 && (
-                          <li className="text-[10px] text-muted">
-                            +{cp.affected_paths.length - 3} more
-                          </li>
-                        )}
-                      </ul>
-                    ) : (
-                      "—"
+                  <td className="px-3 py-2 text-xs text-fg/90">
+                    <div>{subjectLabel(cp)}</div>
+                    {restoredPath(cp) && (
+                      <div className="text-[10px] text-muted">{restoredPath(cp)}</div>
                     )}
                   </td>
                   <td className="px-3 py-2 text-xs text-fg/80">
-                    {typeof cp.size_bytes === "number"
-                      ? `${(cp.size_bytes / 1024).toFixed(1)} kB`
-                      : "—"}
+                    {alreadyApplied(cp) ? (
+                      <span className="text-[10px] uppercase tracking-wide text-muted">
+                        restored
+                      </span>
+                    ) : (
+                      (cp.before_status || "—")
+                    )}
                   </td>
                   <td className="px-3 py-2 text-right">
                     <Button
                       variant="ghost"
                       onClick={() => setPending(cp)}
-                      disabled={!cp.reversible}
+                      disabled={alreadyApplied(cp)}
+                      title={
+                        alreadyApplied(cp)
+                          ? "This checkpoint has already been restored."
+                          : undefined
+                      }
                     >
                       <ArrowDownToLine className="size-3.5" />
                       Restore
@@ -261,21 +274,22 @@ function Confirm({
           <h3 className="text-base font-semibold text-fg">Restore checkpoint?</h3>
         </div>
         <p className="mt-2 text-sm text-muted">
-          Files affected by{" "}
-          <code className="rounded bg-bg px-1 py-0.5 text-xs">{cp.id}</code> will be reverted
-          to their state at{" "}
-          <span className="font-medium text-fg">{fmtTime(cp.created_at)}</span>. This action
-          can't be undone from this screen.
+          {restoredPath(cp) ? (
+            <>
+              The file{" "}
+              <code className="rounded bg-bg px-1 py-0.5 text-xs">{restoredPath(cp)}</code> will be
+              restored to its state at{" "}
+              <span className="font-medium text-fg">{fmtTime(cp.created_ms)}</span>.
+            </>
+          ) : (
+            <>
+              <code className="rounded bg-bg px-1 py-0.5 text-xs">{cp.id}</code> will be restored to
+              its state at{" "}
+              <span className="font-medium text-fg">{fmtTime(cp.created_ms)}</span>.
+            </>
+          )}{" "}
+          This action can't be undone from this screen.
         </p>
-        {cp.affected_paths && cp.affected_paths.length > 0 && (
-          <ul className="mt-3 max-h-32 overflow-auto rounded-md border border-border bg-bg/40 p-2 text-xs text-fg/80">
-            {cp.affected_paths.map((p, i) => (
-              <li key={i} className="truncate">
-                {p}
-              </li>
-            ))}
-          </ul>
-        )}
         <div className="mt-4 flex items-center justify-end gap-2">
           <Button variant="ghost" onClick={onCancel} disabled={busy}>
             Cancel

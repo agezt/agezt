@@ -4,29 +4,32 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { Backups } from "./Backups";
 import { UIProvider } from "@/components/ui/feedback";
 
+// The daemon's rollback row — the shape the console's rollback answer serves.
+// The view reads THIS row, not a hand-written copy of it.
 const sample = {
   checkpoints: [
     {
       id: "rb-abc123",
-      created_at: Date.now() - 60_000,
+      kind: "config.setting",
+      action: "config.set",
       run_id: "run-1",
-      kind: "config",
-      description: "before settings write",
-      affected_paths: ["/etc/agentzt/config.yaml", "/etc/agentzt/skills/"],
-      size_bytes: 4096,
-      reversible: true,
+      subject_id: "settings",
+      subject_name: "agentzt/config.yaml",
+      before_status: "paused",
+      created_ms: Date.now() - 60_000,
     },
     {
       id: "rb-def456",
-      created_at: Date.now() - 120_000,
+      kind: "skill.status",
+      action: "skill.set",
       run_id: "run-2",
-      kind: "skill",
-      description: "before skill import",
-      affected_paths: ["/etc/agentzt/skills/new.md"],
-      size_bytes: 1024,
-      reversible: true,
+      subject_id: "skill-1",
+      subject_name: "ops",
+      created_ms: Date.now() - 120_000,
+      applied_ms: Date.now() - 60_000,
     },
   ],
+  count: 2,
 };
 
 vi.mock("@/app/api", () => ({
@@ -49,7 +52,9 @@ describe("Backups (Admin)", () => {
       expect(screen.getByText("rb-abc123")).toBeTruthy();
       expect(screen.getByText("rb-def456")).toBeTruthy();
     });
-    expect(screen.getByText("before settings write")).toBeTruthy();
+    // The daemon's own fields: the target's name, not a description the
+    // daemon never sends.
+    expect(screen.getByText("agentzt/config.yaml")).toBeTruthy();
     expect(screen.getAllByRole("button", { name: /Restore/i }).length).toBeGreaterThan(0);
   });
 
@@ -62,5 +67,18 @@ describe("Backups (Admin)", () => {
     await waitFor(() => {
       expect(screen.getByText(/Restore checkpoint\?/i)).toBeTruthy();
     });
+  });
+
+  it("leaves an already-restored checkpoint unrestorable — the daemon refuses it", async () => {
+    wrap(<Backups />);
+    await waitFor(() => {
+      expect(screen.getByText("rb-def456")).toBeTruthy();
+    });
+    // The second checkpoint carries applied_ms: the daemon has already
+    // restored it and answers "already applied" if asked again.
+    const buttons = screen.getAllByRole("button", { name: /Restore/i }) as HTMLButtonElement[];
+    expect(buttons.length).toBe(2);
+    expect(buttons[0].disabled).toBe(false);
+    expect(buttons[1].disabled).toBe(true);
   });
 });

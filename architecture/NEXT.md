@@ -1,5 +1,78 @@
 # NEXT — handoff for the next coding agent
 
+## Current checkpoint — W5.29 the browser's catalogue carries the console's rows, 2026-11-26
+
+The W0–W5 objective remains open. W5.8–W5.15 gave the **browser**, the
+**registry** and the **SDKs** their request vocabulary; W5.11–W5.19 gave
+**every surface** that reads a request body its contract, its door and the
+boot-time check that holds the two together; W5.20 put a **gate** behind that
+sentence so it cannot decay; W5.21 closed W5.1's open end on the browser's
+**response** side; W5.22–W5.28 gave the daemon's own rows one home, one family
+at a time. **This slice puts the console's rows into the browser's
+catalogue** — and the browser's rollback view, which had drifted into fiction,
+becomes the daemon's row and works again.
+
+### What was on the tree
+
+- **The catalogue could not see the console's rows.** `tools/openapi` rendered
+  the operation registry's schemas, and the console's own answers are not
+  operation bindings — so `ResponseOf<"/api/rollback/checkpoints">` resolved to
+  `any` and the browser wrote its own view by hand.
+- **The view had drifted into fiction.** Six of its nine members were fields
+  the daemon never sends, and `reversible` decided whether the operator could
+  act: the **Restore button was permanently disabled**, the timestamps rendered
+  as "—" and the daemon's working rollback apply endpoint could not be reached
+  from the browser. A **second** copy of the same row — in
+  `components/RunDetail.tsx`, spelled correctly — was pinned to the *artifact*
+  row, because the rollback row was not in the catalogue to be pinned to.
+- **The struct became a schema**: `tools/openapi/structschema.go` renders a
+  row's schema from its struct, keeping the contract's rules (required vs
+  optional, and a **pointer** saying *may be null*).
+- **The catalogue carries the rows**, and a **native response map** binds the
+  paths to them, so `ResponseOf` names the console's answers instead of `any`.
+- **The browser's views are the daemon's rows now** — `Backups.tsx` and
+  `RunDetail.tsx` alias the catalogue's row and name no field of their own; the
+  stale pin and the stale ledger entry are deleted.
+- **The Restore button follows the daemon's rule**: a checkpoint with
+  `applied_ms` has already been restored and the daemon refuses it, so the
+  button is disabled for exactly those.
+
+### What the measurement said
+
+- Console rows in the browser's catalogue: **0 → 8**; native paths bound to a
+  row: **0 → 8**.
+- Browser views that copy the daemon's rollback row by hand: **2 → 0**.
+- Browser members the daemon does not send (the rollback view): **6 → 0**.
+- The Restore button: **permanently disabled → enabled unless the daemon says
+  it is applied**.
+
+### The evidence
+
+`architecture/349-w529-the-catalogue-carries-the-consols-rows-evidence.md` —
+the struct→schema step, the catalogue's native map, the browser's two views,
+the three ratchets, the measurement, the five reverted mutations, and what
+remains open.
+
+### What the next slice should do
+
+**The browser's remaining console-native views, and the published document.**
+The catalogue can now name the console's answers, so the rest of the browser's
+hand-written views of them can become aliases:
+
+- **The browser's other console-native views are still hand-written**: the auth
+  meta (`Login.tsx` reads `password_required` and `authed` by hand), the voice
+  status, the SSE token. Their rows are in the catalogue now — one family at a
+  time, the way the daemon's rows were.
+- **`docs/openapi.json` does not carry the console's answers.** The document
+  describes the operation-bound surface, and the console's own endpoints are
+  not operation bindings — that is stated in the document's own description,
+  but a caller outside the browser still has no published shape for
+  `/api/authmeta` or `/api/rollback/checkpoints`. Deciding whether the
+  document grows the native paths (and with which schemas) is a real choice.
+- **The `/hooks/` path is a prefix**, not a path the browser calls: the hook's
+  row is rendered, but the browser never fetches it.
+- **The console's error envelopes are still maps** — a shape, not a row.
+
 ## Current checkpoint — W5.28 the native route names its row, 2026-11-26
 
 The W0–W5 objective remains open. W5.8–W5.15 gave the **browser**, the

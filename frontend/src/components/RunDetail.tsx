@@ -19,6 +19,7 @@ import {
   Download,
 } from "lucide-react";
 import { getJSON, postAction, postJSON, type WritePath, type NativeWritePath } from "@/app/api";
+import type { RollbackCheckpointsResponseCheckpointsItem } from "@/app/api/types.generated";
 import { Badge, statusVariant } from "@/components/ui/badge";
 import { KeyValue, Muted, ErrorText } from "@/components/JsonView";
 import { ToolOutput } from "@/components/DataView";
@@ -44,18 +45,11 @@ export interface RunPhaseStep {
   detail?: string;
 }
 
-export interface RollbackCheckpoint {
-  id: string;
-  kind: string;
-  action?: string;
-  run_id?: string;
-  subject_id?: string;
-  subject_name?: string;
-  before_status?: string;
-  before?: Record<string, unknown>;
-  created_ms?: number;
-  applied_ms?: number;
-}
+// The daemon's rollback checkpoint row. The console's rollback answer is
+// declared in the contract (kernel/contract/rollbackapi) and the browser's
+// catalogue is generated from that declaration — so this view takes the
+// daemon's members instead of naming them by hand.
+export type RollbackCheckpoint = RollbackCheckpointsResponseCheckpointsItem;
 
 export interface RemoteArtifact {
   peer: string;

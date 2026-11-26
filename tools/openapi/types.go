@@ -221,9 +221,10 @@ var identifierPattern = regexp.MustCompile(`^[A-Za-z_$][A-Za-z0-9_$]*$`)
 // renderTypes renders the browser's payload types from the route catalogue
 // and the API document.
 //
-// routes is the console's route table; document is the derived OpenAPI
-// document, which carries each operation's schemas.
-func renderTypes(routes []opapi.HTTPRoute, document *opapi.OpenAPIDocument) (string, error) {
+// routes is the console's route table; native is the console's own endpoints;
+// document is the derived OpenAPI document, which carries each operation's
+// schemas.
+func renderTypes(routes []opapi.HTTPRoute, native []opapi.NativeRoute, document *opapi.OpenAPIDocument) (string, error) {
 	renderer := &tsRenderer{
 		decls:     map[string]string{},
 		aliases:   map[string]string{},
@@ -237,6 +238,7 @@ func renderTypes(routes []opapi.HTTPRoute, document *opapi.OpenAPIDocument) (str
 		request   string
 	}
 	mappings := make([]mapping, 0, len(routes))
+	nativeMappings := make([]mapping, 0, len(native))
 	seen := map[string]bool{}
 
 	ordered := append([]opapi.HTTPRoute(nil), routes...)
@@ -283,6 +285,30 @@ func renderTypes(routes []opapi.HTTPRoute, document *opapi.OpenAPIDocument) (str
 		mappings = append(mappings, entry)
 	}
 
+	// The console's OWN endpoints. They are not operation bindings, so the
+	// registry says nothing about their answers — but the native route names
+	// the ROW it answers with, and the row is a Go struct. The browser's type
+	// is derived from the struct, so the field names live in the contract and
+	// nowhere else.
+	for _, route := range native {
+		if route.Answer == nil {
+			continue
+		}
+		schema, err := schemaOf(route.Answer)
+		if err != nil {
+			return "", fmt.Errorf("the native route %q: %w", route.Name, err)
+		}
+		name := pascalName(string(route.Name)) + "Response"
+		responseType, err := renderer.renderType(name, schema)
+		if err != nil {
+			return "", err
+		}
+		nativeMappings = append(nativeMappings, mapping{
+			path:     route.Path,
+			response: renderer.ownName(responseType, name),
+		})
+	}
+
 	var out strings.Builder
 	out.WriteString(typesHeader)
 
@@ -325,13 +351,27 @@ func renderTypes(routes []opapi.HTTPRoute, document *opapi.OpenAPIDocument) (str
 	}
 	out.WriteString("}\n")
 
+	out.WriteString("\n/**\n * NativeResponseMap binds a console-native path to the shape the console\n")
+	out.WriteString(" * answers it with. The shape is DERIVED from the row the route names in\n")
+	out.WriteString(" * the contract, so the browser cannot spell a field the console does not\n")
+	out.WriteString(" * serve. A native path that names no row has no shape the browser can\n")
+	out.WriteString(" * name.\n */\n")
+	out.WriteString("export interface NativeResponseMap {\n")
+	for _, entry := range nativeMappings {
+		out.WriteString("  " + quote(entry.path) + ": " + entry.response + ";\n")
+	}
+	out.WriteString("}\n")
+
 	out.WriteString(`
 /**
  * ResponseOf is the shape the console answers a path with. A path that binds
- * no operation has no shape the browser can name, so it resolves to any.
+ * no operation has no shape the browser can name, so it resolves to any —
+ * unless it is a console-native path, whose row the contract names.
  */
 export type ResponseOf<P extends string> = P extends keyof OperationResponseMap
   ? OperationResponseMap[P]
+  : P extends keyof NativeResponseMap
+  ? NativeResponseMap[P]
   : any;
 
 /**
