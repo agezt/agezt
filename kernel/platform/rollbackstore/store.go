@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"github.com/agezt/agezt/internal/atomicfile"
 	"github.com/agezt/agezt/internal/paths"
+	"github.com/agezt/agezt/kernel/contract/rollbackapi"
 	"os"
 	"path/filepath"
 	"strings"
@@ -30,19 +31,12 @@ type Catalog struct {
 	Checkpoints []Checkpoint `json:"checkpoints"`
 }
 
-type Checkpoint struct {
-	ID           string         `json:"id"`
-	Kind         string         `json:"kind"`
-	Action       string         `json:"action"`
-	RunID        string         `json:"run_id,omitempty"`
-	SubjectID    string         `json:"subject_id"`
-	SubjectName  string         `json:"subject_name,omitempty"`
-	BeforeStatus string         `json:"before_status,omitempty"`
-	Reason       string         `json:"reason,omitempty"`
-	Before       map[string]any `json:"before,omitempty"`
-	CreatedMS    int64          `json:"created_ms"`
-	AppliedMS    int64          `json:"applied_ms,omitempty"`
-}
+// Checkpoint is one moment the daemon can return to.
+//
+// It is the CONTRACT's row (kernel/contract/rollbackapi): the console serves
+// it and the platform's store writes it, so it is declared once — here — and
+// this name is an alias of it. The two can never drift apart.
+type Checkpoint = rollbackapi.Checkpoint
 
 func RestoreFile(cp Checkpoint) (map[string]any, error) {
 	before := cp.Before

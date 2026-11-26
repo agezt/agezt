@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/rollbackapi"
+
 	"github.com/agezt/agezt/kernel/app/files"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/controlplane"
@@ -60,11 +62,11 @@ func (s *Server) handleRollbackCheckpoints(w http.ResponseWriter, r *http.Reques
 	sort.SliceStable(checkpoints, func(i, j int) bool {
 		return checkpoints[i].CreatedMS > checkpoints[j].CreatedMS
 	})
-	out := map[string]any{"checkpoints": checkpoints, "count": len(checkpoints)}
-	if runID != "" {
-		out["run_id"] = runID
-	}
-	writeJSON(w, http.StatusOK, out)
+	writeJSON(w, http.StatusOK, rollbackapi.List{
+		Checkpoints: checkpoints,
+		Count:       len(checkpoints),
+		RunID:       runID,
+	})
 }
 
 func (s *Server) handleRollbackApply(w http.ResponseWriter, r *http.Request) {
@@ -102,7 +104,11 @@ func (s *Server) handleRollbackApply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if cp.AppliedMS > 0 {
-		writeJSON(w, http.StatusOK, map[string]any{"checkpoint": *cp, "applied": false, "reason": "already applied"})
+		writeJSON(w, http.StatusOK, rollbackapi.Applied{
+			Applied:    false,
+			Checkpoint: *cp,
+			Reason:     "already applied",
+		})
 		return
 	}
 	if cp.Kind == rollbackCheckpointKindFile {
@@ -139,5 +145,9 @@ func (s *Server) handleRollbackApply(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "mark applied: " + err.Error()})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"checkpoint": cat.Checkpoints[idx], "applied": true, "result": res})
+	writeJSON(w, http.StatusOK, rollbackapi.Applied{
+		Applied:    true,
+		Checkpoint: cat.Checkpoints[idx],
+		Result:     res,
+	})
 }
