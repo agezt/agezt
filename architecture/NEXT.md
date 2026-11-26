@@ -1,5 +1,86 @@
 # NEXT — handoff for the next coding agent
 
+## Current checkpoint — W5.26 the console's rollback answers have one home, 2026-11-26
+
+The W0–W5 objective remains open. W5.8–W5.15 gave the **browser**, the
+**registry** and the **SDKs** their request vocabulary; W5.11–W5.19 gave
+**every surface** that reads a request body its contract, its door and the
+boot-time check that holds the two together; W5.20 put a **gate** behind that
+sentence so it cannot decay; W5.21 closed W5.1's open end on the browser's
+**response** side; W5.22–W5.25 gave the daemon's own rows one home, one family
+at a time. **This slice turns to the console**: its rollback answers stop
+being hand-written maps and become the contract's rows.
+
+### What was on the tree
+
+- **The console's rollback answers were written by hand** — one
+  `map[string]any` per answer: the list, and the two apply answers. **3**
+  views, **8** field-name spellings (**6** distinct names), in an
+  *implementation* package.
+- **The checkpoint itself lived in the wrong place**: in the platform's store
+  (`kernel/platform/rollbackstore`), even though the **console** is what
+  serves it on the wire. The store is the writer, the console is the speaker —
+  and a row two packages name must be declared once.
+- **A new pure contract** (`kernel/contract/rollbackapi`) holds `Checkpoint`,
+  `List` and `Applied`, declared in the order the wire speaks them, so the
+  served bytes did not move. The contract imports nothing but the standard
+  library (archcheck's P4).
+- **The platform aliases, it does not copy**: `type Checkpoint =
+  rollbackapi.Checkpoint`. The guard against a copy is a **function type**,
+  because an assignment would accept one — a copy compiles everywhere else
+  and only the identity guard refuses it.
+- **The console has its own guard now** (`kernel/webui/served_rows_test.go`):
+  a map literal that spells a contract-owned row's field names fails, and a
+  **declared exception** that no longer matches fails too — a stale exception
+  is a lie about the code. It watches **3** rows.
+- **The bytes are pinned**: three tests hold the list answer and the two apply
+  answers exactly, so a future member order cannot drift silently.
+
+### What the measurement said
+
+- Hand-written views of a contract row in the console: **3 → 0** — and the one
+  that remains is the **declared exception** (the skill restore's operation
+  **arguments**, forwarded to the daemon's `skill_restore`, not an answer).
+- Hand-spelled field names in the console's answers (this slice): **8 → 0**.
+- Contract-owned rows the console's guard watches: **0 → 3**.
+- The served bytes: **unchanged**; the SDK catalogs and the generated OpenAPI
+  catalog: **byte-identical**.
+
+### The evidence
+
+`architecture/346-w526-the-consols-rollback-answers-have-one-home-evidence.md`
+— where the rows live, why the platform aliases instead of copying, the two
+guards, the measurement, the five reverted mutations, and what remains open.
+
+### What the next slice should do
+
+**The console's remaining answers, and the browser's ledger entry with them.**
+The programme named this end in W5.21, and the rollback family was only its
+first step:
+
+- **The console's other answers still have no home**: the auth meta
+  (`authed`, `password_required`), the voice status (`configured`, `stt`), the
+  workflow hook (`correlation_id`, `executed`, `ok`, `outputs`, `workflow`),
+  the file tree (`parents`, `path`) and the OAuth pair (`code`, `state`). They
+  are hand-written today, and the guard does not watch them because the
+  contract does not own them yet — the same shape of work as this slice, one
+  family at a time.
+- **The console's native routes declare a request body but no answer.**
+  `opapi.NativeRoute` carries `Body json.RawMessage` and nothing for the
+  response, so the generated browser catalogue has **no** type for those
+  answers — which is exactly why the browser's `Checkpoint` view sits in
+  W5.21's ledger.
+- **The design that closes it**: the console's answer rows become **structs in
+  the console's contract** (`kernel/contract/opapi`), the native route names
+  the row it answers with, the console serves that struct, and `tools/openapi`
+  renders the struct into the browser's catalogue — so the browser's view
+  becomes a **pin** instead of a ledger entry. One home: the struct's field
+  names are written once, and the catalogue is derived from it (the same way
+  `tools/sdkgen` derives the SDKs' rows).
+- **The contract's vocabulary cannot say "a row inside a row"**, so the
+  console's nested answers are checked by the type system alone; a nested-row
+  type would close that.
+
 ## Current checkpoint — W5.25 the REST surface's own rows have one home, 2026-11-26
 
 The W0–W5 objective remains open. W5.8–W5.15 gave the **browser**, the

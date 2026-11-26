@@ -837,6 +837,32 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The console's rollback answers have one home: the console spells no
+  rollback row by hand.** W5.22 gave the board's **message row** one home and
+  W5.25 the REST surface's **own** rows — the console's **rollback answers**
+  were still written by hand, one `map[string]any` per answer: **3**
+  hand-written views and **8** field-name spellings (**6** distinct names),
+  in an *implementation* package, for a row the **platform** owned. The
+  checkpoint — with its eleven fields — lived in the platform's store, and the
+  store is the wrong place for it: the **console** serves that row on the
+  wire, the store merely writes it, and a row two packages name must be
+  declared once. The rows now live in a new pure contract
+  (`kernel/contract/rollbackapi`): `Checkpoint`, `List` and `Applied`,
+  declared in the order the wire speaks them, so the served bytes did not
+  move — and three tests now **pin** them. The platform's own type is an
+  **alias** (`type Checkpoint = rollbackapi.Checkpoint`), so the store writes
+  the contract's row by construction and a copy cannot grow there; the guard
+  against a copy is written as a **function type**, because an assignment
+  would accept one. The console's own guard now watches the surface: a map
+  literal that spells a contract-owned row's field names fails, and a
+  **declared exception** that no longer matches fails too — there is exactly
+  one (the skill restore's operation **arguments**, which are forwarded to the
+  daemon and are not an answer). Measured: hand-written views of a contract
+  row in the console **3 → 0** (that one is the declared exception);
+  hand-spelled names **8 → 0**; contract-owned rows the console's guard
+  watches **0 → 3**. **Five** reverted mutations prove it. The SDK catalogs
+  and the generated OpenAPI catalog are byte-identical.
+
 - **The REST surface's own rows have one home: the surface spells no row by
   hand.** W5.22 gave the board's **message row** one home, W5.23 the envelopes
   around it, W5.24 the artifact and update answers — the REST surface's **own**

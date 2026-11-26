@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-236 package(s):
+237 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/agentgw`** — Package agentgw provides a secure gateway for AI agent subprocess code to communicate with the AGEZT kernel.
@@ -118,6 +118,7 @@
 - **`kernel/contract/reasoningapi`** — Package reasoningapi is the contract the reasoning module and the agent-facing tools that drive it agree on.
 - **`kernel/contract/remoteapi`** — Package remoteapi is the contract between two AGEZT daemons: the shape of the rows one daemon serves to a peer and the other reads back.
 - **`kernel/contract/restapiapi`** — Package restapiapi is the single home of the daemon's native REST surface.
+- **`kernel/contract/rollbackapi`** — Package rollbackapi is the contract the rollback engine and everyone who asks "what can I roll back?" agree on.
 - **`kernel/contract/seatapi`** — Package seatapi is the execution-seat catalog's contract: the row a seat is, and the port the host reads and edits it through.
 - **`kernel/contract/skillapi`** — Package skillapi is the contract layer's home for the skill rows: the lifecycle state of a reusable procedure, the record itself, the input that authors one, the rules that govern the lifecycle, and the ports through which the agent-facing tool reads them.
 - **`kernel/contract/standingapi`** — Package standingapi is the contract the standing-order model and the surfaces that read it agree on.
