@@ -16,6 +16,24 @@ func toStr(v any) string {
 	return s
 }
 
+// optString reads a decoded JSON value as an OPTIONAL string: a string becomes
+// itself, anything else becomes absent. The contract's rows say "absent" with
+// a pointer, so the console forwards the daemon's own answer without inventing
+// an empty string where the daemon said nothing.
+func optString(v any) *string {
+	s, ok := v.(string)
+	if !ok {
+		return nil
+	}
+	return &s
+}
+
+// boolPointer reads a decoded JSON value as an OPTIONAL boolean: a boolean
+// becomes itself, anything else becomes absent.
+func boolPointer(v bool) *bool {
+	return &v
+}
+
 // stringList coerces a decoded JSON array of strings (body value) to []string.
 func stringList(raw any) []string {
 	list, ok := raw.([]any)

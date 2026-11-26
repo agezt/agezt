@@ -837,6 +837,40 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The console's own answers have one home: the console spells no answer by
+  hand.** W5.26 gave the console's **rollback answers** one home — the console's
+  **other** answers were still written by hand, one `map[string]any` per answer:
+  the auth meta, the login, the logout, the SSE token, the voice status, the
+  workflow hook's two answers and the stream's frames. **14** hand-written views
+  of a contract-owned row and **34** field-name spellings, in an
+  *implementation* package, for rows **nobody had declared** — and the browser
+  reads all of it (`Login.tsx` reads `password_required` and `authed` by hand).
+  The stream frames were the worst of them: **one** frame shape spelled
+  **three** times, once per proxy (the run stream, the toolbox install stream,
+  the marketplace stream), and the run stream's frame carried a **fourth**
+  field the others did not. The rows now live in a new pure contract
+  (`kernel/contract/consoleapi`) — the console's own contract, for the same
+  reason the REST surface's rows live in `restapiapi`: a surface's own rows
+  have no other home. `AuthMeta`, `Login`, `Logout`, `SSEToken`, `VoiceStatus`
+  (+ `VoiceHalf`), `WorkflowReply`, `WorkflowAccepted` and the stream's frames
+  (`StreamOpen`, `StreamEvent`, `RunStreamEvent`, `StreamError`,
+  `StreamResult`) are declared in the order the wire speaks them, so the served
+  bytes did not move — and **five tests now pin** them, because a struct's
+  member order **is** the member order of the JSON. Two rows say *absent* with
+  a **pointer** (the login's `password_required`, the workflow's
+  `correlation_id` and `workflow`), so the console forwards the daemon's own
+  absence instead of inventing an empty string. The console's guard now
+  watches **16** contract-owned rows, and the **pinned bytes** are a guard of
+  their own: a row that reorders its members moves the wire, and nothing else
+  would have noticed. Measured: hand-written views of a contract-owned row in
+  the console **14 → 1** (that one is the declared exception — the skill
+  restore's operation **arguments**); hand-spelled names **34 → 2**; map
+  literals with two or more keys **23 → 9**, and all nine are operation
+  arguments. **Five** reverted mutations prove it — three answers going back to
+  hand-written maps, a field the contract drops, and a row that changes its
+  member order. The SDK catalogs and the generated OpenAPI catalog are
+  byte-identical.
+
 - **The console's rollback answers have one home: the console spells no
   rollback row by hand.** W5.22 gave the board's **message row** one home and
   W5.25 the REST surface's **own** rows — the console's **rollback answers**

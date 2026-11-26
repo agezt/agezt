@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/consoleapi"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
@@ -107,7 +108,7 @@ func (s *Server) handleSSEToken(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"token": s.sseToken})
+	writeJSON(w, http.StatusOK, consoleapi.SSEToken{Token: s.sseToken})
 }
 
 // handleAuthMeta tells the SPA whether a password gate exists and whether this
@@ -115,9 +116,9 @@ func (s *Server) handleSSEToken(w http.ResponseWriter, r *http.Request) {
 // screen. Token-FREE (M933): a token-less browser must be able to probe before
 // logging in. Leaks only the existence of a password gate, never data.
 func (s *Server) handleAuthMeta(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{
-		"password_required": s.consolePassword() != "",
-		"authed":            s.authorized(r),
+	writeJSON(w, http.StatusOK, consoleapi.AuthMeta{
+		Authed:           s.authorized(r),
+		PasswordRequired: s.consolePassword() != "",
 	})
 }
 
@@ -132,7 +133,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	password := s.consolePassword()
 	if password == "" {
 		// No gate configured — nothing to authenticate against.
-		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "password_required": false})
+		writeJSON(w, http.StatusOK, consoleapi.Login{OK: true, PasswordRequired: boolPointer(false)})
 		return
 	}
 	client := streamClientKey(r)
@@ -168,7 +169,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		Secure:   cookieSecure(r),
 		MaxAge:   int(sessionTTL.Seconds()),
 	})
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+	writeJSON(w, http.StatusOK, consoleapi.Login{OK: true})
 }
 
 // cookieSecure decides whether the session cookie carries the Secure attribute.
@@ -221,5 +222,5 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 		Secure:   cookieSecure(r),
 		MaxAge:   -1,
 	})
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+	writeJSON(w, http.StatusOK, consoleapi.Logout{OK: true})
 }
