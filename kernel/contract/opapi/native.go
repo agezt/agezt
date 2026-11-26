@@ -6,6 +6,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+
+	"github.com/agezt/agezt/kernel/contract/consoleapi"
+	"github.com/agezt/agezt/kernel/contract/rollbackapi"
 )
 
 // The console's own endpoints.
@@ -86,6 +89,17 @@ const (
 // list (the registry's door checks TYPES; presence is the handler's business)
 // and it allows a field it does not name (a schema is the stable subset of a
 // body).
+//
+// Answer is the ROW this endpoint answers with — the zero value of the
+// contract's row — and nil when the endpoint answers with no row at all (a
+// stream of frames, an audio body, an HTML shell).
+//
+// It is the answer's counterpart to Body, and it closes the same gap: the
+// request side of a native endpoint says which shape it takes, and the
+// answer side said nothing. The console serves that row (the rows live in
+// `kernel/contract/consoleapi` and `kernel/contract/rollbackapi`), so the
+// browser can finally be told what the endpoint answers — and a second
+// spelling of the row cannot grow next to it.
 type NativeRoute struct {
 	Name     NativeRouteName
 	Path     string
@@ -93,6 +107,7 @@ type NativeRoute struct {
 	Public   bool
 	Mutation bool
 	Body     json.RawMessage
+	Answer   any
 }
 
 // ConsoleNativeBodySchema returns the request-body schema of one console-native
@@ -148,10 +163,13 @@ var consoleNativeRoutes = []NativeRoute{
 	// Auth surface (M817/M933): probe + login/logout are token-FREE — they are
 	// how a token-less browser gets in. authmeta leaks only "is there a
 	// password gate" (no data); login is bounded by the failed-attempt lockout.
-	{Name: NativeAuthMeta, Path: "/api/authmeta", Method: "GET", Public: true},
+	{Name: NativeAuthMeta, Path: "/api/authmeta", Method: "GET", Public: true,
+		Answer: consoleapi.AuthMeta{}},
 	{Name: NativeLogin, Path: "/api/login", Method: "POST", Public: true, Mutation: true,
-		Body: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"password":{"type":"string"}}}`)},
-	{Name: NativeLogout, Path: "/api/logout", Method: "POST", Public: true, Mutation: true},
+		Body:   json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"password":{"type":"string"}}}`),
+		Answer: consoleapi.Login{}},
+	{Name: NativeLogout, Path: "/api/logout", Method: "POST", Public: true, Mutation: true,
+		Answer: consoleapi.Logout{}},
 	// The hashed bundle and favicon are PUBLIC: the browser loads them as
 	// subresources of index.html and cannot attach the ?token= (only fetch /
 	// EventSource, which the SPA controls, can). They carry no secrets (compiled
@@ -160,16 +178,20 @@ var consoleNativeRoutes = []NativeRoute{
 	{Name: NativeAssets, Path: "/assets/", Method: "GET", Public: true},
 	{Name: NativeFavicon, Path: "/favicon.ico", Method: "GET", Public: true},
 	{Name: NativeEvents, Path: "/events", Method: "GET"},
-	{Name: NativeRollbackList, Path: "/api/rollback/checkpoints", Method: "GET"},
+	{Name: NativeRollbackList, Path: "/api/rollback/checkpoints", Method: "GET",
+		Answer: rollbackapi.List{}},
 	{Name: NativeRollbackApply, Path: "/api/rollback/apply", Method: "POST", Mutation: true,
-		Body: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"id":{"type":"string"}}}`)},
+		Body:   json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"id":{"type":"string"}}}`),
+		Answer: rollbackapi.Applied{}},
 	// SSE token endpoint (VULN query-string-token fix): returns the ephemeral
 	// SSE-only token the SPA embeds in the EventSource URL (?st=...) instead of
 	// reusing the main console token. Requires valid WebUI data authorization.
-	{Name: NativeSSEToken, Path: "/api/sse-token", Method: "GET,OPTIONS"},
+	{Name: NativeSSEToken, Path: "/api/sse-token", Method: "GET,OPTIONS",
+		Answer: consoleapi.SSEToken{}},
 	// Provider-free speech readiness probe. Unlike the STT/TTS action routes,
 	// this never uploads dummy audio or synthesizes throwaway speech.
-	{Name: NativeVoiceStatus, Path: "/api/voice/status", Method: "GET"},
+	{Name: NativeVoiceStatus, Path: "/api/voice/status", Method: "GET",
+		Answer: consoleapi.VoiceStatus{}},
 	{Name: NativeTranscribe, Path: "/api/transcribe", Method: "POST", Mutation: true},
 	// Text-to-speech for the console Voice Mode (M998): POST {"text":…} and the
 	// server streams synthesized audio from the configured TTS backend.
@@ -195,7 +217,8 @@ var consoleNativeRoutes = []NativeRoute{
 	// path. Authentication is the per-workflow secret, verified by the
 	// control plane (constant-time); all this handler can ever do is ask
 	// "fire workflow <name>" — no reads, no other writes, uniform refusals.
-	{Name: NativeWorkflowHook, Path: "/hooks/", Method: "POST", Public: true, Mutation: true},
+	{Name: NativeWorkflowHook, Path: "/hooks/", Method: "POST", Public: true, Mutation: true,
+		Answer: consoleapi.WorkflowHook{}},
 	// Channel OAuth redirect target (Phase 4). Public (no console token): the
 	// provider redirects the operator's browser here with ?code&state. Security
 	// rests on the unguessable state minted by /api/channel/oauth/start. It is

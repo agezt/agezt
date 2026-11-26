@@ -128,7 +128,7 @@ func (s *Server) handleWorkflowHook(w http.ResponseWriter, r *http.Request) {
 	// Reply mode (M812): the run finished synchronously — hand its outputs
 	// back to the caller with a 200.
 	if outputs, ok := res["outputs"]; ok {
-		writeJSON(w, http.StatusOK, consoleapi.WorkflowReply{
+		writeJSON(w, http.StatusOK, consoleapi.WorkflowHook{
 			CorrelationID: optString(res["correlation_id"]),
 			Executed:      res["executed"],
 			OK:            true,
@@ -137,7 +137,7 @@ func (s *Server) handleWorkflowHook(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	writeJSON(w, http.StatusAccepted, consoleapi.WorkflowAccepted{
+	writeJSON(w, http.StatusAccepted, consoleapi.WorkflowHook{
 		Accepted:      true,
 		CorrelationID: optString(res["correlation_id"]),
 		Workflow:      optString(res["workflow"]),

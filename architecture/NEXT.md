@@ -1,5 +1,92 @@
 # NEXT — handoff for the next coding agent
 
+## Current checkpoint — W5.28 the native route names its row, 2026-11-26
+
+The W0–W5 objective remains open. W5.8–W5.15 gave the **browser**, the
+**registry** and the **SDKs** their request vocabulary; W5.11–W5.19 gave
+**every surface** that reads a request body its contract, its door and the
+boot-time check that holds the two together; W5.20 put a **gate** behind that
+sentence so it cannot decay; W5.21 closed W5.1's open end on the browser's
+**response** side; W5.22–W5.27 gave the daemon's own rows one home, one family
+at a time. **This slice declares the console's answer side**: every native
+route says which row it answers with.
+
+### What was on the tree
+
+- **The native routes declared their request side and nothing else.** The route
+  table knew the path, the verb, whether the route is token-free and the shape
+  of the body it takes — and the browser had to **guess** the shape of the
+  answer.
+- **The guess went wrong, and the cost was a button.** The browser's rollback
+  view (`features/admin/components/Backups.tsx`) reads the daemon's row
+  through its own hand-written interface, and **six of its nine members are
+  fields the daemon never sends** — including `reversible`, which decides
+  whether the operator can act: `disabled={!cp.reversible}` meant the
+  **Restore button was permanently disabled**, the timestamps rendered as "—"
+  and the daemon's working rollback apply endpoint could not be reached from
+  the browser. Nothing failed, because nothing said the browser was reading a
+  daemon row.
+- **`opapi.NativeRoute` now carries an `Answer`** — the **row** the endpoint
+  answers with (the zero value of the contract's row, so the field names live
+  in one place), nil when the endpoint answers with no row at all. **Eight**
+  routes name their row; the other thirteen answer with the **daemon's** rows,
+  with bytes or with HTML, and those are named where they belong.
+- **The workflow hook's two answers became one row** — a route can name **one**
+  row, and the row is the thing that says what the endpoint answers — the way
+  `restapiapi.RunResult` serves six answers with one struct. The served bytes
+  did not move.
+- **A new ratchet drives every named route** and checks the answer against the
+  row in **both** directions: a member the console sends that the row does not
+  carry fails, and a member the row always carries that the console never
+  sends fails too. A route that names a row but is not checked fails; a route
+  that is checked but names none fails.
+
+### What the measurement said
+
+- Native routes that name the row they answer with: **0 → 8**.
+- Native routes whose answer is checked against that row: **0 → 8**.
+- Contract-owned rows the console's guard watches: **16 → 15** (the hook's two
+  rows became one).
+- The served bytes: **unchanged**; the SDK catalogs and the generated OpenAPI
+  catalog: **byte-identical**.
+
+### The evidence
+
+`architecture/348-w528-the-native-route-names-its-row-evidence.md` — the
+route's answer side, one row two hook answers, the ratchet in both directions,
+the measurement, the five reverted mutations, and what remains open.
+
+### What the next slice should do
+
+**The catalogue carries the rows, and the browser's rollback view becomes a pin
+— and works again.** This is the end W5.21 named, and the last two pieces of
+it are the same piece:
+
+- **The catalogue does not know the console's rows yet.** `tools/openapi`
+  renders the operation registry's schemas; the native routes' answers are not
+  in it, so `ResponseOf<"/api/rollback/checkpoints">` still resolves to `any`
+  and the browser writes its own view by hand. The renderer needs a
+  **struct → schema** step (the rows are Go structs with `json` tags — the
+  same shape `restapiapi/served.go` already uses), and the native routes'
+  named rows have to reach `OperationResponseMap` (or a native twin of it) so
+  the browser's `getJSON` on a native path returns the row's type.
+- **The browser's rollback view must be FIXED, not just typed.** Its
+  `Checkpoint` interface names six members the daemon never sends
+  (`created_at` vs `created_ms`, `description`, `affected_paths`,
+  `size_bytes`, `reversible`). Pinning it to the catalogue's row is what
+  catches that; the view then has to read the daemon's real fields
+  (`created_ms`, `subject_name`, `action`, `before_status`, `applied_ms`), and
+  the **Restore button** must be enabled by the daemon's own rule — a
+  checkpoint is already applied when `applied_ms` is set, and the daemon
+  refuses it then. That is a **behaviour** fix, and it needs the frontend's
+  own tests.
+- **The ledger entry** — "the daemon's rollback op is not in the generated
+  catalog yet" — is deleted in the same change: a view that is bound to the
+  daemon's row is a **pin**, not a ledger entry.
+- **The route table cannot name the daemon's rows**: a contract package may not
+  import an application package (archcheck's P4), so a proxied native route
+  names nothing — its row belongs to the daemon's registry.
+
 ## Current checkpoint — W5.27 the console's own answers have one home, 2026-11-26
 
 The W0–W5 objective remains open. W5.8–W5.15 gave the **browser**, the
