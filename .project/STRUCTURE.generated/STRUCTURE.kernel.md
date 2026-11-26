@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-234 package(s):
+236 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/agentgw`** — Package agentgw provides a secure gateway for AI agent subprocess code to communicate with the AGEZT kernel.
@@ -83,6 +83,7 @@
 - **`kernel/configcenter`** — Package configcenter is the typed, audited, environment-aware configuration surface of the daemon.
 - **`kernel/contextselect`** — Package contextselect provides context candidate scoring, selection, and failure analysis for agent runs.
 - **`kernel/contract/acpapi`** — Package acpapi is the contract the ACP-agent bridge and the catalogue of installed ACP agents agree on.
+- **`kernel/contract/acpserverapi`** — Package acpserverapi is the contract of the daemon's ACP server surface.
 - **`kernel/contract/agentapi`** — Package agentapi is the contract the agent roster and the tools that steer it agree on.
 - **`kernel/contract/agentgwapi`** — Package agentgwapi is the single home of the agent gateway's surface.
 - **`kernel/contract/approvalapi`** — Package approvalapi is the contract layer's home for the approval verdict: the operator's answer to a pending request.
@@ -100,6 +101,7 @@
 - **`kernel/contract/guardianapi`** — Package guardianapi is the contract the guardian seeder and the implementation that answers it agree on.
 - **`kernel/contract/introspectapi`** — Package introspectapi is the contract layer's home for the introspector's rows: the daemon's own at-a-glance health snapshot and the reaper's fleet scan, as the agent-facing tool publishes them.
 - **`kernel/contract/journalapi`** — Package journalapi is the contract layer's home for the journal's READ side: the projection of a durable event a reader gets to see, and the port through which recent events are read.
+- **`kernel/contract/jsonshape`** — Package jsonshape is the shared vocabulary of "a JSON body has a shape".
 - **`kernel/contract/llm`** — Package llm is the model-provider contract: the canonical conversation (Message, Role, ToolCall), one completion round trip (CompletionRequest, CompletionResponse, Usage, StopReason, Params), the provider interfaces (Provider, StreamingProvider, Chunk) and the structured-output path (Generator).
 - **`kernel/contract/marketapi`** — Package marketapi is the contract layer's home for the marketplace's rows: one installable pack, the skills and MCP servers it carries, the catalogue entry a marketplace lists it under, and the catalogue itself — together with the rules that govern them (what makes a pack valid, what its canonical bytes and content hash are, how versions are ordered) and the port through which a catalogue is read.
 - **`kernel/contract/mcpapi`** — Package mcpapi is the contract layer's home for the MCP server row: the description of one registered MCP server — a stdio command or a remote HTTP endpoint the daemon can spawn and speak MCP to.

@@ -5,23 +5,46 @@ package acp
 // Package documentation lives in doc.go.
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"reflect"
 
 	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/contract/acpserverapi"
 	"github.com/agezt/agezt/kernel/platform/acpclient"
 )
 
 // New builds a Server reading JSON-RPC from in and writing to out.
+//
+// It asks the contract, once, whether the two still agree on the shape of
+// the params the server reads — so a contract that mistyped a field stops the
+// daemon here instead of quietly disagreeing with the code that reads it.
 func New(runner Runner, in io.Reader, out io.Writer) *Server {
+	if err := checkContract(reflect.TypeOf(newSessionParams{}), reflect.TypeOf(promptParams{})); err != nil {
+		panic("acp: the contract and the server disagree: " + err.Error())
+	}
 	return &Server{
 		runner:   runner,
 		sc:       acpclient.NewBoundedScanner(in),
 		out:      out,
 		sessions: map[string]string{},
 	}
+}
+
+// checkContract holds the contract to the shapes the server reads: the same
+// fields, with the same types, in both directions.
+//
+// It is asked once, when the server is built — so a contract that mistyped a
+// field stops the daemon instead of quietly disagreeing with the code that
+// reads it.
+func checkContract(newParams, promptParams reflect.Type) error {
+	if err := acpserverapi.CheckShape(acpserverapi.MethodSessionNew, newParams); err != nil {
+		return err
+	}
+	return acpserverapi.CheckShape(acpserverapi.MethodSessionPrompt, promptParams)
 }
 
 const (
@@ -90,10 +113,10 @@ type newSessionParams struct {
 
 func (s *Server) handleNewSession(params json.RawMessage) (any, *acpclient.RPCError) {
 	var p newSessionParams
-	if len(params) > 0 {
-		if err := json.Unmarshal(params, &p); err != nil {
-			return nil, &acpclient.RPCError{Code: codeInvalidParams, Message: "invalid params: " + err.Error()}
-		}
+	// The door measures the params against the contract's shape before the
+	// handler reads them.
+	if rerr := decodeParams(acpserverapi.MethodSessionNew, params, &p); rerr != nil {
+		return nil, rerr
 	}
 	s.sessM.Lock()
 	defer s.sessM.Unlock()
@@ -115,8 +138,15 @@ type promptParams struct {
 
 func (s *Server) handlePrompt(ctx context.Context, params json.RawMessage) (any, *acpclient.RPCError) {
 	var p promptParams
-	if err := json.Unmarshal(params, &p); err != nil {
-		return nil, &acpclient.RPCError{Code: codeInvalidParams, Message: "invalid params: " + err.Error()}
+	// No params at all is a presence question, and presence is the handler's
+	// business: a prompt with no params cannot name a session.
+	if len(bytes.TrimSpace(params)) == 0 {
+		return nil, &acpclient.RPCError{Code: codeInvalidParams, Message: "invalid params: no params"}
+	}
+	// The door measures the params against the contract's shape before the
+	// handler reads them.
+	if rerr := decodeParams(acpserverapi.MethodSessionPrompt, params, &p); rerr != nil {
+		return nil, rerr
 	}
 	var cwd string
 	var ok bool

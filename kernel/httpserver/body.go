@@ -12,7 +12,15 @@ package httpserver
 //   - the REST surface (kernel/restapi) measures a body against the request
 //     row the REST contract names;
 //   - the console (kernel/webui) measures a body against the schema the
-//     console's own endpoint list names.
+//     console's own endpoint list names;
+//   - the channel webhook members (plugins/channels) measure an inbound
+//     vendor body against the member row the family's contract names;
+//   - the ACP server (kernel/acp) measures a JSON-RPC params object against
+//     the method row the ACP contract names.
+//
+// The last two are not HTTP surfaces, and the core does not care: it measures
+// a body of bytes against a schema, and what the caller does with the refusal
+// is the caller's own voice.
 //
 // What each surface keeps is its own VOICE: the core says WHAT is wrong (the
 // field, the type it got, the type it wanted), and the surface says how it
