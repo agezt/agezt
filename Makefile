@@ -6,7 +6,7 @@
 # Requires: Go 1.26.4+ (see go.mod), Make, git (for version stamping)
 # Note: This project does NOT use CGO - pure Go build
 
-.PHONY: all build test race clean vet install gen deps-check sdk-gen-check deadcode-check arch-check doc-claims docs-index frontend-build frontend-test frontend-deadcode e2e check webui-e2e webui-e2e-ps structure-md structure-md-check
+.PHONY: all build test race clean vet install gen deps-check sdk-gen-check deadcode-check arch-check body-door-check doc-claims docs-index frontend-build frontend-test frontend-deadcode e2e check webui-e2e webui-e2e-ps structure-md structure-md-check
 
 # Explicitly disable CGO - this is a PURE GO build
 export CGO_ENABLED := 0
@@ -149,6 +149,14 @@ arch-check:
 	@echo "Checking layer architecture..."
 	go run ./tools/archcheck
 
+# The request-body ratchet: every place that reads an inbound request body
+# must be behind a door (kernel/httpserver) or declared in
+# tools/bodydoor/exceptions.txt — and a declaration whose file no longer reads
+# a body fails the check, so the list may only shrink.
+body-door-check:
+	@echo "Checking request bodies behind doors..."
+	go run ./tools/bodydoor
+
 frontend-build:
 	@echo "Building frontend..."
 	cd frontend && npm run build
@@ -186,7 +194,7 @@ docs-index:
 	@echo "Checking the documentation index against the docs/ tree..."
 	go run ./tools/docsindex
 
-check: gen fmt vet test deps-check sdk-gen-check deadcode-check arch-check structure-md-check doc-claims docs-index frontend-deadcode frontend-test
+check: gen fmt vet test deps-check sdk-gen-check deadcode-check arch-check body-door-check structure-md-check doc-claims docs-index frontend-deadcode frontend-test
 
 install:
 	@echo "Installing AGEZT (version=$(VERSION), commit=$(COMMIT))..."

@@ -837,6 +837,35 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Every request body is behind a door, and the list of exceptions may only
+  shrink.** The programme's sentence — *every surface's request body is named
+  in a contract, and every surface answers a mistyped body in the registry's
+  words* — had become true, slice by slice: the `/api/v1` surface, the
+  console, the OpenAI-compatible surface, the agent gateway, the **fifteen**
+  channel webhook members and the ACP server. But it was a **document**, and a
+  document does not fail a build: a new surface could read a body with no
+  contract and no door, and a surface that **had** a door could grow a second,
+  unguarded body beside the measured one. `tools/bodydoor` is now the gate.
+  It walks the tree and asks, per **function**, whether it reads an inbound
+  request body and whether a **door** is in reach — a call to the shared core
+  (`httpserver.DecodeJSONBody`, `httpserver.CheckJSONBody`,
+  `httpserver.RefuseJSONBody`), directly or through a same-package function
+  that does. A **read** is a use of `<request>.Body` where `<request>` is a
+  `*http.Request` parameter, so an outbound client's **response** body is
+  none of its business. A body read with no door in reach must be **declared**
+  in `tools/bodydoor/exceptions.txt` with the reason it is not measured — the
+  shared door core itself, the body-cap wrapper, the console's audio upload,
+  its forwarding proxy, its opaque workflow hook, the SMS member's **form**
+  and the WeCom member's **XML** callback — and the list is a **RATCHET**: a
+  declaration whose file no longer reads a body **fails** the check, so a
+  fixed file must be deleted in the same change. Measured: **22** functions
+  read an inbound request body, **15** of them behind a door and **7**
+  declared; a probe handler injected into `kernel/restapi` was named with its
+  file, line and function and failed the build. **Six** guards hold the gate
+  to its own question, and **eight** reverted mutations prove them. Wired as
+  `make body-door-check` and as a step in CI's `deps-check` job. No
+  production code changed.
+
 - **The ACP surface gets a contract and a door.** The daemon's ACP server
   (`kernel/acp`) — the **stdio** JSON-RPC surface an IDE drives — read its
   `params` into whatever struct the handler happened to use, so a mistyped
