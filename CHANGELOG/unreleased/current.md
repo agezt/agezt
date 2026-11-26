@@ -837,6 +837,35 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The REST surface's own rows have one home: the surface spells no row by
+  hand.** W5.22 gave the board's **message row** one home, W5.23 the envelopes
+  around it, W5.24 the artifact and update answers — the REST surface's **own**
+  rows were still written by hand, one `map[string]any` per answer: **11**
+  hand-written views and **28** field-name spellings (**15** distinct names) for
+  rows the contract already declared (`health`, `models`, `probe_status`,
+  `api_error`, `run_result`, `run_arc`). The run family was the worst of them:
+  **one** row spelled **six** times, and the run result's *failed* answer spelled
+  the row's names with `error` where the row says `answer`. The rows a **domain**
+  contract owns live in that domain's contract (the board's in `boardapi`, the
+  artifact index's in `remoteapi`, the update surface's in `updateapi`); the
+  surface's own rows have no other home, so they live in the surface's own
+  contract (`kernel/contract/restapiapi/served.go`), beside the vocabulary the
+  SDKs speak, and the ratchet holds the two lists together. The run row is now
+  **one** struct serving **six** answers: its optional fields are **pointers**,
+  which is how a row says *absent* — the successful answer carries an answer
+  even when the model returned an empty string, the failed answer carries an
+  error and no answer, and the stream's frames carry only their part. The
+  ratchet grew a rule to match (a field the contract calls a string may be
+  carried as a string or as a pointer to one), and the run arc's events are
+  carried as the bytes the daemon already marshalled (the contract may not name
+  the platform's event type). Measured: hand-written views of a contract row in
+  the REST surface **11 → 1**, and that one is the declared exception (the
+  watch stream's fallback frame for a message evicted from the store);
+  hand-spelled names **28 → 0**; rows the stable-subset ratchet covers
+  **9 → 15**; rows the surface guard watches **12 → 18**. **Five** reverted
+  mutations prove it. The served bytes, the SDK catalogs and the generated
+  OpenAPI catalog are byte-identical.
+
 - **The artifact and update answers have one home, and the surface guard covers
   the whole surface.** W5.22 gave the board's **message row** one home and
   W5.23 gave the **envelopes around it** one home; two more surfaces were still

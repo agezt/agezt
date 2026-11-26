@@ -1,5 +1,73 @@
 # NEXT — handoff for the next coding agent
 
+## Current checkpoint — W5.25 the REST surface's own rows have one home, 2026-11-26
+
+The W0–W5 objective remains open. W5.8–W5.15 gave the **browser**, the
+**registry** and the **SDKs** their request vocabulary; W5.11–W5.19 gave
+**every surface** that reads a request body its contract, its door and the
+boot-time check that holds the two together; W5.20 put a **gate** behind that
+sentence so it cannot decay; W5.21 closed W5.1's open end on the browser's
+**response** side; W5.22–W5.25 gave the daemon's own rows one home, one family
+at a time. **This slice finishes the REST surface**: its remaining rows are the
+contract's rows, and the surface spells **no** row by hand.
+
+### What was on the tree
+
+- **The surface wrote its own rows by hand** — one `map[string]any` per
+  answer: the health, the models, the readiness probe, the error body, the run
+  answer (twice), the run's three frames and the run arc. **11** views, **28**
+  field-name spellings, for rows the contract already declared.
+- **The run family was the worst of them**: one row spelled **six** times, and
+  the run result's *failed* answer spelled the row's names with `error` where
+  the row says `answer` — a reader could not tell which was the row.
+- **The rows live in the surface's own contract**
+  (`kernel/contract/restapiapi/served.go`), beside the vocabulary the SDKs
+  speak. The rows a **domain** contract owns live in that domain's contract
+  (the board's in `boardapi`, the artifact index's in `remoteapi`, the update
+  surface's in `updateapi`); the surface's own rows have no other home, and
+  the ratchet holds the two lists together.
+- **One row, six answers.** The run row's optional fields are **pointers** —
+  how a row says *absent*: the successful answer carries an answer even when
+  the model returned an empty string, the failed answer carries an error and no
+  answer, and the frames carry only their part. The ratchet grew a rule to
+  match: a field the contract calls a string may be carried as a string or as
+  a pointer to one.
+- **The run arc's events are carried as the bytes the daemon already
+  marshalled** — the contract may not name the platform's event type, and the
+  wire does not care how the daemon held them.
+
+### What the measurement said
+
+- Hand-written views of a contract row in the REST surface: **11 → 1** — and
+  that one is the **declared exception** (the watch stream's fallback frame
+  for a message evicted from the store, which is deliberately not a row).
+- Hand-spelled field names in the surface (this slice): **28 → 0**.
+- Rows the stable-subset ratchet covers: **9 → 15**; contract-owned rows the
+  surface guard watches: **12 → 18**.
+- The served bytes, the SDK catalogs and the generated OpenAPI catalog:
+  **byte-identical**.
+
+### The evidence
+
+`architecture/345-w525-the-rest-surface-rows-have-one-home-evidence.md` — the
+rule and where the rows live, the pointer row and the rule it needed, the
+measurement, the five reverted mutations, and what remains open.
+
+### What the next slice should do
+
+- **The console's own answers** (`kernel/webui`) have not been measured: the
+  guard reads the REST surface's files, and the console's rows are served
+  elsewhere. The same rule applies there.
+- **The console's rollback endpoints are still outside the generated
+  catalog**, so the browser's `Checkpoint` view is still in W5.21's ledger
+  ("the daemon's rollback op is not in the generated catalog yet"). Bringing
+  them in is a real decision (an operation, a row, a contract).
+- **The contract's vocabulary cannot say "a row inside a row"**, so the error
+  body's envelope and the update check's envelope are checked by the type
+  system alone; a nested-row type would close that.
+- **The OpenAI-compatible surface's rows** have their own shape and were out
+  of scope.
+
 ## Current checkpoint — W5.24 the artifact and update answers have one home, 2026-11-26
 
 The W0–W5 objective remains open. W5.8–W5.15 gave the **browser**, the
