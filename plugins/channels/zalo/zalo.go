@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -25,7 +26,9 @@ import (
 
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/channel"
+	"github.com/agezt/agezt/kernel/contract/channelhookapi"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/httpserver"
 	"github.com/agezt/agezt/kernel/platform/netout"
 	"github.com/agezt/agezt/kernel/ulid"
 )
@@ -67,6 +70,12 @@ type Channel struct {
 
 // New constructs a Zalo channel, applying defaults.
 func New(cfg Config) *Channel {
+	// The contract and this member must agree on the body's shape: a contract
+	// that mistyped a field stops the daemon HERE, instead of the door
+	// measuring arriving bodies against a shape the member cannot hold.
+	if err := channelhookapi.CheckShape(channelhookapi.MemberZalo, reflect.TypeOf(zaloWebhook{})); err != nil {
+		panic("channels/zalo: the contract and the plugin disagree: " + err.Error())
+	}
 	if cfg.Path == "" {
 		cfg.Path = DefaultPath
 	}
@@ -140,14 +149,34 @@ func (c *Channel) handleInbound(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad body", http.StatusBadRequest)
 		return
 	}
-	m, ts, ok := parseEvent(body)
-	// Verify the signature AND reject stale timestamps (±5 min) so a captured
-	// signed event can't be replayed indefinitely. (msg_id replay is also
-	// caught by the dedup ring in dispatch.)
-	if !c.validSignature(body, ts, r.Header.Get("X-ZEvent-Signature")) || !freshTimestamp(ts) {
+	// Zalo's signature covers the timestamp INSIDE the body, so the timestamp
+	// is read from the raw bytes before the body is decoded.
+	ts := zaloTimestamp(body)
+	if !c.validSignature(body, ts, r.Header.Get("X-ZEvent-Signature")) {
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
+	// The door: the body's shape is named in the contract
+	// (kernel/contract/channelhookapi) and measured HERE — after the signature
+	// is verified, and before the plugin reads the body and before any answer
+	// is written. A mistyped field is refused with the operation registry's
+	// words; the member keeps its own voice for a body that is not JSON at
+	// all: "bad json", a NEW voice for this member — such a body used to be
+	// answered 200 and swallowed whenever it carried a signature.
+	shape, _ := channelhookapi.Body(channelhookapi.MemberZalo)
+	var wh zaloWebhook
+	if err := httpserver.CheckJSONBody(body, shape, channelhookapi.MemberZalo, &wh); err != nil {
+		httpserver.RefuseJSONBody(w, err, "bad json")
+		return
+	}
+	// Reject stale timestamps (±5 min) so a captured signed event can't be
+	// replayed indefinitely. (msg_id replay is also caught by the dedup ring
+	// in dispatch.)
+	if !freshTimestamp(ts) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+	m, _, ok := parseEvent(wh)
 	w.WriteHeader(http.StatusOK)
 	if ok {
 		c.dispatch(r.Context(), m)
@@ -268,6 +297,55 @@ func (c *Channel) seenBefore(id string) bool {
 
 // ---- wire shapes ---------------------------------------------------------
 
+// zaloWebhook is a Zalo OA event: the event's name, who sent it, the message
+// and the timestamp the signature covers.
+//
+// The shape is NAMED, not anonymous: the contract
+// (kernel/contract/channelhookapi) holds the same shape as a JSON Schema, and
+// the plugin compares the two when it is built — so a contract that mistyped a
+// field stops the daemon instead of quietly disagreeing with the member that
+// reads it.
+type zaloWebhook struct {
+	EventName string `json:"event_name"`
+	Sender    struct {
+		ID string `json:"id"`
+	} `json:"sender"`
+	Message struct {
+		MsgID string `json:"msg_id"`
+		Text  string `json:"text"`
+	} `json:"message"`
+	Timestamp string `json:"timestamp"`
+}
+
+// zaloTimestamp reads the timestamp out of a raw body, for the signature.
+//
+// Zalo's signature covers the timestamp INSIDE the body, so the timestamp has
+// to be read before the body is decoded — and it is read as a RAW value and
+// unquoted, so the signature covers the very bytes the vendor signed.
+//
+// A body that is not JSON at all has no timestamp: the answer is "", and the
+// signature then fails, which is what a body that is not JSON deserves.
+func zaloTimestamp(body []byte) string {
+	var doc struct {
+		Timestamp json.RawMessage `json:"timestamp"`
+	}
+	if err := json.Unmarshal(body, &doc); err != nil {
+		return ""
+	}
+	raw := strings.TrimSpace(string(doc.Timestamp))
+	if raw == "" || raw == "null" {
+		return ""
+	}
+	if strings.HasPrefix(raw, `"`) {
+		var s string
+		if err := json.Unmarshal(doc.Timestamp, &s); err != nil {
+			return ""
+		}
+		return s
+	}
+	return raw
+}
+
 // freshTimestamp reports whether a Zalo epoch-ms timestamp is within ±5 minutes
 // of now — the replay window for signed events.
 func freshTimestamp(ts string) bool {
@@ -299,21 +377,11 @@ func (c *Channel) validSignature(body []byte, timestamp, header string) bool {
 
 // parseEvent reads a Zalo OA event: {event_name, sender:{id}, message:{msg_id,
 // text}, timestamp}. Only user text messages are kept. Returns (msg, timestamp, ok).
-func parseEvent(body []byte) (inbound, string, bool) {
-	var e struct {
-		EventName string `json:"event_name"`
-		Sender    struct {
-			ID string `json:"id"`
-		} `json:"sender"`
-		Message struct {
-			MsgID string `json:"msg_id"`
-			Text  string `json:"text"`
-		} `json:"message"`
-		Timestamp string `json:"timestamp"`
-	}
-	if err := json.Unmarshal(body, &e); err != nil {
-		return inbound{}, "", false
-	}
+//
+// The event arrives already DECODED and already MEASURED — the door
+// (handleInbound) holds it to the contract's schema before it gets here — so
+// this function only reads the fields it needs.
+func parseEvent(e zaloWebhook) (inbound, string, bool) {
 	if e.EventName != "" && !strings.HasPrefix(e.EventName, "user_send_text") {
 		return inbound{}, e.Timestamp, false
 	}

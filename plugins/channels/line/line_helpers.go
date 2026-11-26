@@ -16,7 +16,6 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
-	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
@@ -128,27 +127,30 @@ func validSignature(secret string, body []byte, header string) bool {
 	return subtle.ConstantTimeCompare([]byte(want), []byte(strings.TrimSpace(header))) == 1
 }
 
+// lineWebhook is LINE's inbound webhook body: the events, each with its
+// source, its message and the token that answers it.
+type lineWebhook struct {
+	Events []struct {
+		Type       string `json:"type"`
+		ReplyToken string `json:"replyToken"`
+		Source     struct {
+			UserID  string `json:"userId"`
+			GroupID string `json:"groupId"`
+		} `json:"source"`
+		Message struct {
+			Type string `json:"type"`
+			ID   string `json:"id"`
+			Text string `json:"text"`
+		} `json:"message"`
+	} `json:"events"`
+}
+
 // parseWebhook reads a LINE webhook: {events:[{type, replyToken, source:{userId},
 // message:{type, id, text}}]}. Only text messages from users are kept.
-func parseWebhook(body []byte) []inbound {
-	var w struct {
-		Events []struct {
-			Type       string `json:"type"`
-			ReplyToken string `json:"replyToken"`
-			Source     struct {
-				UserID  string `json:"userId"`
-				GroupID string `json:"groupId"`
-			} `json:"source"`
-			Message struct {
-				Type string `json:"type"`
-				ID   string `json:"id"`
-				Text string `json:"text"`
-			} `json:"message"`
-		} `json:"events"`
-	}
-	if err := json.Unmarshal(body, &w); err != nil {
-		return nil
-	}
+//
+// The body arrives already decoded: the door measured it against the contract's
+// schema (kernel/contract/channelhookapi) before the plugin read it.
+func parseWebhook(w lineWebhook) []inbound {
 	var out []inbound
 	for _, e := range w.Events {
 		if e.Type != "message" {

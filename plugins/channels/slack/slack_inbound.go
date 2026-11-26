@@ -18,6 +18,8 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/channel"
+	"github.com/agezt/agezt/kernel/contract/channelhookapi"
+	"github.com/agezt/agezt/kernel/httpserver"
 	"github.com/agezt/agezt/kernel/ulid"
 )
 
@@ -63,8 +65,14 @@ func (c *Channel) handleEvents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var env slackEnvelope
-	if err := json.Unmarshal(body, &env); err != nil {
-		http.Error(w, "bad json", http.StatusBadRequest)
+	// The body's shape is named in the contract (kernel/contract/channelhookapi)
+	// and measured here, before the plugin reads it: a mistyped field is
+	// refused with the operation registry's words, in the plugin's own plain
+	// text. The signature is checked FIRST — a body is only read by someone
+	// who proved they may send it.
+	shape, _ := channelhookapi.Body(channelhookapi.MemberSlack)
+	if err := httpserver.CheckJSONBody(body, shape, channelhookapi.MemberSlack, &env); err != nil {
+		httpserver.RefuseJSONBody(w, err, "bad json")
 		return
 	}
 

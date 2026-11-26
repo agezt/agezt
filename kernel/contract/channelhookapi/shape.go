@@ -21,6 +21,7 @@ package channelhookapi
 // mistyped a field would then agree with itself and pass.
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"reflect"
@@ -42,9 +43,10 @@ type Field struct {
 
 // schemaNode is a node of a JSON Schema, as the door's validator reads it.
 type schemaNode struct {
-	Type       any                   `json:"type"`
-	Properties map[string]schemaNode `json:"properties"`
-	Items      *schemaNode           `json:"items"`
+	Type                 any                   `json:"type"`
+	Properties           map[string]schemaNode `json:"properties"`
+	Items                *schemaNode           `json:"items"`
+	AdditionalProperties json.RawMessage       `json:"additionalProperties"`
 }
 
 // node is a schema node with its field names and types already read.
@@ -52,6 +54,9 @@ type node struct {
 	words    []string
 	children map[string]node
 	item     *node
+	// additional is the schema the node gives the VALUES of a map-shaped
+	// field; it is nil when the node names no shape for them.
+	additional *node
 }
 
 // Fields returns the fields a member's body names, with the types the
@@ -107,7 +112,26 @@ func readNode(doc schemaNode) node {
 		item := readNode(*doc.Items)
 		out.item = &item
 	}
+	out.additional = readAdditional(doc.AdditionalProperties)
 	return out
+}
+
+// readAdditional reads a node's additionalProperties into the schema it gives
+// the values of a map-shaped field.
+//
+// The schema may say "true" (any value is allowed) or "false" (no value is
+// allowed) — neither names a shape, so neither is read here.
+func readAdditional(raw json.RawMessage) *node {
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 || raw[0] != '{' {
+		return nil
+	}
+	var doc schemaNode
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		return nil
+	}
+	child := readNode(doc)
+	return &child
 }
 
 // CheckShape compares a member's body schema with the Go type the daemon
@@ -159,15 +183,15 @@ func compareNode(problems *[]string, path string, typ reflect.Type, want node) {
 			child, ok := want.children[f.Name]
 			if !ok {
 				*problems = append(*problems, fmt.Sprintf("%q is read by the daemon but the schema does not name it",
-					path+f.Name))
+					childPath(path, f.Name)))
 				continue
 			}
-			compareNode(problems, path+f.Name, f.Type, child)
+			compareNode(problems, childPath(path, f.Name), f.Type, child)
 		}
 		for name := range want.children {
 			if !hasField(typ, name) {
 				*problems = append(*problems, fmt.Sprintf("%q is named by the schema but the daemon does not read it",
-					name))
+					childPath(path, name)))
 			}
 		}
 	case reflect.Slice, reflect.Array:
@@ -185,7 +209,27 @@ func compareNode(problems *[]string, path string, typ reflect.Type, want node) {
 			*problems = append(*problems, fmt.Sprintf("the items of %q are declared as %v, the daemon reads them as %v",
 				path, want, got))
 		}
+	case reflect.Map:
+		// A map-shaped field holds values the daemon reads one by one, so the
+		// schema must say what a value looks like: the shape of Discord's
+		// attachments, for one. A schema that says "any value goes" leaves
+		// every value unmeasured, which is the hole the door exists to close.
+		if want.additional == nil {
+			*problems = append(*problems, fmt.Sprintf(
+				"%q is a map in the daemon but the schema names no shape for its values", path))
+			return
+		}
+		compareNode(problems, path+"{}", typ.Elem(), *want.additional)
 	}
+}
+
+// childPath is the path of a field inside its parent — the way the door's
+// validator writes it ("$.event.text", "$.data.options[0]").
+func childPath(path, name string) string {
+	if path == "" {
+		return name
+	}
+	return path + "." + name
 }
 
 // hookField is one wire field of a struct.
@@ -225,12 +269,14 @@ func hasField(typ reflect.Type, name string) bool {
 // shapeWords are the registry's words for a Go type — the type the daemon
 // reads a field as.
 //
-// A json.RawMessage is the one field a body may read in two shapes: the text
-// itself, or an array of typed parts. It is the only union, and the registry's
-// own words name it.
+// A json.RawMessage is the one field a body may read as RAW: the daemon cannot
+// say what shape it has (Discord sends a string for a text option and a number
+// for a number one), so the contract names it "any" and the door does not
+// measure it. The guard holds the two together in both directions: "any" fits
+// a raw field and nothing else.
 func shapeWords(typ reflect.Type) []string {
 	if typ == rawMessageType {
-		return []string{"string", "array"}
+		return []string{"any"}
 	}
 	switch derefType(typ).Kind() {
 	case reflect.String:

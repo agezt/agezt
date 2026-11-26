@@ -12,12 +12,14 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"net/http"
+	"reflect"
 	"strconv"
 	"sync"
 	"time"
 
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/channel"
+	"github.com/agezt/agezt/kernel/contract/channelhookapi"
 	"github.com/agezt/agezt/kernel/platform/netout"
 )
 
@@ -106,6 +108,12 @@ func (d *dedup) seenBefore(key string) bool {
 
 // New builds a Channel from cfg.
 func New(cfg Config) *Channel {
+	// The contract and this member must agree on the body's shape: a contract
+	// that mistyped a field stops the daemon HERE, instead of the door
+	// measuring arriving bodies against a shape the member cannot hold.
+	if err := channelhookapi.CheckShape(channelhookapi.MemberSlack, reflect.TypeOf(slackEnvelope{})); err != nil {
+		panic("channels/slack: the contract and the plugin disagree: " + err.Error())
+	}
 	base := cfg.BaseURL
 	if base == "" {
 		base = DefaultBaseURL

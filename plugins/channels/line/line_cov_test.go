@@ -379,17 +379,13 @@ func TestSeenBeforeRingEviction(t *testing.T) {
 }
 
 func TestParseWebhookMedia(t *testing.T) {
-	img := parseWebhook([]byte(`{"events":[{"type":"message","source":{"userId":"U"},"message":{"type":"image","id":"IMG"}}]}`))
+	img := parseWebhook(decodeWebhook(t, []byte(`{"events":[{"type":"message","source":{"userId":"U"},"message":{"type":"image","id":"IMG"}}]}`)))
 	if len(img) != 1 || img[0].mediaType != "image" || img[0].id != "IMG" {
 		t.Fatalf("image = %+v", img)
 	}
-	aud := parseWebhook([]byte(`{"events":[{"type":"message","source":{"groupId":"G"},"message":{"type":"audio","id":"AUD"}}]}`))
+	aud := parseWebhook(decodeWebhook(t, []byte(`{"events":[{"type":"message","source":{"groupId":"G"},"message":{"type":"audio","id":"AUD"}}]}`)))
 	if len(aud) != 1 || aud[0].mediaType != "audio" || aud[0].userID != "G" {
 		t.Fatalf("audio = %+v", aud)
-	}
-	// Invalid JSON => nil.
-	if got := parseWebhook([]byte("not json")); got != nil {
-		t.Fatalf("invalid JSON => %+v", got)
 	}
 }
 

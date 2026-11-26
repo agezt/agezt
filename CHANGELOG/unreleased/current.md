@@ -865,6 +865,39 @@ This file holds the active `[Unreleased]` working set.
   sentence **0 → 12**; nulls refused **2 → 6**; nulls accepted **4 → 0**.
   Nine guards hold the line, and six reverted mutations prove them.
 
+- **The channel webhook family's vendor members get their contract and their
+  door.** Six vendor members of the family — `slack`, `discord`, `whatsapp`,
+  `line`, `imessage` and `zalo` — had **no contract row and no door**: what
+  happened to a mistyped body was Go's `encoding/json` and the plugin's own
+  plain text (*"bad json"* in Slack, Discord and WhatsApp; a **200 and
+  silence** in LINE and the iMessage bridge, which swallowed the body and told
+  the vendor the delivery had succeeded; a **403** in Zalo, whose signature
+  covers the timestamp *inside* the body, so an unreadable body had nothing to
+  sign), and a **null** was accepted everywhere — it became the field's zero
+  value. Three of the six bodies were read into an **anonymous** struct, which
+  cannot be held to a contract by name. The contract now names all six, in the
+  **vendor's** own field names, and each member measures its body against it
+  with the **same validator the registry uses**: `operation slack input:
+  $.event.text has wrong type: got number, want string`, `operation line
+  input: $.events[0].message.text has wrong type: got number, want string`, and
+  so on — in the member's own plain text. Two type words are new and both are
+  earned: **"any"** names a field the daemon reads as raw JSON (Discord's
+  option value, which the vendor sends as a string or as a number) and is
+  **only** allowed there, and a **map's value shape** is now named and checked
+  (Discord's resolved attachments). The three anonymous bodies get **named
+  types**, so the **boot-time ratchet** can hold them: the member asks the
+  contract whether they still agree on the body's shape — the names and the
+  types — and a contract that mistyped a field, dropped one, named one the
+  daemon does not read, or left a map's values unmeasured **stops the daemon**.
+  The signature is still verified **before** the body is read, each member
+  keeps its own voice and its own replies, and the allowlist and the replay
+  guards are untouched. Measured: members the contract names a body for
+  **1 → 7**; request fields checked before the plugin reads them **6 → 62**;
+  probes refused with the registry's sentence **12 → 124**; nulls refused
+  **6 → 62**; members behind a door **1 → 7**; the family's members with a
+  contract row **1 of 15 → 7 of 15**. Thirty-seven new guards hold the line,
+  and eight reverted mutations prove them.
+
 - **The OpenAI-compatible surface gets a contract and a door.** The
   OpenAI-compatible surface is the daemon's door to any OpenAI client, SDK or
   IDE, and its **5 routes** were registered by hand in

@@ -16,14 +16,25 @@ import (
 	"github.com/agezt/agezt/kernel/channel"
 )
 
+// decodeWebhook decodes a webhook body the way the door does: the contract's
+// schema first, then the plugin's own struct.
+func decodeWebhook(t *testing.T, body []byte) lineWebhook {
+	t.Helper()
+	var w lineWebhook
+	if err := json.Unmarshal(body, &w); err != nil {
+		t.Fatal(err)
+	}
+	return w
+}
+
 func TestParseWebhook(t *testing.T) {
 	body := []byte(`{"events":[{"type":"message","replyToken":"R1","source":{"type":"user","userId":"U123"},"message":{"type":"text","id":"M1","text":"hi"}}]}`)
-	got := parseWebhook(body)
+	got := parseWebhook(decodeWebhook(t, body))
 	if len(got) != 1 || got[0].userID != "U123" || got[0].replyToken != "R1" || got[0].text != "hi" || got[0].id != "M1" {
 		t.Fatalf("parseWebhook = %+v", got)
 	}
 	// non-text and non-message events are dropped.
-	if g := parseWebhook([]byte(`{"events":[{"type":"follow","source":{"userId":"U"}},{"type":"message","message":{"type":"sticker"}}]}`)); len(g) != 0 {
+	if g := parseWebhook(decodeWebhook(t, []byte(`{"events":[{"type":"follow","source":{"userId":"U"}},{"type":"message","message":{"type":"sticker"}}]}`))); len(g) != 0 {
 		t.Fatalf("expected no text messages, got %+v", g)
 	}
 }

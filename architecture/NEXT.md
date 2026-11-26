@@ -1,5 +1,113 @@
 # NEXT — handoff for the next coding agent
 
+## Current checkpoint — W5.17 the channel webhook family's vendor members get their contract and their door, 2026-11-26
+
+The W0–W5 objective remains open. W5.8–W5.15 gave the **browser**, the
+**registry** and the **SDKs** their request vocabulary; W5.11–W5.15 gave the
+**`/api/v1` surface**, the **console**, the **agent gateway** and the
+**OpenAI-compatible surface** the registry's **door**; W5.16 gave the **channel
+webhook family** its contract, its door and the check that holds the two
+together — and this slice wires the family's **vendor members** into that same
+contract, one row at a time.
+
+### What was on the tree
+
+- **Six of the family's fifteen members had no contract and no door.**
+  `slack`, `discord`, `whatsapp`, `line`, `imessage` and `zalo` each read
+  their inbound body into whatever struct they happened to use — **three of
+  the six into an anonymous struct** — so what happened to a mistyped body was
+  Go's `encoding/json` and the plugin's own plain text: *"bad json"* in Slack,
+  Discord and WhatsApp, a **200 and silence** in LINE and the iMessage bridge
+  (the body was swallowed and the vendor was told the delivery had succeeded),
+  a **403** in Zalo (whose signature covers the timestamp *inside* the body).
+  A **null** was accepted everywhere: it became the field's zero value.
+- **The contract now names all seven wired members** — the generic one and the
+  six vendors — in the **vendor's own field names**, and each member measures
+  its body against it with the **same validator the registry uses**:
+  `operation slack input: $.event.text has wrong type: got number, want string`.
+- **Two type words are new, and both are earned.** **"any"** names a field the
+  daemon reads as **raw JSON** (Discord's option value, which the vendor sends
+  as a string or as a number), and the shape guard holds the word to that: it
+  fits a raw field and nothing else. A **map's value shape** is now named and
+  checked too (Discord's resolved attachments) — a schema that names no shape
+  for a map's values leaves every value unmeasured, and the guard says so.
+- **Three anonymous bodies got named types** (`lineWebhook`,
+  `imessageWebhook`, `zaloWebhook`), so the **boot-time ratchet** can hold
+  them: the member asks the contract whether they still agree on the body's
+  shape — the names and the types — and a contract that mistyped a field,
+  dropped one, named one the daemon does not read, or left a map's values
+  unmeasured **stops the daemon**.
+- **Thirty-seven new guards** (two in the contract, thirty-five in the six
+  members) on top of W5.16's nine.
+
+### What the measurement said
+
+- Members the contract names a body for: **1 → 7**.
+- Request fields checked before the plugin reads them: **6 → 62**.
+- Probes refused with the registry's sentence (62 wrong + 62 null): **12 → 124**.
+- Nulls refused instead of silently zero: **6 → 62**.
+- Members behind a door: **1 → 7**.
+- Members whose contract and daemon are held together at boot: **1 → 7**.
+- Members of the family with a contract row: **1 of 15 → 7 of 15**.
+
+### The evidence
+
+`architecture/337-w517-the-channel-webhook-family-gets-its-vendor-members-evidence.md`
+— the measurement on `origin/main` (`0f2f4c07`, the W5.16 merge) with the same
+probe that measured the "after" side, the contract's six new rows, the two new
+type words, the three named types, the boot-time ratchet, the thirty-seven
+guards, the eight mutations (M1 mutates the **shared door core**, so it proves
+the door is load-bearing for every member at once) and the gates.
+
+### What the next slice should do
+
+**Six vendor members of the family are still outside the door**, and the next
+slice adds them to the same table, one row at a time. They are **measured**
+now (on the tree at `origin/main`, `0f2f4c07`):
+
+| member | the body it reads | notes |
+|---|---|---|
+| `chatwebhook` | **anonymous** | two dialects: Google Chat's JSON and Mattermost's form — the form dialect takes no JSON body |
+| `dingtalk` | **anonymous** | the signature is header-only (a timestamp and a sign), so the body may be read before it |
+| `feishu` | **anonymous** ×2 | the URL-verification handshake (`challenge`, `token`, `type`) and the event (`header`, `event`) — two different bodies in one route |
+| `nextcloudtalk` | **anonymous** | the signature covers a random prefix and the body; the body's `object.content` is a JSON **string** inside a string |
+| `onebot` | **anonymous** | the ids are `json.Number` — the contract needs to name that type, and the shape guard must say *number* for it |
+| `whatsappgw` | **anonymous** ×2 | two backends (WAHA and Evolution) with two different bodies — likely two member ids, or one body that names both shapes |
+
+Three decisions are open and are the next slice's first work:
+
+1. **A member with two bodies in one route** (`feishu`, `whatsappgw`): two
+   member ids, or one body that names both shapes? The door measures ONE
+   schema, so the plugin has to know which member it is before the body is
+   measured.
+2. **A member with a JSON body and a form body** (`chatwebhook`): the door
+   measures JSON; the form dialect is named in the contract as a member that
+   takes no JSON body, the way `wecom` (XML) and `sms` (a form) are.
+3. **A body whose ids are `json.Number`** (`onebot`): the shape guard reads
+   `json.Number` as a *string* today (its kind is string), so the contract
+   would have to name it a string — which would refuse the numbers the vendor
+   actually sends. The guard needs to learn that a `json.Number` is read as a
+   **number**.
+
+Two members take **no JSON body** and are not part of the door, and are named
+in the contract as such:
+
+- **`wecom`** reads an **XML** callback (`xml.Unmarshal`), and
+- **`sms`** reads a **form** (`ParseForm` over the captured bytes).
+
+One surface is **outside** the programme as it stands, and is named here so the
+decision is deliberate rather than forgotten: the **ACP surface**
+(`kernel/acp`) is a **stdio** JSON-RPC server, not an HTTP one, and it answers
+a mistyped `params` with a JSON-RPC error (*"invalid params: …"*). The
+programme's sentence is about HTTP surfaces, so it needs an explicit decision
+— either it stays out, or the door's core is made transport-agnostic enough
+for a stdio line to be measured against a schema too.
+
+The programme's next sentence is therefore: **every HTTP surface's request body
+is named in a contract, and every surface answers a mistyped body in the
+registry's words** — and the family's last six vendor members are the ones
+left to do it, with the vendor's field names kept as they are.
+
 ## Current checkpoint — W5.16 the channel webhook family gets a contract and a door, 2026-11-26
 
 The W0–W5 objective remains open. W5.8–W5.10 gave the **browser**, the

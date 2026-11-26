@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -17,7 +18,9 @@ import (
 
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/channel"
+	"github.com/agezt/agezt/kernel/contract/channelhookapi"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/httpserver"
 	"github.com/agezt/agezt/kernel/platform/netout"
 	"github.com/agezt/agezt/kernel/ulid"
 )
@@ -62,6 +65,12 @@ type Channel struct {
 
 // New constructs an iMessage channel, applying defaults.
 func New(cfg Config) *Channel {
+	// The contract and this member must agree on the body's shape: a contract
+	// that mistyped a field stops the daemon HERE, instead of the door
+	// measuring arriving bodies against a shape the member cannot hold.
+	if err := channelhookapi.CheckShape(channelhookapi.MemberIMessage, reflect.TypeOf(imessageWebhook{})); err != nil {
+		panic("channels/imessage: the contract and the plugin disagree: " + err.Error())
+	}
 	if cfg.Method == "" {
 		cfg.Method = DefaultMethod
 	}
@@ -150,9 +159,22 @@ func (c *Channel) handleInbound(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad body", http.StatusBadRequest)
 		return
 	}
+	// The door: the body's shape is named in the contract
+	// (kernel/contract/channelhookapi) and measured HERE — after the signature
+	// is verified, and before the plugin reads the body and before any answer
+	// is written. A mistyped field is refused with the operation registry's
+	// words; the member keeps its own voice for a body that is not JSON at
+	// all: "bad json", a NEW voice for this member — a body that is not JSON
+	// used to be answered 200 and swallowed.
+	shape, _ := channelhookapi.Body(channelhookapi.MemberIMessage)
+	var wh imessageWebhook
+	if err := httpserver.CheckJSONBody(body, shape, channelhookapi.MemberIMessage, &wh); err != nil {
+		httpserver.RefuseJSONBody(w, err, "bad json")
+		return
+	}
 	// Acknowledge promptly; process after (the server may retry on non-2xx).
 	w.WriteHeader(http.StatusOK)
-	if m, ok := parseWebhook(body); ok {
+	if m, ok := parseWebhook(wh); ok {
 		c.dispatch(r.Context(), m)
 	}
 }
