@@ -63,7 +63,7 @@ export interface FleetNowSummary {
 // task intent and the agent SLUG. The slug must come from the payload, not the
 // event actor — for ad-hoc/chat runs the actor is the run correlation id
 // ("agent-run-…"), which is not a navigable agent (M980).
-interface PayloadIntent {
+export interface PayloadIntent {
   intent?: string;
   agent?: string;
   target_agent?: string;

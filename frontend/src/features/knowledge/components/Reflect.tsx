@@ -13,7 +13,7 @@ import { getJSON } from "@/app/api";
 import { Button } from "@/components/ui/button";
 import { cn, fmtAgo } from "@/app/utils/utils";
 
-interface MemoryEvent {
+export interface MemoryEvent {
   id?: string;
   ts?: number;
   subject?: string;
@@ -25,7 +25,7 @@ interface MemoryEvent {
   supersedes?: string;
 }
 
-interface JournalEvent {
+export interface JournalEvent {
   ts?: number;
   kind?: string;
   actor?: string;

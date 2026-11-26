@@ -6,6 +6,7 @@
 // proposal from the run's final answer — are pure so they're unit-testable.
 
 import type {
+  AgentListResponseProfilesItem,
   EdictLogResponseDecisionsItem,
   RunsListResponseRunsItem,
   ToolLogResponseInvocationsItem,
@@ -62,13 +63,19 @@ export interface RepairContext {
 
 // The proposal an agent may return to change its own identity. Every field is
 // optional; an empty object means "no identity change, the file fixes stand".
+// The browser's view of ONE agent profile, as the repair panel needs it.
+//
+// The daemon's fields are spelled as accesses into the generated catalog, so a
+// renamed field is a COMPILE error here, the way it already is in the daemon.
+// `task_model_chain` is the browser's own: the daemon sends `fallbacks` and
+// `task_type`, and the browser reads the chain it puts together.
 export interface RepairProposal {
-  soul?: string;
-  model?: string;
-  fallbacks?: string[];
-  task_type?: string;
+  soul?: AgentListResponseProfilesItem["soul"];
+  model?: AgentListResponseProfilesItem["model"];
+  fallbacks?: AgentListResponseProfilesItem["fallbacks"];
+  task_type?: AgentListResponseProfilesItem["task_type"];
   task_model_chain?: string[];
-  config_overrides?: Record<string, string>;
+  config_overrides?: AgentListResponseProfilesItem["config_overrides"];
 }
 
 const MAX_LINE = 240; // clip any single failure/error line so the brief stays lean

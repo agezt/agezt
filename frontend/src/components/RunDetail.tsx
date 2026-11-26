@@ -36,7 +36,7 @@ import {
   isIncidentFamilyEvent,
 } from "@/lib/incidentevents";
 
-interface RunPhaseStep {
+export interface RunPhaseStep {
   key: string;
   ts?: number;
   kind: string;
@@ -44,7 +44,7 @@ interface RunPhaseStep {
   detail?: string;
 }
 
-interface RollbackCheckpoint {
+export interface RollbackCheckpoint {
   id: string;
   kind: string;
   action?: string;
@@ -57,7 +57,7 @@ interface RollbackCheckpoint {
   applied_ms?: number;
 }
 
-interface RemoteArtifact {
+export interface RemoteArtifact {
   peer: string;
   remoteCorrelation: string;
   id: string;

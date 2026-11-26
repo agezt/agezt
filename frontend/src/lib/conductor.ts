@@ -29,7 +29,7 @@ interface ConductorExec {
   output?: string;
 }
 
-interface ConductorStep {
+export interface ConductorStep {
   round: number;
   role: string; // thinker | worker | verifier
   model: string;

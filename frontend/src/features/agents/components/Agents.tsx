@@ -674,7 +674,7 @@ export function Agents() {
 // activity column cares about. Keeping the type narrow here means the column
 // doesn't depend on the wider Event shape (which lives in lib/events and
 // evolves freely).
-interface FleetLiveEvent {
+export interface FleetLiveEvent {
   id?: string;
   kind?: string;
   agent?: string;

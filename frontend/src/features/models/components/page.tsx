@@ -38,7 +38,7 @@ type Model = {
   cost_output_usd_per_mtok?: CatalogListResponseProvidersItemModelsItem["cost_output_usd_per_mtok"];
 };
 
-type Provider = {
+export type Provider = {
   id: CatalogListResponseProvidersItem["id"];
   name?: CatalogListResponseProvidersItem["name"];
   family?: CatalogListResponseProvidersItem["family"];

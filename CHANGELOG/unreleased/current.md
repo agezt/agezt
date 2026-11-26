@@ -837,6 +837,34 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The browser pins its payload views: a renamed daemon field is now a compile
+  error in the browser too.** W5.1's open end is closed. The daemon's rows live
+  in one place — the generated catalog (`frontend/src/app/api/types.generated.ts`,
+  rendered from the operation registry) — but the browser's **68** payload views
+  spelled the daemon's field **names** by hand, and a view that names a daemon
+  field by hand is a **second contract**: the daemon renames `status` to
+  `state`, the browser keeps reading `status`, and nothing fails. A pin is one
+  compile-time assertion — `Pick<Row, "history">` is a compile error if the
+  daemon's row no longer has a `history` — and the same assertion holds the
+  daemon's field type and the browser's to each other (the browser may narrow;
+  the `null`/`undefined` arms are ignored, because the daemon may send `null`
+  and the browser may read the field as absent). **164** hand-named daemon
+  fields are now pinned in **45** pins over **28** daemon rows and **30**
+  browser files; the browser's own vocabulary — the badge summaries it builds,
+  its fleet model, its navigation, its tabs, its MCP preset catalogue, its
+  voice catalogue — is **declared** in a **ledger** of **23** entries, each
+  with the reason it is not a daemon row. The pin is a **ratchet in both
+  directions**: a view that names a daemon field with no pin fails, and a pin
+  whose fields are no longer named by hand fails too, because a stale pin is a
+  lie about the code. Sixteen payload views were file-local and became named
+  exports so a pin can name them; three views were re-derived to the
+  catalog's own types. Measured: **341** browser type declarations with an
+  object body, **68** of them payload views, **148** of their shared fields
+  derived and **246** named by hand — **164** pinned and **82** declared. Four
+  reverted mutations prove it, two of them **the daemon's own renames** — one
+  of which no earlier ratchet caught. No daemon code changed and the generated
+  catalog is byte-identical.
+
 - **Every request body is behind a door, and the list of exceptions may only
   shrink.** The programme's sentence — *every surface's request body is named
   in a contract, and every surface answers a mistyped body in the registry's

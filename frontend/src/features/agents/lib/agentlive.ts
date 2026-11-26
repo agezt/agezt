@@ -5,7 +5,7 @@ import type {
 } from "@/app/api/types.generated";
 
 
-interface AgentLivePatch {
+export interface AgentLivePatch {
   enabled?: boolean;
   retired?: boolean;
   removed?: boolean;

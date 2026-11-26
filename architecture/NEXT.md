@@ -1,5 +1,93 @@
 # NEXT — handoff for the next coding agent
 
+## Current checkpoint — W5.21 the browser pins its payload views, 2026-11-26
+
+The W0–W5 objective remains open. W5.8–W5.15 gave the **browser**, the
+**registry** and the **SDKs** their request vocabulary; W5.11–W5.19 gave
+**every surface** that reads a request body its contract, its door and the
+boot-time check that holds the two together; W5.20 put a **gate** behind that
+sentence so it cannot decay. **This slice closes W5.1's open end**: the
+browser's **response** side now has the same one-home rule the request side
+has had since W5.8.
+
+### What was on the tree
+
+- **The browser's payload views were hand-written.** The daemon's rows live in
+  one place — the generated catalog (`frontend/src/app/api/types.generated.ts`,
+  rendered from the operation registry) — but **68** of the browser's **341**
+  hand-written object-shaped types were **views of a daemon row** whose field
+  **names** they spelled out by hand. A view that names a daemon field by hand
+  is a **second contract**: the daemon renames `status` to `state` and the
+  browser keeps reading `status`, silently, until a panel goes blank.
+- **The daemon's rename was invisible to the browser.** Nothing failed,
+  because nothing in the browser ever said it was reading *a daemon field* —
+  it said it was reading *a* `status`.
+- **A pin is one compile-time assertion.** `Pick<Row, "history">` is a compile
+  error if the daemon's row no longer has a `history`; the same assertion
+  holds the daemon's field type and the browser's to each other (the browser
+  may **narrow**, and the `null`/`undefined` arms are ignored, because the
+  daemon may send `null` and the browser may read the field as absent).
+- **The browser's own vocabulary is named, not pinned.** The badge summaries
+  the browser builds, its fleet model, its navigation, its tabs, its MCP
+  preset catalogue, its voice catalogue — **23** views — are the browser's own
+  shapes and live in a **ledger** with the reason they are not daemon rows.
+- **Sixteen payload views were file-local** and became named exports, so a
+  pin can name them. Three views were re-derived to the catalog's own types.
+- **The pin is a ratchet in both directions**: a view that names a daemon
+  field with no pin fails, and a pin whose fields are no longer named by hand
+  fails too — a stale pin is a lie about the code.
+
+### What the measurement said
+
+- Browser type declarations with an object body: **341** (2 318 members).
+- Payload views of a daemon row: **68**.
+- Their shared fields, derived from the catalog: **148**.
+- Their shared fields, **named by hand**: **246**.
+- Those **164** fields are now pinned to the daemon's row, in **45** pins over
+  **28** daemon rows and **30** browser files.
+- The remaining **82** are declared the browser's own, in **23** ledger
+  entries — plus **1** inside a pin (`ChatTurn.tools`, where the name
+  coincides but the shape is the browser's).
+- A daemon field renamed behind the browser's back: **silent** → **a compile
+  error in the browser**.
+
+### The evidence
+
+`architecture/341-w521-the-browser-pins-its-payload-views-evidence.md` — the
+rule and what a pin is, the ledger and why each entry is the browser's own,
+the measurement, the four reverted mutations (two of them **the daemon's own
+renames**, one of which no earlier ratchet caught), the three guards and what
+remains open.
+
+### What the next slice should do
+
+**W5.1 is closed on both sides.** The request side has the generated
+vocabulary and the door; the response side has the generated catalog and the
+pins. A rename can no longer pass silently in either.
+
+What is left is small, and each end is a decision rather than an omission:
+
+- **The console's rollback operation is not in the registry.** The browser's
+  `Checkpoint` view is named in the ledger as the browser's own shape,
+  *because the daemon's operation is not in the generated catalog*. Bringing
+  `/api/rollback/checkpoints` into the operation registry would turn that
+  ledger entry into a pin — a real decision (an operation, a row, a
+  contract), not a transcription.
+- **The browser's narrowing stays.** The daemon's `status` is a `string`; the
+  browser reads a union of states. The pin allows a narrowing but cannot prove
+  the daemon only sends those states — the catalog does not say so, and making
+  it say so is a daemon-side decision.
+- **`chatwebhook`'s Mattermost dialect** is a **form**, so the door does not
+  measure it. Measuring it needs a form-shaped sibling of `CheckJSONBody`.
+- The **SDK catalogs** have not moved through W5.11–W5.21: the SDKs speak
+  `/api/v1`, and the browser's payload views are the console's own.
+
+One honest limit of the new ratchet is named in the evidence: it recognises a
+payload view by **three shared field names** with a daemon row, so a view that
+shares only one or two names with a row is not seen. Two names in common
+(*"id"*, *"name"*) are a coincidence of English, not a copy — a ratchet that
+cries wolf gets ignored — but the floor is a judgement, not a proof.
+
 ## Current checkpoint — W5.20 the request-body ratchet, 2026-11-26
 
 The W0–W5 objective remains open. W5.8–W5.15 gave the **browser**, the
