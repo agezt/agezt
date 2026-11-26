@@ -9,23 +9,42 @@ package whatsappgw
 // Public API unchanged.
 
 import (
-	"encoding/json"
 	"strings"
 )
 
-func parseWAHA(body []byte) []inbound {
-	var w struct {
-		Event   string `json:"event"`
-		Payload struct {
-			From   string `json:"from"`
-			Body   string `json:"body"`
-			ID     string `json:"id"`
-			FromMe bool   `json:"fromMe"`
-		} `json:"payload"`
-	}
-	if err := json.Unmarshal(body, &w); err != nil {
-		return nil
-	}
+// whatsappgwBody is a WhatsApp gateway webhook, in either of the gateway's
+// two dialects: WAHA posts its message under "payload", Evolution under
+// "data". One body type holds both, because one route carries both.
+type whatsappgwBody struct {
+	Event   string `json:"event"`
+	Payload struct {
+		From   string `json:"from"`
+		Body   string `json:"body"`
+		ID     string `json:"id"`
+		FromMe bool   `json:"fromMe"`
+	} `json:"payload"`
+	Data struct {
+		Key struct {
+			RemoteJid string `json:"remoteJid"`
+			ID        string `json:"id"`
+			FromMe    bool   `json:"fromMe"`
+		} `json:"key"`
+		Message struct {
+			Conversation        string `json:"conversation"`
+			ExtendedTextMessage struct {
+				Text string `json:"text"`
+			} `json:"extendedTextMessage"`
+		} `json:"message"`
+	} `json:"data"`
+}
+
+// parseWAHA reads a WAHA "message" webhook: {event, payload:{from, body, id,
+// fromMe}}.
+//
+// The body arrives already measured against the contract
+// (kernel/contract/channelhookapi), so this reads the webhook the daemon
+// holds.
+func parseWAHA(w whatsappgwBody) []inbound {
 	if w.Event != "" && w.Event != "message" && w.Event != "message.any" {
 		return nil
 	}
@@ -37,26 +56,7 @@ func parseWAHA(body []byte) []inbound {
 
 // parseEvolution reads an Evolution "messages.upsert" webhook:
 // {event, data:{key:{remoteJid, id, fromMe}, message:{conversation | extendedTextMessage.text}}}.
-func parseEvolution(body []byte) []inbound {
-	var e struct {
-		Event string `json:"event"`
-		Data  struct {
-			Key struct {
-				RemoteJid string `json:"remoteJid"`
-				ID        string `json:"id"`
-				FromMe    bool   `json:"fromMe"`
-			} `json:"key"`
-			Message struct {
-				Conversation        string `json:"conversation"`
-				ExtendedTextMessage struct {
-					Text string `json:"text"`
-				} `json:"extendedTextMessage"`
-			} `json:"message"`
-		} `json:"data"`
-	}
-	if err := json.Unmarshal(body, &e); err != nil {
-		return nil
-	}
+func parseEvolution(e whatsappgwBody) []inbound {
 	if e.Data.Key.FromMe || e.Data.Key.RemoteJid == "" {
 		return nil
 	}

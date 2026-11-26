@@ -32,12 +32,20 @@ func TestParseMattermost(t *testing.T) {
 
 func TestParseGoogleChat(t *testing.T) {
 	body := []byte(`{"type":"MESSAGE","message":{"name":"spaces/A/messages/B","text":"hi","sender":{"email":"a@b.com","displayName":"Alice"}},"space":{"name":"spaces/A"}}`)
-	m, ok := parseGoogleChat(body)
+	var e chatwebhookBody
+	if err := json.Unmarshal(body, &e); err != nil {
+		t.Fatal(err)
+	}
+	m, ok := parseGoogleChat(e)
 	if !ok || m.sender != "a@b.com" || m.target != "spaces/A" || m.text != "hi" || m.id != "spaces/A/messages/B" {
 		t.Fatalf("parseGoogleChat = %+v ok=%v", m, ok)
 	}
 	// non-MESSAGE events are dropped.
-	if _, ok := parseGoogleChat([]byte(`{"type":"ADDED_TO_SPACE"}`)); ok {
+	var added chatwebhookBody
+	if err := json.Unmarshal([]byte(`{"type":"ADDED_TO_SPACE"}`), &added); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := parseGoogleChat(added); ok {
 		t.Fatal("ADDED_TO_SPACE should be ignored")
 	}
 }

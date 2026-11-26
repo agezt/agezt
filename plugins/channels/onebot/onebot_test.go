@@ -17,24 +17,37 @@ import (
 	"github.com/agezt/agezt/kernel/channel"
 )
 
+// decodeOneBot decodes a body into the member's own body type.
+//
+// The route does this at the door; the parse tests do it themselves, so the
+// scenario stays the scenario and only the call changes.
+func decodeOneBot(t *testing.T, body string) onebotBody {
+	t.Helper()
+	var b onebotBody
+	if err := json.Unmarshal([]byte(body), &b); err != nil {
+		t.Fatalf("decode %q: %v", body, err)
+	}
+	return b
+}
+
 func TestParseEvent(t *testing.T) {
-	priv := []byte(`{"post_type":"message","message_type":"private","message_id":42,"user_id":12345,"raw_message":"hi"}`)
-	m, ok := parseEvent(priv)
+	priv := `{"post_type":"message","message_type":"private","message_id":42,"user_id":12345,"raw_message":"hi"}`
+	m, ok := parseEvent(decodeOneBot(t, priv))
 	if !ok || m.sender != "12345" || m.target != "private:12345" || m.text != "hi" || m.id != "42" {
 		t.Fatalf("private = %+v ok=%v", m, ok)
 	}
-	grp := []byte(`{"post_type":"message","message_type":"group","message_id":7,"user_id":1,"group_id":999,"message":"yo"}`)
-	g, ok := parseEvent(grp)
+	grp := `{"post_type":"message","message_type":"group","message_id":7,"user_id":1,"group_id":999,"message":"yo"}`
+	g, ok := parseEvent(decodeOneBot(t, grp))
 	if !ok || g.target != "group:999" || g.sender != "1" {
 		t.Fatalf("group = %+v ok=%v", g, ok)
 	}
 	// non-message post types dropped.
-	if _, ok := parseEvent([]byte(`{"post_type":"notice"}`)); ok {
+	if _, ok := parseEvent(decodeOneBot(t, `{"post_type":"notice"}`)); ok {
 		t.Fatal("notice should be dropped")
 	}
 	// CQ image/record codes are pulled out as media (URL decoded) and stripped from text.
-	cq := []byte(`{"post_type":"message","message_type":"private","message_id":9,"user_id":5,"raw_message":"look [CQ:image,file=a.jpg,url=https://x.test/a.jpg] and [CQ:record,url=https://x.test/v.amr]"}`)
-	c, ok := parseEvent(cq)
+	cq := `{"post_type":"message","message_type":"private","message_id":9,"user_id":5,"raw_message":"look [CQ:image,file=a.jpg,url=https://x.test/a.jpg] and [CQ:record,url=https://x.test/v.amr]"}`
+	c, ok := parseEvent(decodeOneBot(t, cq))
 	if !ok || len(c.media) != 2 {
 		t.Fatalf("cq media = %+v ok=%v", c, ok)
 	}
@@ -94,12 +107,18 @@ func TestFetchMediaSSRFGuard(t *testing.T) {
 	}
 }
 
+// signBody is the signature OneBot sends: "sha1=" + hex(HMAC-SHA1(secret,
+// body)) — the recipe the plugin verifies.
+func signBody(secret string, body []byte) string {
+	mac := hmac.New(sha1.New, []byte(secret))
+	mac.Write(body)
+	return "sha1=" + hex.EncodeToString(mac.Sum(nil))
+}
+
 func TestValidSignature(t *testing.T) {
 	secret := "s"
 	body := []byte(`{"post_type":"message"}`)
-	mac := hmac.New(sha1.New, []byte(secret))
-	mac.Write(body)
-	sig := "sha1=" + hex.EncodeToString(mac.Sum(nil))
+	sig := signBody(secret, body)
 	if !validSignature(secret, body, sig) {
 		t.Fatal("valid signature rejected")
 	}

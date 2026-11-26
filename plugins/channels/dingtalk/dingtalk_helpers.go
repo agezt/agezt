@@ -121,22 +121,31 @@ func safeReplyURL(raw string) bool {
 	return host == "oapi.dingtalk.com" || strings.HasSuffix(host, ".dingtalk.com")
 }
 
+// dingtalkBody is the DingTalk robot message the daemon reads: the message
+// type, the text, who sent it, the message id and the session webhook to
+// answer on.
+//
+// The shape is named in the contract (kernel/contract/channelhookapi), and the
+// door measures an arriving body against it before the plugin reads it — so
+// this type and the contract's schema must name the SAME fields with the SAME
+// types. The member checks that when it is built.
+type dingtalkBody struct {
+	MsgType string `json:"msgtype"`
+	Text    struct {
+		Content string `json:"content"`
+	} `json:"text"`
+	SenderStaffID  string `json:"senderStaffId"`
+	SenderNick     string `json:"senderNick"`
+	MsgID          string `json:"msgId"`
+	SessionWebhook string `json:"sessionWebhook"`
+}
+
 // parseInbound reads a DingTalk robot message: {msgtype, text:{content},
 // senderStaffId, senderNick, msgId, sessionWebhook}.
-func parseInbound(body []byte) (inbound, bool) {
-	var d struct {
-		MsgType string `json:"msgtype"`
-		Text    struct {
-			Content string `json:"content"`
-		} `json:"text"`
-		SenderStaffID  string `json:"senderStaffId"`
-		SenderNick     string `json:"senderNick"`
-		MsgID          string `json:"msgId"`
-		SessionWebhook string `json:"sessionWebhook"`
-	}
-	if err := json.Unmarshal(body, &d); err != nil {
-		return inbound{}, false
-	}
+//
+// The body has already been measured against the contract's shape by the door
+// — a mistyped field never reaches this function.
+func parseInbound(d dingtalkBody) (inbound, bool) {
 	if d.MsgType != "" && d.MsgType != "text" {
 		return inbound{}, false
 	}

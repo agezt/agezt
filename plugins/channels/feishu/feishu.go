@@ -12,12 +12,15 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/channel"
+	"github.com/agezt/agezt/kernel/contract/channelhookapi"
+	"github.com/agezt/agezt/kernel/httpserver"
 	"github.com/agezt/agezt/kernel/platform/netout"
 	"github.com/agezt/agezt/kernel/ulid"
 )
@@ -64,6 +67,12 @@ type Channel struct {
 
 // New constructs a Feishu channel, applying defaults.
 func New(cfg Config) *Channel {
+	// The contract and this member must agree on the body's shape: a contract
+	// that mistyped a field stops the daemon HERE, instead of the door
+	// measuring arriving bodies against a shape the member cannot hold.
+	if err := channelhookapi.CheckShape(channelhookapi.MemberFeishu, reflect.TypeOf(feishuWebhook{})); err != nil {
+		panic("channels/feishu: the contract and the plugin disagree: " + err.Error())
+	}
 	if cfg.Path == "" {
 		cfg.Path = DefaultPath
 	}
@@ -141,21 +150,39 @@ func (c *Channel) handleInbound(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad body", http.StatusBadRequest)
 		return
 	}
+	// The token is INSIDE the body — the handshake's top-level "token", the
+	// event's "header.token" — so it is read from the RAW bytes before the
+	// body is decoded, and it is verified BEFORE the door: a body is only
+	// measured by someone who proved they may send it.
+	//
+	// A body that is not JSON at all carries no token, so there is nothing to
+	// verify, and the door is what refuses it ("bad json", the member's own
+	// voice).
+	tok, readable := feishuToken(body)
+	if readable && !c.validToken(tok) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+	// The door: the body's shape is named in the contract
+	// (kernel/contract/channelhookapi) and measured HERE — after the token is
+	// verified, and before the plugin reads the body and before any answer is
+	// written. A mistyped field is refused with the operation registry's
+	// words; the member keeps its own voice for a body that is not JSON at
+	// all: "bad json", a NEW voice for this member — such a body used to be
+	// answered 403, because it carried no token to verify.
+	shape, _ := channelhookapi.Body(channelhookapi.MemberFeishu)
+	var wh feishuWebhook
+	if err := httpserver.CheckJSONBody(body, shape, channelhookapi.MemberFeishu, &wh); err != nil {
+		httpserver.RefuseJSONBody(w, err, "bad json")
+		return
+	}
 	// url_verification handshake: echo the challenge.
-	if challenge, tok, ok := urlVerification(body); ok {
-		if !c.validToken(tok) {
-			http.Error(w, "forbidden", http.StatusForbidden)
-			return
-		}
+	if challenge, ok := urlVerification(wh); ok {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]string{"challenge": challenge})
 		return
 	}
-	m, tok, ok := parseEvent(body)
-	if !c.validToken(tok) {
-		http.Error(w, "forbidden", http.StatusForbidden)
-		return
-	}
+	m, _, ok := parseEvent(wh)
 	w.WriteHeader(http.StatusOK)
 	if ok {
 		c.dispatch(r.Context(), m)

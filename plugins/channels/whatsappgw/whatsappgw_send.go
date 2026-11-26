@@ -124,4 +124,6 @@ func (c *Channel) seenBefore(id string) bool {
 
 // ---- wire shapes ---------------------------------------------------------
 
-// parseWAHA reads a WAHA "message" webhook: {event, payload:{from, body, id, fromMe}}.
+// parseWAHA reads a WAHA "message" webhook: {event, payload:{from, body, id,
+// fromMe}}. The implementation lives in whatsappgw_parse.go — it reads the
+// body the door has already measured.

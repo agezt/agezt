@@ -48,5 +48,6 @@ func (c *Channel) seenBefore(id string) bool {
 
 // ---- wire shapes ---------------------------------------------------------
 
-// urlVerification detects the one-time challenge POST and returns (challenge,
-// token, true).
+// The wire shapes (feishuWebhook + urlVerification + parseEvent) live in
+// feishu_wire.go: the body's shape is NAMED, because the contract names it
+// too.

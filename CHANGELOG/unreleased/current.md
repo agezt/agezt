@@ -898,6 +898,42 @@ This file holds the active `[Unreleased]` working set.
   contract row **1 of 15 → 7 of 15**. Thirty-seven new guards hold the line,
   and eight reverted mutations prove them.
 
+- **The channel webhook family is complete: every member has a contract and a
+  door.** The family's **last six** vendor members — `chatwebhook`,
+  `dingtalk`, `feishu`, `nextcloudtalk`, `onebot` and `whatsappgw` — had **no
+  contract row and no door**: each read its inbound body into whatever struct
+  it happened to use, so a mistyped body was answered by Go's `encoding/json`
+  and the plugin's own plain text — a **200 and silence** in `dingtalk`,
+  `nextcloudtalk`, `onebot`, `whatsappgw` and `chatwebhook` (the body was
+  swallowed and the vendor was told the delivery had succeeded), a **403** in
+  `feishu`, whose token is inside the body — and a **null** was accepted
+  everywhere, becoming the field's zero value. Two of the six needed a
+  decision rather than a transcription: a route that carries **two** bodies
+  (`feishu`'s handshake and its event, `whatsappgw`'s two gateway backends)
+  becomes **one** body type that holds both shapes and therefore one member —
+  the plugin reads both in the same struct anyway — and a **numeric id**
+  (`onebot`'s `message_id`, `user_id`, `group_id`, read as `json.Number`) is
+  now what the registry's words call it: the shape guard has learned that a
+  `json.Number` is read as a **number**, not as the string it is underneath.
+  The contract now names **thirteen** members with a JSON body and the door
+  measures them with the **same validator the registry uses**: `operation
+  onebot input: $.user_id has wrong type: got string, want number`, `operation
+  dingtalk input: $.text.content has wrong type: got number, want string`, and
+  so on. And the family's roster is **one table**: the two members that take
+  **no** JSON body — `wecom` (an **XML** callback) and `sms` (a **form**) — are
+  named in the contract as members that take none, and each says so **when it
+  is built**, so a contract that grew a JSON body for them would stop the
+  daemon. The signature is still verified **before** the body is measured —
+  including the two members whose credential lives inside the body, whose token
+  is read from the raw bytes first — and the allowlist, the dedup rings and
+  the freshness windows are untouched. Measured: members the contract names a
+  body for **7 → 13**; request fields checked before the plugin reads them
+  **62 → 108**; probes refused with the registry's sentence **124 → 216**;
+  nulls refused **62 → 108**; members behind a door **7 → 13**; members
+  holding the contract to themselves at boot **7 → 15**; the family's members
+  in the contract **7 of 15 → 15 of 15**. Forty new guards hold the line
+  (eighty across the family), and eight reverted mutations prove them.
+
 - **The OpenAI-compatible surface gets a contract and a door.** The
   OpenAI-compatible surface is the daemon's door to any OpenAI client, SDK or
   IDE, and its **5 routes** were registered by hand in

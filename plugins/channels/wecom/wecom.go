@@ -18,6 +18,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/channel"
+	"github.com/agezt/agezt/kernel/contract/channelhookapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/platform/netout"
 )
@@ -67,6 +68,13 @@ type Channel struct {
 // New constructs a WeCom channel, applying defaults. AESKey decode errors leave
 // aesKey nil; the channel then rejects inbound (outbound still works).
 func New(cfg Config) *Channel {
+	// This member reads an XML callback, not a JSON body: the contract must
+	// not name one for it. A contract that grew a JSON body for WeCom would
+	// stop the daemon HERE, instead of quietly measuring a body this member
+	// never reads.
+	if _, ok := channelhookapi.Body(channelhookapi.MemberWeCom); ok {
+		panic("channels/wecom: the contract names a JSON body for a member that reads XML")
+	}
 	if cfg.Path == "" {
 		cfg.Path = DefaultPath
 	}

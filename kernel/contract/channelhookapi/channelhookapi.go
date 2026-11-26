@@ -73,6 +73,28 @@ const (
 	MemberIMessage = "imessage"
 	// MemberZalo is a Zalo OA event.
 	MemberZalo = "zalo"
+	// MemberChatWebhook is a generic chat delivery — the Google Chat dialect.
+	// (The member's other dialect, Mattermost's outgoing webhook, is a form
+	// and takes no JSON body.)
+	MemberChatWebhook = "chatwebhook"
+	// MemberDingTalk is a DingTalk robot message.
+	MemberDingTalk = "dingtalk"
+	// MemberFeishu is a Feishu event — and the URL-verification handshake
+	// that arrives on the same route.
+	MemberFeishu = "feishu"
+	// MemberNextcloudTalk is a Nextcloud Talk activity.
+	MemberNextcloudTalk = "nextcloudtalk"
+	// MemberOneBot is a OneBot v11 message event.
+	MemberOneBot = "onebot"
+	// MemberWhatsAppGW is a WhatsApp gateway webhook, in either of the
+	// gateway's two dialects.
+	MemberWhatsAppGW = "whatsappgw"
+	// MemberWeCom is the WeCom member: it reads an **XML** callback, so it
+	// takes no JSON body and the door does not measure it.
+	MemberWeCom = "wecom"
+	// MemberSMS is the SMS member: it reads a **form**, so it takes no JSON
+	// body and the door does not measure it.
+	MemberSMS = "sms"
 )
 
 // webhookBody is the generic member's inbound body.
@@ -98,6 +120,17 @@ func Members() []Member {
 		{ID: MemberLine, Body: json.RawMessage(lineBody)},
 		{ID: MemberIMessage, Body: json.RawMessage(imessageBody)},
 		{ID: MemberZalo, Body: json.RawMessage(zaloBody)},
+		{ID: MemberChatWebhook, Body: json.RawMessage(chatwebhookBody)},
+		{ID: MemberDingTalk, Body: json.RawMessage(dingtalkBody)},
+		{ID: MemberFeishu, Body: json.RawMessage(feishuBody)},
+		{ID: MemberNextcloudTalk, Body: json.RawMessage(nextcloudtalkBody)},
+		{ID: MemberOneBot, Body: json.RawMessage(onebotBody)},
+		{ID: MemberWhatsAppGW, Body: json.RawMessage(whatsappgwBody)},
+		// The family's two members that take NO JSON body: WeCom reads an XML
+		// callback and SMS reads a form. They are named here so the family's
+		// roster is ONE table, and so the door only ever has to measure JSON.
+		{ID: MemberWeCom},
+		{ID: MemberSMS},
 	}
 }
 

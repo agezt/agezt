@@ -18,6 +18,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/channel"
+	"github.com/agezt/agezt/kernel/contract/channelhookapi"
 	"github.com/agezt/agezt/kernel/platform/netout"
 	"github.com/agezt/agezt/kernel/ulid"
 )
@@ -86,6 +87,13 @@ type Channel struct {
 
 // New constructs an SMS Channel from cfg.
 func New(cfg Config) *Channel {
+	// This member reads a form, not a JSON body: the contract must not name
+	// one for it. A contract that grew a JSON body for SMS would stop the
+	// daemon HERE, instead of quietly measuring a body this member never
+	// reads.
+	if _, ok := channelhookapi.Body(channelhookapi.MemberSMS); ok {
+		panic("channels/sms: the contract names a JSON body for a member that reads a form")
+	}
 	path := cfg.Path
 	if path == "" {
 		path = DefaultPath

@@ -14,34 +14,60 @@ import (
 	"github.com/agezt/agezt/kernel/channel"
 )
 
-func TestURLVerification(t *testing.T) {
-	ch, tok, ok := urlVerification([]byte(`{"challenge":"abc","token":"t1","type":"url_verification"}`))
-	if !ok || ch != "abc" || tok != "t1" {
-		t.Fatalf("urlVerification = %q %q %v", ch, tok, ok)
+// decodeFeishu reads a body into the member's own wire shape — the shape the
+// door measures before the plugin reads it.
+func decodeFeishu(t *testing.T, raw string) feishuWebhook {
+	t.Helper()
+	var w feishuWebhook
+	if err := json.Unmarshal([]byte(raw), &w); err != nil {
+		t.Fatalf("decode %s: %v", raw, err)
 	}
-	if _, _, ok := urlVerification([]byte(`{"type":"event_callback"}`)); ok {
+	return w
+}
+
+func TestURLVerification(t *testing.T) {
+	ch, ok := urlVerification(decodeFeishu(t, `{"challenge":"abc","token":"t1","type":"url_verification"}`))
+	if !ok || ch != "abc" {
+		t.Fatalf("urlVerification = %q %v", ch, ok)
+	}
+	if _, ok := urlVerification(decodeFeishu(t, `{"type":"event_callback"}`)); ok {
 		t.Fatal("non-verification should be false")
 	}
 }
 
+func TestFeishuToken(t *testing.T) {
+	// The handshake carries the token at the top level.
+	if tok, ok := feishuToken([]byte(`{"challenge":"abc","token":"t1","type":"url_verification"}`)); !ok || tok != "t1" {
+		t.Fatalf("feishuToken = %q %v", tok, ok)
+	}
+	// The event carries it in its header.
+	if tok, ok := feishuToken([]byte(`{"header":{"token":"t2"}}`)); !ok || tok != "t2" {
+		t.Fatalf("feishuToken = %q %v", tok, ok)
+	}
+	// A body that is not JSON carries no token at all.
+	if tok, ok := feishuToken([]byte(`not json`)); ok || tok != "" {
+		t.Fatalf("feishuToken = %q %v, want no token and not readable", tok, ok)
+	}
+}
+
 func TestParseEvent(t *testing.T) {
-	body := []byte(`{"header":{"token":"t1","event_id":"E1","event_type":"im.message.receive_v1"},"event":{"sender":{"sender_id":{"open_id":"ou_1"}},"message":{"message_id":"m1","chat_id":"oc_1","message_type":"text","content":"{\"text\":\"hi\"}"}}}`)
-	m, tok, ok := parseEvent(body)
+	body := `{"header":{"token":"t1","event_id":"E1","event_type":"im.message.receive_v1"},"event":{"sender":{"sender_id":{"open_id":"ou_1"}},"message":{"message_id":"m1","chat_id":"oc_1","message_type":"text","content":"{\"text\":\"hi\"}"}}}`
+	m, tok, ok := parseEvent(decodeFeishu(t, body))
 	if !ok || tok != "t1" || m.sender != "ou_1" || m.chatID != "oc_1" || m.text != "hi" || m.id != "m1" {
 		t.Fatalf("parseEvent = %+v tok=%q ok=%v", m, tok, ok)
 	}
 	// image message is kept with its image_key + media type so the resource can be fetched.
-	im, _, ok := parseEvent([]byte(`{"header":{"event_type":"im.message.receive_v1"},"event":{"message":{"message_id":"m2","message_type":"image","content":"{\"image_key\":\"img_k1\"}"}}}`))
+	im, _, ok := parseEvent(decodeFeishu(t, `{"header":{"event_type":"im.message.receive_v1"},"event":{"message":{"message_id":"m2","message_type":"image","content":"{\"image_key\":\"img_k1\"}"}}}`))
 	if !ok || im.mediaType != "image" || im.fileKey != "img_k1" || im.messageID != "m2" {
 		t.Fatalf("image parseEvent = %+v ok=%v", im, ok)
 	}
 	// audio message keeps its file_key under the audio media type.
-	au, _, ok := parseEvent([]byte(`{"header":{"event_type":"im.message.receive_v1"},"event":{"message":{"message_id":"m3","message_type":"audio","content":"{\"file_key\":\"file_k1\"}"}}}`))
+	au, _, ok := parseEvent(decodeFeishu(t, `{"header":{"event_type":"im.message.receive_v1"},"event":{"message":{"message_id":"m3","message_type":"audio","content":"{\"file_key\":\"file_k1\"}"}}}`))
 	if !ok || au.mediaType != "audio" || au.fileKey != "file_k1" {
 		t.Fatalf("audio parseEvent = %+v ok=%v", au, ok)
 	}
 	// genuinely unsupported message types are still dropped.
-	if _, _, ok := parseEvent([]byte(`{"header":{"event_type":"im.message.receive_v1"},"event":{"message":{"message_type":"sticker"}}}`)); ok {
+	if _, _, ok := parseEvent(decodeFeishu(t, `{"header":{"event_type":"im.message.receive_v1"},"event":{"message":{"message_type":"sticker"}}}`)); ok {
 		t.Fatal("sticker message should be dropped")
 	}
 }

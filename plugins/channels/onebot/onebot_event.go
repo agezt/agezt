@@ -34,21 +34,25 @@ func validSignature(secret string, body []byte, header string) bool {
 	return subtle.ConstantTimeCompare([]byte(want), []byte(header)) == 1
 }
 
+// onebotBody is a OneBot v11 message event. The ids are NUMBERS — the
+// vendor sends them as numbers.
+type onebotBody struct {
+	PostType    string      `json:"post_type"`
+	MessageType string      `json:"message_type"`
+	MessageID   json.Number `json:"message_id"`
+	UserID      json.Number `json:"user_id"`
+	GroupID     json.Number `json:"group_id"`
+	RawMessage  string      `json:"raw_message"`
+	Message     string      `json:"message"`
+}
+
 // parseEvent reads a OneBot v11 message event: {post_type:"message",
 // message_type, message_id, user_id, group_id, raw_message/message}.
-func parseEvent(body []byte) (inbound, bool) {
-	var e struct {
-		PostType    string      `json:"post_type"`
-		MessageType string      `json:"message_type"`
-		MessageID   json.Number `json:"message_id"`
-		UserID      json.Number `json:"user_id"`
-		GroupID     json.Number `json:"group_id"`
-		RawMessage  string      `json:"raw_message"`
-		Message     string      `json:"message"`
-	}
-	if err := json.Unmarshal(body, &e); err != nil {
-		return inbound{}, false
-	}
+//
+// The body arrives already measured against the contract
+// (kernel/contract/channelhookapi), so this reads the event the daemon
+// holds — the shape is named in one place.
+func parseEvent(e onebotBody) (inbound, bool) {
 	if e.PostType != "" && e.PostType != "message" {
 		return inbound{}, false
 	}

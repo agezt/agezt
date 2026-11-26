@@ -9,13 +9,16 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/channel"
+	"github.com/agezt/agezt/kernel/contract/channelhookapi"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/httpserver"
 	"github.com/agezt/agezt/kernel/platform/netout"
 	"github.com/agezt/agezt/kernel/ulid"
 )
@@ -53,6 +56,12 @@ type Channel struct {
 
 // New constructs a DingTalk channel, applying defaults.
 func New(cfg Config) *Channel {
+	// The contract and this member must agree on the body's shape: a contract
+	// that mistyped a field stops the daemon HERE, instead of the door
+	// measuring arriving bodies against a shape the member cannot hold.
+	if err := channelhookapi.CheckShape(channelhookapi.MemberDingTalk, reflect.TypeOf(dingtalkBody{})); err != nil {
+		panic("channels/dingtalk: the contract and the plugin disagree: " + err.Error())
+	}
 	if cfg.Path == "" {
 		cfg.Path = DefaultPath
 	}
@@ -127,8 +136,23 @@ func (c *Channel) handleInbound(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
+	// The body's shape is named in the contract (kernel/contract/channelhookapi)
+	// and measured here, before the plugin reads it: a mistyped field is
+	// refused with the operation registry's words, in the plugin's own plain
+	// text. The signature is checked FIRST — a body is only read by someone
+	// who proved they may send it — and the refusal comes BEFORE any answer,
+	// so a body that does not fit the contract never gets a 200.
+	//
+	// "bad json" is NEW to this member: DingTalk used to answer 200 to a body
+	// it could not read, and swallowed it.
+	shape, _ := channelhookapi.Body(channelhookapi.MemberDingTalk)
+	var b dingtalkBody
+	if err := httpserver.CheckJSONBody(body, shape, channelhookapi.MemberDingTalk, &b); err != nil {
+		httpserver.RefuseJSONBody(w, err, "bad json")
+		return
+	}
 	w.WriteHeader(http.StatusOK)
-	if m, ok := parseInbound(body); ok {
+	if m, ok := parseInbound(b); ok {
 		c.dispatch(r.Context(), m)
 	}
 }

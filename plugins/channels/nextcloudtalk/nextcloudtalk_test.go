@@ -7,6 +7,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -24,6 +25,17 @@ func sigFor(random string, body []byte) string {
 	mac.Write([]byte(random))
 	mac.Write(body)
 	return hex.EncodeToString(mac.Sum(nil))
+}
+
+// decodeNextcloudTalk reads a body into the member's own wire shape — the
+// shape the door measures before the plugin reads it.
+func decodeNextcloudTalk(t *testing.T, raw string) nextcloudtalkBody {
+	t.Helper()
+	var b nextcloudtalkBody
+	if err := json.Unmarshal([]byte(raw), &b); err != nil {
+		t.Fatalf("decode %s: %v", raw, err)
+	}
+	return b
 }
 
 func TestVerify(t *testing.T) {
@@ -46,17 +58,17 @@ func TestVerify(t *testing.T) {
 }
 
 func TestParseActivity(t *testing.T) {
-	body := []byte(`{"type":"Create","actor":{"id":"users/alice"},"object":{"id":"msg-1","content":"{\"message\":\"hello bot\"}"},"target":{"id":"tok123"}}`)
-	m, ok := parseActivity(body)
+	body := `{"type":"Create","actor":{"id":"users/alice"},"object":{"id":"msg-1","content":"{\"message\":\"hello bot\"}"},"target":{"id":"tok123"}}`
+	m, ok := parseActivity(decodeNextcloudTalk(t, body))
 	if !ok || m.token != "tok123" || m.sender != "users/alice" || m.text != "hello bot" || m.id != "msg-1" {
 		t.Fatalf("parse = %+v ok=%v", m, ok)
 	}
 	// Non-Create events (reactions, joins) are dropped.
-	if _, ok := parseActivity([]byte(`{"type":"Like"}`)); ok {
+	if _, ok := parseActivity(decodeNextcloudTalk(t, `{"type":"Like"}`)); ok {
 		t.Fatal("Like should be dropped")
 	}
 	// Plain (non-JSON) content falls back to the raw string.
-	m2, ok := parseActivity([]byte(`{"type":"Create","object":{"content":"raw text"},"target":{"id":"t"}}`))
+	m2, ok := parseActivity(decodeNextcloudTalk(t, `{"type":"Create","object":{"content":"raw text"},"target":{"id":"t"}}`))
 	if !ok || m2.text != "raw text" {
 		t.Fatalf("raw content = %+v", m2)
 	}

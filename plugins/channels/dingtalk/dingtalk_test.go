@@ -20,7 +20,11 @@ import (
 
 func TestParseInbound(t *testing.T) {
 	body := []byte(`{"msgtype":"text","text":{"content":"  hello "},"senderStaffId":"S1","senderNick":"Al","msgId":"M1","sessionWebhook":"http://x/reply"}`)
-	m, ok := parseInbound(body)
+	var d dingtalkBody
+	if err := json.Unmarshal(body, &d); err != nil {
+		t.Fatal(err)
+	}
+	m, ok := parseInbound(d)
 	if !ok || m.sender != "S1" || m.text != "hello" || m.id != "M1" || m.replyURL != "http://x/reply" {
 		t.Fatalf("parseInbound = %+v ok=%v", m, ok)
 	}
