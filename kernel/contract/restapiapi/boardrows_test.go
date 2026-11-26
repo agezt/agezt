@@ -61,6 +61,10 @@ func goTypesFor(t Type) []reflect.Type {
 		return []reflect.Type{reflect.TypeOf(map[string]any{})}
 	case TypeIntMap:
 		return []reflect.Type{reflect.TypeOf(map[string]int{})}
+	case TypeMail:
+		return []reflect.Type{reflect.TypeOf(boardapi.Mail{})}
+	case TypeMailSlice:
+		return []reflect.Type{reflect.TypeOf([]boardapi.Mail{})}
 	default:
 		return nil
 	}
@@ -77,21 +81,57 @@ func typeAgrees(wire Type, got reflect.Type) bool {
 	return false
 }
 
+// checkSubset holds one contract row to one served row: every field the
+// contract names must be on the served row, under the same name and a type the
+// contract allows.
+func checkSubset(t *testing.T, contractRow string, sent reflect.Type) {
+	t.Helper()
+	row := rowByName(t, contractRow)
+	wire := wireNames(sent)
+	for _, f := range row.Fields {
+		got, ok := wire[f.Name]
+		if !ok {
+			t.Errorf("the contract's %q row names %q, which the row the daemon serves does not carry",
+				row.Name, f.Name)
+			continue
+		}
+		if !typeAgrees(f.Type, got) {
+			t.Errorf("the contract's %q row names %q as %q, the row the daemon serves carries it as %s",
+				row.Name, f.Name, f.Type, got)
+		}
+	}
+}
+
 // TestTheMailRowIsAStableSubsetOfTheBoardsWireRow is the ratchet: every field
 // the contract's mail row names must be a field of the board's wire row, under
 // the same name and a type the contract allows.
 func TestTheMailRowIsAStableSubsetOfTheBoardsWireRow(t *testing.T) {
-	row := rowByName(t, RowMail)
-	wire := wireNames(reflect.TypeOf(boardapi.Mail{}))
-	for _, f := range row.Fields {
-		got, ok := wire[f.Name]
-		if !ok {
-			t.Errorf("the contract's %q row names %q, which the board's wire row does not carry", row.Name, f.Name)
-			continue
-		}
-		if !typeAgrees(f.Type, got) {
-			t.Errorf("the contract's %q row names %q as %q, the board's wire row carries it as %s",
-				row.Name, f.Name, f.Type, got)
-		}
+	checkSubset(t, RowMail, reflect.TypeOf(boardapi.Mail{}))
+}
+
+// envelopeRows are the answers the mailbox surface sends around the messages:
+// the list, the send's answer, the replies, the inbox, the topics and the
+// ack. Each one lives in the board contract, for the same reason the mail row
+// does — the surface sends it, the contract names it, and the SDKs read it.
+//
+// The table is the slice's coverage claim: a row the surface sends and the
+// table does not name is a row nobody checks.
+var envelopeRows = []struct {
+	ContractRow string
+	Sent        reflect.Type
+}{
+	{RowMailboxList, reflect.TypeOf(boardapi.MailboxList{})},
+	{RowMailboxSent, reflect.TypeOf(boardapi.MailboxSent{})},
+	{RowMailboxReplies, reflect.TypeOf(boardapi.MailboxReplies{})},
+	{RowMailboxInbox, reflect.TypeOf(boardapi.MailboxInbox{})},
+	{RowMailboxTopics, reflect.TypeOf(boardapi.MailboxTopics{})},
+	{RowMailAcked, reflect.TypeOf(boardapi.MailAcked{})},
+}
+
+// TestTheEnvelopeRowsAreTheStableSubsetOfTheRowsTheDaemonSends is the same
+// ratchet for the answers around the messages.
+func TestTheEnvelopeRowsAreTheStableSubsetOfTheRowsTheDaemonSends(t *testing.T) {
+	for _, entry := range envelopeRows {
+		checkSubset(t, entry.ContractRow, entry.Sent)
 	}
 }

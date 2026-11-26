@@ -837,6 +837,37 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The mailbox's envelope rows have one home: the surface serves the contract's
+  rows.** W5.22 gave the board's **message row** one home — the contract owns
+  `Mail` (the wire row) and `Draft` (the request row) — but the **answers
+  around the messages** were left behind: the mailbox surface wrote its six
+  envelopes by hand, one `map[string]any` per endpoint, and decoded its ack
+  body from a hand-written struct. **15** field names, spelled in **7** places,
+  in an *implementation* package, while the contract declared the same six
+  envelopes and the same ack body for the SDKs — so each envelope had two
+  answers and nothing said they were the same list: the surface renames
+  `waiting` to `pending`, the SDKs keep reading `waiting`, and nothing fails.
+  The rows now live next to the message row they carry
+  (`kernel/contract/boardapi`): `MailboxList`, `MailboxSent`, `MailboxReplies`,
+  `MailboxInbox`, `MailboxTopics`, `MailAcked` and the `Ack` body, and the
+  surface serves them — **7 hand-written views → 0**, **15 hand-spelled names →
+  0**. The contract's envelope rows are now **checked** against the rows the
+  daemon sends: every field the contract names must be on the served row, under
+  the same name **and** a type the contract allows (the wire row may carry more
+  — that is the rule, not a drift — and the send's answer does, with the
+  `correlation_id` the board event carries). The contract already knew the mail
+  row's *types* (`TypeMail`, `TypeMailSlice`) without pointing at anything; now
+  they point at `boardapi.Mail` and `[]boardapi.Mail`. And the surface itself
+  is measured: **a map literal that spells a mailbox row's field names fails**,
+  and a **declared exception that no longer matches fails too** — there is
+  exactly one, and it is a frame that is deliberately not the mail row (the
+  watch stream's fallback for a message evicted from the store). Measured:
+  hand-written views of a mailbox row **7 → 0**; rows checked **1 → 7**; the
+  served bytes **unchanged**. **Five** reverted mutations prove it — a renamed
+  envelope field, a drifted type, a dropped field, the surface going back to a
+  hand-written map, and a stale exception. The SDK catalogs and the generated
+  OpenAPI catalog are byte-identical.
+
 - **The board's mail row has one home: the contract owns the wire row and the
   request row.** The board's **mail row** (the row the daemon serves on the wire)
   and its **mail-draft row** (the row a client sends) were spelled out by hand in

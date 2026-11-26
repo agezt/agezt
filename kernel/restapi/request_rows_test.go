@@ -42,7 +42,7 @@ func daemonRequestBodies() map[string]reflect.Type {
 	return map[string]reflect.Type{
 		restapiapi.EndpointRun:         reflect.TypeOf(runRequest{}),
 		restapiapi.EndpointMailboxSend: reflect.TypeOf(boardapi.Draft{}),
-		restapiapi.EndpointMailboxAck:  reflect.TypeOf(mailboxAckRequest{}),
+		restapiapi.EndpointMailboxAck:  reflect.TypeOf(boardapi.Ack{}),
 		restapiapi.EndpointUpdateApply: reflect.TypeOf(updateApplyArgs{}),
 	}
 }

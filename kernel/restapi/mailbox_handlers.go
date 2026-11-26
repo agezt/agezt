@@ -30,7 +30,7 @@ func (s *Server) handleMailboxMessages(w http.ResponseWriter, r *http.Request) {
 		for _, m := range msgs {
 			views = append(views, boardapi.MailOf(m))
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"messages": views, "count": len(views)})
+		writeJSON(w, http.StatusOK, boardapi.MailboxList{Count: len(views), Messages: views})
 
 	case http.MethodPost:
 		var req boardapi.Draft
@@ -85,11 +85,10 @@ func (s *Server) handleMailboxMessages(w http.ResponseWriter, r *http.Request) {
 		if s.boardNotify != nil {
 			s.boardNotify(m, corr)
 		}
-		resp := map[string]any{"message": boardapi.MailOf(m)}
-		if corr != "" {
-			resp["correlation_id"] = corr
-		}
-		writeJSON(w, http.StatusCreated, resp)
+		writeJSON(w, http.StatusCreated, boardapi.MailboxSent{
+			CorrelationID: corr,
+			Message:       boardapi.MailOf(m),
+		})
 
 	default:
 		methodNotAllowed(w, "GET, POST")
@@ -118,7 +117,7 @@ func (s *Server) handleMailboxInbox(w http.ResponseWriter, r *http.Request) {
 	for _, m := range msgs {
 		views = append(views, boardapi.MailOf(m))
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"name": name, "waiting": views, "count": len(views)})
+	writeJSON(w, http.StatusOK, boardapi.MailboxInbox{Count: len(views), Name: name, Waiting: views})
 }
 
 // --- GET /api/v1/mailbox/messages/{id}/replies, POST .../{id}/ack ---
@@ -145,14 +144,14 @@ func (s *Server) handleMailboxMessageSub(w http.ResponseWriter, r *http.Request)
 		for _, m := range msgs {
 			views = append(views, boardapi.MailOf(m))
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"id": id, "replies": views, "count": len(views)})
+		writeJSON(w, http.StatusOK, boardapi.MailboxReplies{Count: len(views), ID: id, Replies: views})
 
 	case "ack":
 		if r.Method != http.MethodPost {
 			methodNotAllowed(w, http.MethodPost)
 			return
 		}
-		var req mailboxAckRequest
+		var req boardapi.Ack
 		if !decodeRequestBody(w, r, restapiapi.EndpointMailboxAck, &req) {
 			return
 		}
@@ -169,7 +168,7 @@ func (s *Server) handleMailboxMessageSub(w http.ResponseWriter, r *http.Request)
 			writeErr(w, http.StatusNotFound, "not_found", "no message with id "+id)
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"acked": true, "id": id, "by": strings.TrimSpace(req.By)})
+		writeJSON(w, http.StatusOK, boardapi.MailAcked{Acked: true, By: strings.TrimSpace(req.By), ID: id})
 
 	default:
 		writeErr(w, http.StatusNotFound, "not_found", "unknown action "+action+" (replies|ack)")
