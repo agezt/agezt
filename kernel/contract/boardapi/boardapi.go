@@ -11,7 +11,8 @@
 //
 // The rules of the road:
 //
-//   - Rows only. No store, no I/O.
+//   - Rows only. No store, no I/O. The one function here is a PURE projection
+//     between two rows.
 //   - Pure. It may import the standard library and other contract packages
 //     only (archcheck's principle P4).
 //
@@ -42,6 +43,67 @@ type Message struct {
 	// without needing a reply. Per-reader, so a broadcast acked by one agent
 	// still shows for every other recipient.
 	AckedBy []string `json:"acked_by,omitempty"`
+}
+
+// Mail is one board post as the CLIENTS read it: the row the daemon serves on
+// the wire.
+//
+// It is the stored row (Message) projected — the same fields, with the instant
+// named the way the wire names it (`ts_unix_ms`, not `ts_ms`) and the empty
+// fields left out. The row lives HERE, in the contract, because three surfaces
+// serve it and none of them may spell its field names a second time: the REST
+// mailbox surface, the control plane's board operations and the SDKs' typed
+// rows.
+//
+// The SDKs' own rows are the STABLE SUBSET of this one (the contract says so:
+// a row names the fields every SDK already speaks), so this row may carry a
+// field they do not name — `acked_by` is one.
+//
+// The fields are declared in the order the wire speaks them (alphabetically),
+// because the field order IS the member order of the JSON the daemon serves —
+// and the wire has always spoken it that way. A row that re-ordered its
+// fields would move the bytes on a surface the SDKs' golden fixtures pin.
+type Mail struct {
+	AckedBy  []string `json:"acked_by,omitempty"`
+	From     string   `json:"from,omitempty"`
+	Help     bool     `json:"help,omitempty"`
+	ID       string   `json:"id,omitempty"`
+	ReplyTo  string   `json:"reply_to,omitempty"`
+	Text     string   `json:"text"`
+	To       string   `json:"to,omitempty"`
+	Topic    string   `json:"topic"`
+	TSUnixMS int64    `json:"ts_unix_ms"`
+}
+
+// Draft is the row a client SENDS: a message to leave on the board. It is the
+// body of the mailbox send endpoint and of the board_send operation, so it
+// lives here for the same reason Mail does — the REST surface decodes it, the
+// app layer reads it, and the contract names its fields.
+type Draft struct {
+	Text          string `json:"text"`
+	From          string `json:"from,omitempty"`
+	To            string `json:"to,omitempty"`
+	Topic         string `json:"topic,omitempty"`
+	ReplyTo       string `json:"reply_to,omitempty"`
+	CorrelationID string `json:"correlation_id,omitempty"`
+	Help          bool   `json:"help,omitempty"`
+}
+
+// MailOf projects the stored row into the wire row. Pure, and it copies the
+// acknowledgement slice: the wire row must not alias the store's own slice, or
+// an acknowledgement read through one row would write through the other.
+func MailOf(m Message) Mail {
+	return Mail{
+		Topic:    m.Topic,
+		Text:     m.Text,
+		TSUnixMS: m.TSMS,
+		ID:       m.ID,
+		From:     m.From,
+		To:       m.To,
+		ReplyTo:  m.ReplyTo,
+		Help:     m.Help,
+		AckedBy:  append([]string(nil), m.AckedBy...),
+	}
 }
 
 // Everyone is the recipient that means "every agent on the board". A message

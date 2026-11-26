@@ -34,20 +34,21 @@ func New(store Store, notify func(boardapi.Message, string)) *Service {
 	return &Service{store: store, notify: notify}
 }
 
-type Message struct {
-	Topic    string   `json:"topic"`
-	Text     string   `json:"text"`
-	TSUnixMS int64    `json:"ts_unix_ms"`
-	ID       string   `json:"id,omitempty"`
-	From     string   `json:"from,omitempty"`
-	To       string   `json:"to,omitempty"`
-	ReplyTo  string   `json:"reply_to,omitempty"`
-	Help     bool     `json:"help,omitempty"`
-	AckedBy  []string `json:"acked_by,omitempty"`
-}
+// Message is the board message as the CLIENTS read it — the wire row.
+//
+// The row itself lives in the contract layer (kernel/contract/boardapi): three
+// surfaces serve it (the REST mailbox surface, the control plane's board
+// operations and the SDKs' typed rows) and none of them may spell its field
+// names a second time. This package keeps the name, so every existing caller
+// is unchanged.
+type Message = boardapi.Mail
+
+// SendInput is the row a client sends — the wire row, in the contract layer
+// (kernel/contract/boardapi), for the same reason Message is.
+type SendInput = boardapi.Draft
 
 func project(m boardapi.Message) Message {
-	return Message{Topic: m.Topic, Text: m.Text, TSUnixMS: m.TSMS, ID: m.ID, From: m.From, To: m.To, ReplyTo: m.ReplyTo, Help: m.Help, AckedBy: append([]string(nil), m.AckedBy...)}
+	return boardapi.MailOf(m)
 }
 func projectAll(messages []boardapi.Message) []Message {
 	out := make([]Message, 0, len(messages))
@@ -203,15 +204,6 @@ func (s *Service) Ack(_ context.Context, in AckInput) (AckOutput, error) {
 	return AckOutput{Acked: true, ID: in.ID, By: in.By}, nil
 }
 
-type SendInput struct {
-	Text          string `json:"text"`
-	From          string `json:"from,omitempty"`
-	To            string `json:"to,omitempty"`
-	Topic         string `json:"topic,omitempty"`
-	ReplyTo       string `json:"reply_to,omitempty"`
-	CorrelationID string `json:"correlation_id,omitempty"`
-	Help          bool   `json:"help,omitempty"`
-}
 type SendOutput struct {
 	Sent          Message `json:"sent"`
 	CorrelationID string  `json:"correlation_id,omitempty"`

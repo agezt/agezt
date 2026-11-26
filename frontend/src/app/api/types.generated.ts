@@ -983,7 +983,7 @@ export interface BoardSendRequest {
   from?: string;
   help?: boolean;
   reply_to?: string;
-  text?: string;
+  text: string;
   to?: string;
   topic?: string;
 }

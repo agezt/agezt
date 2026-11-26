@@ -837,6 +837,40 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The board's mail row has one home: the contract owns the wire row and the
+  request row.** The board's **mail row** (the row the daemon serves on the wire)
+  and its **mail-draft row** (the row a client sends) were spelled out by hand in
+  **several** places, and each place was its own answer to "what are the mail
+  row's fields?": the REST contract's declaration, the app layer's copy, the
+  REST surface's hand-written map (`mailMsgView`), the REST surface's
+  hand-written request struct, and — worst of all — the **SDKs'** mail
+  constants, which `tools/sdkgen` derived from the *app layer's* copy, so four
+  published SDKs rested on a struct in an application package. **54** field
+  names were spelled by hand; the response row alone had **3** answers, and
+  nothing said they were the same row, so nothing could say they had drifted.
+  The rows now live in the contract (`kernel/contract/boardapi`): `Mail` (the
+  wire row) and `Draft` (the request row), with one **pure** projection
+  (`MailOf`) between the stored row and the wire row; the app layer keeps its
+  names as **aliases** (`type Message = boardapi.Mail`), so a copy can no longer
+  grow there. The REST surface's two hand-written spellings are gone and the
+  SDKs derive their constants from the contract's row. The contract's own
+  `RowMail` stays — a response row is the **stable subset** of the payload — and
+  is now **checked** against the wire row by name **and** by type: every field
+  it names must be on the wire row, and the wire row may carry more (that is
+  the rule, not a drift). The request row is checked in both directions by
+  W5.10's ratchet, which now reads the contract's row. Measured: the response
+  row's independent homes **3 → 1** and the request row's **4 → 1**; the
+  hand-spelled names **26 → 9** and **28 → 7**. **Five** reverted mutations
+  prove it — a renamed wire field, a drifted type, a contract field the wire
+  does not carry, a copy in the app layer (which compiles everywhere else and
+  only the identity guard refuses) and a renamed field only the SDKs name. The
+  REST mailbox's bytes did not move (the golden fixtures are byte-identical);
+  the control plane's board row now serves its members in the same alphabetical
+  order the REST surface always served, and the published OpenAPI for
+  `/api/board/send` now says `text` is required — as the daemon has always
+  required it, as the REST contract's row has always said it and as the SDKs
+  have always generated it.
+
 - **The browser pins its payload views: a renamed daemon field is now a compile
   error in the browser too.** W5.1's open end is closed. The daemon's rows live
   in one place — the generated catalog (`frontend/src/app/api/types.generated.ts`,

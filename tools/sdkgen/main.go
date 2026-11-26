@@ -28,7 +28,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/app/board"
+	"github.com/agezt/agezt/kernel/contract/boardapi"
 	"github.com/agezt/agezt/kernel/contract/restapiapi"
 )
 
@@ -506,14 +506,14 @@ func renderGo(cat catalog) ([]byte, error) {
 		"// The Go SDK talks the control plane, whose board view carries the same wire\n" +
 		"// names as the REST mailbox view, so both surfaces read one vocabulary.\n" +
 		"const (\n")
-	for _, f := range wireFields(reflect.TypeOf(board.Message{})) {
+	for _, f := range wireFields(reflect.TypeOf(boardapi.Mail{})) {
 		fmt.Fprintf(&b, "\t%s = %q\n", goFieldConst("mailField", f.GoName), f.Wire)
 	}
 	b.WriteString(")\n")
 
 	b.WriteString("\n// The board's mail-draft row: the field names of a message to send.\n" +
 		"const (\n")
-	for _, f := range wireFields(reflect.TypeOf(board.SendInput{})) {
+	for _, f := range wireFields(reflect.TypeOf(boardapi.Draft{})) {
 		fmt.Fprintf(&b, "\t%s = %q\n", goFieldConst("mailDraftField", f.GoName), f.Wire)
 	}
 	b.WriteString(")\n")

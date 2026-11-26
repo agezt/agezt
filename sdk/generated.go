@@ -7,15 +7,15 @@ package sdk
 // The Go SDK talks the control plane, whose board view carries the same wire
 // names as the REST mailbox view, so both surfaces read one vocabulary.
 const (
-	mailFieldTopic    = "topic"
-	mailFieldText     = "text"
-	mailFieldTSUnixMS = "ts_unix_ms"
-	mailFieldID       = "id"
-	mailFieldFrom     = "from"
-	mailFieldTo       = "to"
-	mailFieldReplyTo  = "reply_to"
-	mailFieldHelp     = "help"
 	mailFieldAckedBy  = "acked_by"
+	mailFieldFrom     = "from"
+	mailFieldHelp     = "help"
+	mailFieldID       = "id"
+	mailFieldReplyTo  = "reply_to"
+	mailFieldText     = "text"
+	mailFieldTo       = "to"
+	mailFieldTopic    = "topic"
+	mailFieldTSUnixMS = "ts_unix_ms"
 )
 
 // The board's mail-draft row: the field names of a message to send.

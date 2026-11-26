@@ -7,12 +7,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"reflect"
 	"regexp"
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/app/board"
 	"github.com/agezt/agezt/kernel/contract/restapiapi"
 )
 
@@ -326,38 +324,4 @@ func mentions(body, ref string) bool {
 		return true
 	}
 	return false
-}
-
-// TestTheRestContractAgreesWithTheWireProjection keeps the contract's message
-// row honest: the app layer projects the board's message into the row the
-// clients read, and the contract's row must name the same fields.
-func TestTheRestContractAgreesWithTheWireProjection(t *testing.T) {
-	assertRowAgrees(t, restapiapi.RowMail, reflect.TypeOf(board.Message{}))
-	assertRowAgrees(t, restapiapi.RowMailDraft, reflect.TypeOf(board.SendInput{}))
-}
-
-// assertRowAgrees checks that every field of a contract row is a field of the
-// wire projection, under the same name.
-func assertRowAgrees(t *testing.T, rowName string, projection reflect.Type) {
-	t.Helper()
-	var row restapiapi.Row
-	found := false
-	for _, r := range restapiapi.Rows() {
-		if r.Name == rowName {
-			row, found = r, true
-			break
-		}
-	}
-	if !found {
-		t.Fatalf("the contract has no %q row", rowName)
-	}
-	wire := map[string]bool{}
-	for _, f := range wireFields(projection) {
-		wire[f.Wire] = true
-	}
-	for _, f := range row.Fields {
-		if !wire[f.Name] {
-			t.Errorf("the contract's %q row names %q, which %s does not carry", rowName, f.Name, projection.Name())
-		}
-	}
 }

@@ -26,14 +26,14 @@ func (s *Server) handleMailboxMessages(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		msgs := st.Read(r.URL.Query().Get("topic"), mailboxLimit(r))
-		views := make([]map[string]any, 0, len(msgs))
+		views := make([]boardapi.Mail, 0, len(msgs))
 		for _, m := range msgs {
-			views = append(views, mailMsgView(m))
+			views = append(views, boardapi.MailOf(m))
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"messages": views, "count": len(views)})
 
 	case http.MethodPost:
-		var req mailboxSendRequest
+		var req boardapi.Draft
 		if !decodeRequestBody(w, r, restapiapi.EndpointMailboxSend, &req) {
 			return
 		}
@@ -85,7 +85,7 @@ func (s *Server) handleMailboxMessages(w http.ResponseWriter, r *http.Request) {
 		if s.boardNotify != nil {
 			s.boardNotify(m, corr)
 		}
-		resp := map[string]any{"message": mailMsgView(m)}
+		resp := map[string]any{"message": boardapi.MailOf(m)}
 		if corr != "" {
 			resp["correlation_id"] = corr
 		}
@@ -114,9 +114,9 @@ func (s *Server) handleMailboxInbox(w http.ResponseWriter, r *http.Request) {
 	}
 	all := r.URL.Query().Get("all") == "true"
 	msgs := st.Inbox(name, mailboxLimit(r), all)
-	views := make([]map[string]any, 0, len(msgs))
+	views := make([]boardapi.Mail, 0, len(msgs))
 	for _, m := range msgs {
-		views = append(views, mailMsgView(m))
+		views = append(views, boardapi.MailOf(m))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"name": name, "waiting": views, "count": len(views)})
 }
@@ -141,9 +141,9 @@ func (s *Server) handleMailboxMessageSub(w http.ResponseWriter, r *http.Request)
 			return
 		}
 		msgs := st.Replies(id, mailboxLimit(r))
-		views := make([]map[string]any, 0, len(msgs))
+		views := make([]boardapi.Mail, 0, len(msgs))
 		for _, m := range msgs {
-			views = append(views, mailMsgView(m))
+			views = append(views, boardapi.MailOf(m))
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"id": id, "replies": views, "count": len(views)})
 

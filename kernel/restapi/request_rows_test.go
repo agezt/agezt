@@ -27,16 +27,21 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/boardapi"
 	"github.com/agezt/agezt/kernel/contract/restapiapi"
 )
 
 // daemonRequestBodies are the daemon's own request structs, by the contract's
 // endpoint id. An endpoint that takes a body MUST appear here: the ratchet
 // cannot see a body the daemon decodes into a struct this table does not name.
+//
+// The mailbox send body is the BOARD's wire row (kernel/contract/boardapi):
+// the row lives in the contract, so the REST surface decodes it and the
+// control plane's board_send operation reads the same one.
 func daemonRequestBodies() map[string]reflect.Type {
 	return map[string]reflect.Type{
 		restapiapi.EndpointRun:         reflect.TypeOf(runRequest{}),
-		restapiapi.EndpointMailboxSend: reflect.TypeOf(mailboxSendRequest{}),
+		restapiapi.EndpointMailboxSend: reflect.TypeOf(boardapi.Draft{}),
 		restapiapi.EndpointMailboxAck:  reflect.TypeOf(mailboxAckRequest{}),
 		restapiapi.EndpointUpdateApply: reflect.TypeOf(updateApplyArgs{}),
 	}

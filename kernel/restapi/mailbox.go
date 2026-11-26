@@ -51,41 +51,7 @@ func mailboxLimit(r *http.Request) int {
 	return limit
 }
 
-// mailMsgView renders one message for a REST response.
-func mailMsgView(m boardapi.Message) map[string]any {
-	v := map[string]any{"topic": m.Topic, "text": m.Text, "ts_unix_ms": m.TSMS}
-	if m.ID != "" {
-		v["id"] = m.ID
-	}
-	if m.From != "" {
-		v["from"] = m.From
-	}
-	if m.To != "" {
-		v["to"] = m.To
-	}
-	if m.ReplyTo != "" {
-		v["reply_to"] = m.ReplyTo
-	}
-	if m.Help {
-		v["help"] = true
-	}
-	if len(m.AckedBy) > 0 {
-		v["acked_by"] = append([]string(nil), m.AckedBy...)
-	}
-	return v
-}
-
 // --- POST + GET /api/v1/mailbox/messages ---
-
-type mailboxSendRequest struct {
-	From          string `json:"from"`
-	To            string `json:"to"`
-	Topic         string `json:"topic"`
-	ReplyTo       string `json:"reply_to"`
-	Text          string `json:"text"`
-	Help          bool   `json:"help"`
-	CorrelationID string `json:"correlation_id"`
-}
 
 // mailboxAckRequest is the body of an ack: whose inbox to clear.
 type mailboxAckRequest struct {

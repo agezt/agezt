@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/agezt/agezt/kernel/app"
+	"github.com/agezt/agezt/kernel/contract/boardapi"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"strings"
 )
@@ -41,15 +42,11 @@ type AckRequestInput struct {
 	ID string `json:"id,omitempty"`
 	By string `json:"by,omitempty"`
 }
-type SendRequestInput struct {
-	Text          string `json:"text,omitempty"`
-	From          string `json:"from,omitempty"`
-	To            string `json:"to,omitempty"`
-	Topic         string `json:"topic,omitempty"`
-	ReplyTo       string `json:"reply_to,omitempty"`
-	CorrelationID string `json:"correlation_id,omitempty"`
-	Help          bool   `json:"help,omitempty"`
-}
+
+// SendRequestInput is the body of the board_send operation — the wire row,
+// which lives in the contract layer (kernel/contract/boardapi): the REST
+// surface decodes the same row, and the contract names its fields.
+type SendRequestInput = boardapi.Draft
 
 // The board's read bodies name the type each field is read as: the topic,
 // the cursor and the recipient are text, the page size is a number, and the
