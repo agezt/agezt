@@ -139,5 +139,5 @@ func (s *Server) handleMailboxTopics(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"topics": st.Topics()})
+	writeJSON(w, http.StatusOK, boardapi.MailboxTopics{Topics: st.Topics()})
 }

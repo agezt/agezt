@@ -53,7 +53,6 @@ func mailboxLimit(r *http.Request) int {
 
 // --- POST + GET /api/v1/mailbox/messages ---
 
-// mailboxAckRequest is the body of an ack: whose inbox to clear.
-type mailboxAckRequest struct {
-	By string `json:"by"`
-}
+// The ack body is the contract's row (kernel/contract/boardapi): the mailbox
+// surface reads no row by hand — not the draft it sends, not the message it
+// serves, and not the ack it decodes.

@@ -106,6 +106,70 @@ func MailOf(m Message) Mail {
 	}
 }
 
+// The mailbox's ENVELOPE rows: the answers that carry the messages.
+//
+// W5.22 gave the message row one home; the answers around it were still
+// written by hand — a `map[string]any` per endpoint, spelling the envelope's
+// own field names a second time. They live here for the same reason Mail
+// does: the mailbox surface serves them, the contract names them, and the SDKs
+// read them.
+//
+// The fields are declared in the order the wire speaks them (alphabetically),
+// for the same reason Mail's are: the field order IS the member order of the
+// JSON the daemon serves, and the golden fixtures pin it.
+
+// MailboxList is the answer to "what is on the mailbox?".
+type MailboxList struct {
+	Count    int    `json:"count"`
+	Messages []Mail `json:"messages"`
+}
+
+// MailboxSent is the answer to "a message was left": the message itself, and
+// the correlation id the board event carries when the daemon had one.
+//
+// The correlation id is the server's own addition — the contract's row names
+// only the message, and the server may add a field to a response.
+type MailboxSent struct {
+	CorrelationID string `json:"correlation_id,omitempty"`
+	Message       Mail   `json:"message"`
+}
+
+// MailboxReplies is the answer to "what answered this message?".
+type MailboxReplies struct {
+	Count   int    `json:"count"`
+	ID      string `json:"id"`
+	Replies []Mail `json:"replies"`
+}
+
+// MailboxInbox is the answer to "what waits in this inbox?".
+type MailboxInbox struct {
+	Count   int    `json:"count"`
+	Name    string `json:"name"`
+	Waiting []Mail `json:"waiting"`
+}
+
+// MailboxTopics is the answer to "which topics does the mailbox hold?".
+type MailboxTopics struct {
+	Topics map[string]int `json:"topics"`
+}
+
+// MailAcked is the answer to "the message was acked": who acked it, which
+// message, and that it happened.
+type MailAcked struct {
+	Acked bool   `json:"acked"`
+	By    string `json:"by"`
+	ID    string `json:"id"`
+}
+
+// Ack is the body of an ack: whose inbox to clear.
+//
+// It is the one row of the mailbox surface a client SENDS besides the draft,
+// and it lives here for the same reason Draft does — the surface decodes it
+// and the contract names its fields.
+type Ack struct {
+	By string `json:"by"`
+}
+
 // Everyone is the recipient that means "every agent on the board". A message
 // addressed to it lands in every inbox but the sender's.
 const Everyone = "*"

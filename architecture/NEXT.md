@@ -1,5 +1,73 @@
 # NEXT — handoff for the next coding agent
 
+## Current checkpoint — W5.23 the mailbox's envelope rows have one home, 2026-11-26
+
+The W0–W5 objective remains open. W5.8–W5.15 gave the **browser**, the
+**registry** and the **SDKs** their request vocabulary; W5.11–W5.19 gave
+**every surface** that reads a request body its contract, its door and the
+boot-time check that holds the two together; W5.20 put a **gate** behind that
+sentence so it cannot decay; W5.21 closed W5.1's open end on the browser's
+**response** side; W5.22 gave the board's **message row** one home. **This
+slice finishes the mailbox**: the answers around the messages were still
+written by hand, and now they are the contract's rows too.
+
+### What was on the tree
+
+- **The mailbox surface spelled six envelopes by hand** — one
+  `map[string]any` per endpoint — and decoded its ack body from a
+  hand-written struct: **15** field names in **7** places, in an
+  *implementation* package, while the contract declared the same six
+  envelopes for the SDKs. Each envelope had two answers, and nothing said
+  they were the same list.
+- **The rows now live next to the message row they carry**
+  (`kernel/contract/boardapi`): `MailboxList`, `MailboxSent`,
+  `MailboxReplies`, `MailboxInbox`, `MailboxTopics`, `MailAcked` and the
+  `Ack` body. The surface serves them; it spells no row by hand.
+- **The contract's envelope rows are checked** against the rows the daemon
+  sends — every field the contract names must be on the served row, under
+  the same name **and** a type it allows. The wire row may carry more (the
+  send's answer adds the `correlation_id`), and that is the rule, not a
+  drift.
+- **The contract already knew the mail row's types** (`TypeMail`,
+  `TypeMailSlice`) without pointing at anything; now they point at
+  `boardapi.Mail` and `[]boardapi.Mail`.
+- **The surface itself is measured.** A map literal that spells a mailbox
+  row's field names fails, and a declared exception that no longer matches
+  fails too. There is exactly one exception, and it is a frame that is
+  deliberately **not** the mail row: the watch stream's fallback for a
+  message evicted from the store.
+
+### What the measurement said
+
+- Hand-written views of a mailbox row in the surface: **7 → 0**.
+- Hand-spelled field names in the surface: **15 → 0**.
+- Rows the contract declares and the surface sends, checked: **1 → 7**.
+- The served bytes: **unchanged** — the golden fixtures are byte-identical,
+  and the SDK catalogs and the generated OpenAPI catalog are byte-identical
+  too.
+
+### The evidence
+
+`architecture/343-w523-the-mailbox-envelope-rows-have-one-home-evidence.md` —
+the rule, the two guards (the stable-subset ratchet and the surface's own
+guard), the measurement, the five reverted mutations, and what remains open.
+
+### What the next slice should do
+
+- **The REST surface still writes six rows by hand**: the health answer, the
+  run result (in three places), the run arc, the artifacts answer and the
+  update answer. The cure is the same — the row moves into the contract and
+  the surface serves it — but each has a wrinkle the mailbox rows did not:
+  the run result's **failure** answer carries an `error` and no `answer`, and
+  the run arc carries the daemon's own event type, so the contract's row and
+  the row the daemon sends are not the same set. Those are decisions, not
+  transcriptions.
+- **The failure answer and the SSE frames are the daemon's own shapes.** The
+  contract declares no row for them, so they stay hand-written until it does.
+- **The board tool's own view is its own shape** (it renders the *stored* row
+  into the tool's view, with `at` instead of `ts_unix_ms`), and it keeps its
+  own ratchet.
+
 ## Current checkpoint — W5.22 the board's mail row has one home, 2026-11-26
 
 The W0–W5 objective remains open. W5.8–W5.15 gave the **browser**, the
