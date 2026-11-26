@@ -1,5 +1,79 @@
 # NEXT — handoff for the next coding agent
 
+## Current checkpoint — W5.22 the board's mail row has one home, 2026-11-26
+
+The W0–W5 objective remains open. W5.8–W5.15 gave the **browser**, the
+**registry** and the **SDKs** their request vocabulary; W5.11–W5.19 gave
+**every surface** that reads a request body its contract, its door and the
+boot-time check that holds the two together; W5.20 put a **gate** behind that
+sentence so it cannot decay; W5.21 closed W5.1's open end on the browser's
+**response** side. **This slice turns the same sentence on the board**: the row
+the daemon serves on the wire, and the row a client sends, are now owned by the
+**contract** — one home, two rows, one pure projection between them.
+
+### What was on the tree
+
+- **The mail row had three answers and the draft row had four.** The REST
+  contract declared the SDK-facing subset (`RowMail`, `RowMailDraft`), the app
+  layer kept its own copies (`Message`, `SendInput`, `SendRequestInput`), the
+  REST surface wrote the served row by hand (`mailMsgView`, a
+  `map[string]any`) and the request body by hand (`mailboxSendRequest`), and
+  `tools/sdkgen` derived the **SDKs'** mail constants from the **app layer's**
+  copy — so four published SDKs rested on a struct in an application package.
+- **A copy is a second contract.** Nothing said the five spellings were the same
+  row, so nothing could say they had drifted; only the golden fixtures — bytes,
+  not names — noticed anything at all.
+- **The row now lives in the contract.** `kernel/contract/boardapi` owns `Mail`
+  (the wire row) and `Draft` (the request row), with one **pure** projection
+  (`MailOf`) from the stored row to the wire row. The app layer keeps its names
+  as **aliases**, so no copy can grow there.
+- **The contract's own row stays, and is now checked.** A response row is the
+  **stable subset** of the payload — the wire row may carry more (`acked_by` is
+  one), but every field the contract names must be on the wire row, under the
+  same name and a type it allows. That is the new ratchet's direction, and the
+  request row is checked in **both** directions by W5.10's ratchet.
+- **Identity, not shape.** The app layer's guard is a **function type**, so a
+  copy with the same fields does not compile — an assignment would have
+  accepted it.
+
+### What the measurement said
+
+- Homes of the **response** row: **3 → 1** (plus the checked SDK-facing
+  declaration).
+- Homes of the **request** row: **4 → 1** (plus the checked SDK-facing
+  declaration).
+- Hand-spelled field names: **26 → 9** (response) and **28 → 7** (request).
+- Where the SDKs' mail constants come from: the **app layer's** copy → the
+  **contract's** row.
+- A renamed wire field: the SDKs keep the old name → `sdkgen -check` fails.
+- The REST mailbox's bytes: **unchanged** (the golden fixtures are
+  byte-identical; the row is declared in the order the wire already spoke it).
+
+### The evidence
+
+`architecture/342-w522-the-boards-mail-row-has-one-home-evidence.md` — the
+rule and the two rows, the stable-subset direction and why it is one-way, the
+measurement, the five reverted mutations (including a copy in the app layer
+that compiles everywhere else and only the identity guard refuses), what moved
+on the wire (the control plane's member order, and the published OpenAPI's
+`text`) and what remains open.
+
+### What the next slice should do
+
+- **The board tool's own view is its own shape.** The board plugin renders the
+  *stored* row into the tool's view (`at` instead of `ts_unix_ms`); a plugin
+  may reach the contract and the platform layers, so it cannot borrow the app
+  layer's rows. It has its own ratchet (`plugins/tools/boardtool/wire_test.go`)
+  and is named in the evidence rather than left silent.
+- **The SSE watch's fallback stays a hand-written map** — it is the *event's*
+  metadata view for an evicted message, not the mail row.
+- **The daemon's rows that are still spelled by hand** are the next candidates:
+  each surface that renders a row into a `map[string]any` is a hand-written
+  view of a contract row, and the same one-home rule applies.
+- **The registry's rows and the contract's rows** are still two declarations of
+  the same vocabulary; the stable-subset law binds them in one direction only,
+  and the other direction (the wire row may carry more) is a rule, not a gap.
+
 ## Current checkpoint — W5.21 the browser pins its payload views, 2026-11-26
 
 The W0–W5 objective remains open. W5.8–W5.15 gave the **browser**, the

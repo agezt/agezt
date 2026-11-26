@@ -118,7 +118,7 @@ func (s *Server) handleMailboxWatch(w http.ResponseWriter, r *http.Request) {
 			// write committed before the publish, so the lookup is reliable — but
 			// fall back to the metadata view if the message was already evicted.
 			if m, found := st.Get(p.ID); found {
-				send("mail", mailMsgView(m))
+				send("mail", boardapi.MailOf(m))
 				continue
 			}
 			send("mail", map[string]any{
