@@ -837,6 +837,34 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The native route names the row it answers with: the console's answer side
+  is declared.** The console's own endpoints — the **native** routes, the ones
+  that are not operation bindings — declared their **request** side (the body
+  schema) and said nothing about their **answer** side, so the browser had to
+  guess the shape of the answer. The guess went wrong: the browser's rollback
+  view reads the daemon's row through its **own** hand-written interface, and
+  six of its nine members are fields **the daemon never sends** — including
+  `reversible`, which decides whether the operator can act at all (the Restore
+  button is `disabled={!cp.reversible}`, so it was **permanently disabled**:
+  the timestamps rendered as "—" and the daemon's rollback apply endpoint, which
+  works, could not be reached from the browser). `opapi.NativeRoute` now
+  carries an `Answer` — the **row** the endpoint answers with (the zero value
+  of the contract's row, so the field names live in one place), nil when the
+  endpoint answers with no row at all. **Eight** routes name their row (the
+  auth meta, the login, the logout, the SSE token, the voice status, the
+  rollback list, the rollback apply and the workflow hook); the other thirteen
+  answer with the **daemon's** rows, with bytes or with HTML, and those are
+  named where they belong. The workflow hook's **two** answers became **one**
+  row — a route can name one row, and the row is the thing that says what the
+  endpoint answers — the way `restapiapi.RunResult` serves six answers with one
+  struct; the served bytes did not move. A new ratchet drives every named
+  route and checks the answer against the row in **both** directions: a member
+  the console sends that the row does not carry fails, and a member the row
+  always carries that the console never sends fails too; a route that names a
+  row but is not checked fails, and a route that is checked but names none
+  fails. **Five** reverted mutations prove it. The SDK catalogs and the
+  generated OpenAPI catalog are byte-identical.
+
 - **The console's own answers have one home: the console spells no answer by
   hand.** W5.26 gave the console's **rollback answers** one home — the console's
   **other** answers were still written by hand, one `map[string]any` per answer:

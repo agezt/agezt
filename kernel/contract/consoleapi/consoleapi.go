@@ -71,28 +71,24 @@ type VoiceHalf struct {
 	Configured bool `json:"configured"`
 }
 
-// WorkflowReply is the answer to a webhook that RAN the workflow and finished
-// while the caller waited.
+// WorkflowHook is the answer to a webhook.
+//
+// The hook answers in one of two shapes: it either RAN the workflow and
+// finished while the caller waited (the reply — it carries the outputs and
+// says ok), or it ACCEPTED the run and will finish it in the background. One
+// row serves both: the members the other shape does not carry are absent.
 //
 // The workflow's own members are the daemon's row, forwarded verbatim: this
 // contract cannot name another operation's row, and the wire does not care
 // how the daemon held them. CorrelationID and Workflow are POINTERS for the
 // same reason as Login's — a pointer says *absent*, and the daemon's row
 // omits them when it has nothing to say.
-type WorkflowReply struct {
+type WorkflowHook struct {
+	Accepted      bool    `json:"accepted,omitempty"`
 	CorrelationID *string `json:"correlation_id"`
-	Executed      any     `json:"executed"`
-	OK            bool    `json:"ok"`
-	Outputs       any     `json:"outputs"`
-	Workflow      *string `json:"workflow"`
-}
-
-// WorkflowAccepted is the answer to a webhook that ACCEPTED the run: the
-// workflow will finish in the background, and the caller is told where to
-// watch it.
-type WorkflowAccepted struct {
-	Accepted      bool    `json:"accepted"`
-	CorrelationID *string `json:"correlation_id"`
+	Executed      any     `json:"executed,omitempty"`
+	OK            bool    `json:"ok,omitempty"`
+	Outputs       any     `json:"outputs,omitempty"`
 	Workflow      *string `json:"workflow"`
 }
 
