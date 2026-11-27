@@ -1,5 +1,82 @@
 # NEXT — handoff for the next coding agent
 
+## Current checkpoint — W5.34 the console's ten operations take their request row from the contract, 2026-11-27
+
+The W0–W5 objective remains open. W5.8–W5.15 gave the **browser**, the
+**registry** and the **SDKs** their request vocabulary; W5.11–W5.19 gave
+**every surface** that reads a request body its contract, its door and the
+boot-time check that holds the two together; W5.20 put a **gate** behind that
+sentence so it cannot decay; W5.21 closed W5.1's open end on the browser's
+**response** side; W5.22–W5.28 gave the daemon's own rows one home, one family
+at a time; W5.29–W5.32 gave the console's own answers one home each; W5.33
+checked the console's arguments against the registry. **This slice gives those
+arguments their row** — the request shape the console sends and the daemon
+accepts is declared once, in the contract, and the schema is derived from it.
+
+### What was on the tree
+
+- **The request shape was written twice.** The ten operations the console calls
+  carried a JSON Schema literal in the app layer **and** a second spelling on
+  the console's side — a request struct or a hand-written argument map. **Nine
+  of the ten** carried a hand-written literal in the app layer.
+- **One had already drifted, silently.** `config_set`'s published schema was
+  the settings **family's** schema (name, value, section, id, force) while the
+  operation is only ever asked for name and value — and the browser's
+  generated type for it was an alias of the **wrong** row.
+- **The rows live in the contract now** (`kernel/contract/opapi/requests.go`),
+  bound to their operations in one ordered table. The rules are the tree's own:
+  a field without `omitempty` is **required**, a field with it may be absent.
+- **The app layer derives the schema instead of writing it.** The framework
+  already derived an operation's input when the spec does not carry one; the
+  app layer's job was to stop writing it by hand — artifacts, files, skill,
+  settings, channels and the workflow family's two rows.
+- **The console passes the operation's own row** through `opapi.Args`, and its
+  own body structs became **aliases** of the contract's rows.
+- **The guard holds three rules instead of comparing two spellings**: a call
+  must pass the operation's own row through `opapi.Args` (a hand-written map is
+  refused), the row must be the operation's own, and the registry's declared
+  input must **be** the schema derived from the row — so a hand-written schema
+  beside a row is a **failure**, not a second copy.
+
+### What the measurement said
+
+- Hand-written operation argument maps in the console: **10 → 0**.
+- Arguments the console spells out by hand: **20 → 0**.
+- Request rows held by the contract: **0 → 10**.
+- Operations whose input schema is written by hand in the app layer: **9 → 0**.
+- The daemon's behaviour: **unchanged**; the published document's `config_set`
+  body is now the row it always meant.
+
+### The evidence
+
+`architecture/354-w534-the-consols-ten-operations-take-their-request-row-from-the-contract-evidence.md`
+— the rows, the derivation, the console's ten calls, the three rules of the
+guard, the measurement, the five reverted mutations, and what remains open.
+
+### What the next slice should do
+
+**The families that still write their own schema.** The rule is in place; the
+rows are the remaining work.
+
+- **The workflow family is still half-spelled.** Eight of its operations share
+  one hand-written 14-field schema; only `workflow_restore` and
+  `workflow_webhook` have rows. One row per operation would retire
+  `requestSchema`.
+- **The other families keep their literals too** — `config_schema_register`,
+  `skill_hygiene`, `skill_import`, the artifact family's list/delete/collect
+  rows. The rule that stopped them is now in place; declaring their rows is the
+  work.
+- **The catalogue's `Args` and the request row are still two lists.** The guard
+  compares them at build time; deriving the route's forwarded list from the row
+  would make the comparison unnecessary — the same move this slice made for the
+  schema.
+- **The console's ten native routes are not in the catalogue's route table.**
+  The file mutations, the restores, the OAuth callback and the workflow hook
+  are bound outside it, so their paths are not declared in one place yet.
+- **The console's route policy answers a wrong verb in plain text**
+  ("method not allowed"), not with the envelope — a second refusal shape on the
+  wire.
+
 ## Current checkpoint — W5.33 the console's operation arguments are checked against the registry, 2026-11-27
 
 The W0–W5 objective remains open. W5.8–W5.15 gave the **browser**, the

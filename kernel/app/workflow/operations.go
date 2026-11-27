@@ -68,7 +68,21 @@ func requestGraph(raw json.RawMessage) (graphs.Workflow, error) {
 	if len(raw) == 0 {
 		return graphs.Workflow{}, errors.New("args.workflow required")
 	}
-	encoded, err := json.Marshal(requestValue(raw))
+	return graphValue(requestValue(raw))
+}
+
+// requestGraphRow reads a workflow graph from a request row's own value: the
+// row carries the graph as a map, so there is nothing left to read.
+func requestGraphRow(value map[string]any) (graphs.Workflow, error) {
+	if len(value) == 0 {
+		return graphs.Workflow{}, errors.New("args.workflow required")
+	}
+	return graphValue(value)
+}
+
+// graphValue reads a workflow graph from a decoded JSON value.
+func graphValue(value any) (graphs.Workflow, error) {
+	encoded, err := json.Marshal(value)
 	if err != nil {
 		return graphs.Workflow{}, fmt.Errorf("args.workflow: %w", err)
 	}
@@ -119,6 +133,17 @@ func bind[O any](ops *[]app.Operation, name string, read bool, output json.RawMe
 	}
 	return err
 }
+
+// bindRow binds an operation whose request row is its OWN: the declared input
+// is derived from the row's type, so the operation's schema is the row rather
+// than a hand-written copy of it.
+func bindRow[I, O any](ops *[]app.Operation, name string, read bool, output json.RawMessage, handler func(context.Context, I) (O, error)) error {
+	operation, err := app.NewOperation(opapi.Spec{Name: name, ReadOnly: read, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, OutputSchema: output}, handler)
+	if err == nil {
+		*ops = append(*ops, operation)
+	}
+	return err
+}
 func Operations(providers Providers) ([]app.Operation, error) {
 	if providers.Reads == nil || providers.Lifecycle == nil || providers.Copilot == nil || providers.Execution == nil {
 		return nil, errors.New("workflow service providers required")
@@ -158,16 +183,12 @@ func Operations(providers Providers) ([]app.Operation, error) {
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.WorkflowRestore, false, outputs["save"], func(ctx context.Context, in RequestInput) (SaveOutput, error) {
-				graph, err := requestGraph(in.Workflow)
+			return bindRow(&ops, opapi.WorkflowRestore, false, outputs["save"], func(ctx context.Context, in opapi.WorkflowRestoreRequest) (SaveOutput, error) {
+				graph, err := requestGraphRow(in.Workflow)
 				if err != nil {
 					return SaveOutput{}, err
 				}
-				reason, err := requestText(in.Reason, "reason")
-				if err != nil {
-					return SaveOutput{}, err
-				}
-				return providers.Lifecycle(ctx).Restore(ctx, RestoreInput{Workflow: graph, Reason: reason})
+				return providers.Lifecycle(ctx).Restore(ctx, RestoreInput{Workflow: graph, Reason: in.Reason})
 			})
 		},
 		func() error {
@@ -256,10 +277,8 @@ func Operations(providers Providers) ([]app.Operation, error) {
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.WorkflowWebhook, false, nil, func(ctx context.Context, in RequestInput) (WebhookOutput, error) {
-				ref, refErr := requestText(in.Ref, "ref")
-				secret, secErr := requestText(in.Secret, "secret")
-				return providers.Execution(ctx).Webhook(ctx, WebhookInput{Ref: ref, Secret: secret, Invalid: refErr != nil || secErr != nil, Payload: requestValue(in.Payload)})
+			return bindRow(&ops, opapi.WorkflowWebhook, false, nil, func(ctx context.Context, in opapi.WorkflowWebhookRequest) (WebhookOutput, error) {
+				return providers.Execution(ctx).Webhook(ctx, WebhookInput{Ref: in.Ref, Secret: in.Secret, Payload: in.Payload.Value()})
 			})
 		},
 		func() error {

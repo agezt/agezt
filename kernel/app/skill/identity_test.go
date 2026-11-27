@@ -28,7 +28,7 @@ func TestSkillMutationServicesRetainCallerOperationIdentity(t *testing.T) {
 			case "revert":
 				_, err = lifecycle.Revert(ctx, appskill.GetInput{ID: "owned"})
 			case "restore":
-				_, err = lifecycle.Restore(ctx, appskill.RestoreInput{ID: "owned", Status: "draft"})
+				_, err = lifecycle.Restore(ctx, opapi.SkillRestoreRequest{ID: "owned", Status: "draft"})
 			case "share":
 				_, err = curation.Share(ctx, appskill.GetInput{ID: "owned"})
 			case "reassign":

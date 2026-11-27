@@ -12,9 +12,6 @@ import (
 	"strings"
 )
 
-type GetRequestInput struct {
-	Ref json.RawMessage `json:"ref,omitempty"`
-}
 type ListRequestInput struct {
 	Kind          json.RawMessage `json:"kind,omitempty"`
 	Source        json.RawMessage `json:"source,omitempty"`
@@ -97,7 +94,6 @@ func bind[I, O any](ops *[]app.Operation, spec opapi.Spec, handler func(context.
 	return err
 }
 
-var getRequestSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{"type":"string"}}}`)
 var deleteRequestSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"id":{"type":"string"}}}`)
 var listRequestSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"kind":{"type":"string"},"source":{"type":"string"},"corr":{"type":"string"}}}`)
 var collectRequestSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"older_than_days":{"type":["number","string"]},"dry_run":{"type":["boolean","string"]}}}`)
@@ -109,8 +105,8 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 	var ops []app.Operation
 	bindings := []func() error{
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.ArtifactGet, ReadOnly: true, InputSchema: getRequestSchema}, func(ctx context.Context, in GetRequestInput) (GetOutput, error) {
-				ref, err := requiredText(in.Ref, "ref")
+			return bind(&ops, opapi.Spec{Name: opapi.ArtifactGet, ReadOnly: true}, func(ctx context.Context, in opapi.ArtifactGetRequest) (GetOutput, error) {
+				ref, err := opapi.RequiredText(in.Ref, "ref")
 				if err != nil {
 					return GetOutput{}, err
 				}

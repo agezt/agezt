@@ -129,7 +129,7 @@ func TestSettingsTypedNativeFivePolicyAndSignatures(t *testing.T) {
 		input, output reflect.Type
 		read          bool
 	}
-	expected := map[string]signature{opapi.ConfigSchema: {reflect.TypeFor[appsettings.SchemaInput](), reflect.TypeFor[appsettings.SchemaOutput](), true}, opapi.ConfigValues: {reflect.TypeFor[appsettings.ValuesInput](), reflect.TypeFor[appsettings.ValuesOutput](), true}, opapi.ConfigSet: {reflect.TypeFor[appsettings.SetRequest](), reflect.TypeFor[appsettings.SetOutput](), false}, opapi.ConfigSchemaRegister: {reflect.TypeFor[appsettings.RegisterRequest](), reflect.TypeFor[appsettings.RegisterOutput](), false}, opapi.ConfigSchemaUnregister: {reflect.TypeFor[appsettings.UnregisterRequest](), reflect.TypeFor[appsettings.UnregisterOutput](), false}}
+	expected := map[string]signature{opapi.ConfigSchema: {reflect.TypeFor[appsettings.SchemaInput](), reflect.TypeFor[appsettings.SchemaOutput](), true}, opapi.ConfigValues: {reflect.TypeFor[appsettings.ValuesInput](), reflect.TypeFor[appsettings.ValuesOutput](), true}, opapi.ConfigSet: {reflect.TypeFor[opapi.ConfigSetRequest](), reflect.TypeFor[appsettings.SetOutput](), false}, opapi.ConfigSchemaRegister: {reflect.TypeFor[appsettings.RegisterRequest](), reflect.TypeFor[appsettings.RegisterOutput](), false}, opapi.ConfigSchemaUnregister: {reflect.TypeFor[appsettings.UnregisterRequest](), reflect.TypeFor[appsettings.UnregisterOutput](), false}}
 	seen := map[string]int{}
 	for _, operation := range registeredAppOperations() {
 		sp := operation.Spec()

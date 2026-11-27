@@ -30,9 +30,9 @@ func (s *Server) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
-	if _, err := s.client.Call(ctx, opapi.ChannelOAuthCallback, map[string]any{
-		"code": code, "state": state,
-	}); err != nil {
+	if _, err := s.client.Call(ctx, opapi.ChannelOAuthCallback, opapi.Args(opapi.ChannelOAuthCallbackRequest{
+		Code: code, State: state,
+	})); err != nil {
 		oauthResultPage(w, false, err.Error())
 		return
 	}

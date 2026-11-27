@@ -71,12 +71,11 @@ var contractOwnedRows = []struct {
 // declared, with the reason. The key is the file and the literal's own field
 // names — so a literal that stops looking like the exception is no longer
 // exempt, and the exception itself must be deleted.
-var rowExceptions = map[string]map[string]string{
-	"rollback_helpers.go": {
-		"id,reason,status": "the skill restore's operation ARGUMENTS, not an answer: the " +
-			"console forwards them to the daemon's skill_restore operation",
-	},
-}
+//
+// There are none: the console's operation arguments live in the contract's
+// request rows (kernel/contract/opapi), so the console spells no row by hand
+// — not even the skill restore's arguments.
+var rowExceptions = map[string]map[string]string{}
 
 // mapLiteral finds the hand-written map literals of a source file.
 var mapLiteral = regexp.MustCompile(`map\[string\]any\{([^}]*)\}`)

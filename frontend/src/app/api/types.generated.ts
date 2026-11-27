@@ -1353,6 +1353,12 @@ export interface ConfigSetResponse {
   saved: boolean;
 }
 
+/** ConfigSetRequest */
+export interface ConfigSetRequest {
+  name?: string;
+  value?: string;
+}
+
 /** ConfigValuesResponseFieldsItem */
 export interface ConfigValuesResponseFieldsItem {
   env: string;
@@ -4026,9 +4032,6 @@ export type ChannelListResponseChannelsItemFieldsItem = ChannelListResponseChann
 
 /** ConfigSchemaUnregisterRequest is the same shape as ConfigSchemaRegisterRequest. */
 export type ConfigSchemaUnregisterRequest = ConfigSchemaRegisterRequest;
-
-/** ConfigSetRequest is the same shape as ConfigSchemaRegisterRequest. */
-export type ConfigSetRequest = ConfigSchemaRegisterRequest;
 
 /** ConfigcenterDeleteRequest is the same shape as ConfigcenterAccessRequest. */
 export type ConfigcenterDeleteRequest = ConfigcenterAccessRequest;

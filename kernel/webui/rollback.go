@@ -112,7 +112,7 @@ func (s *Server) handleRollbackApply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if cp.Kind == rollbackCheckpointKindFile {
-		result, err := s.client.Call(r.Context(), opapi.FileRestore, map[string]any{"id": cp.ID})
+		result, err := s.client.Call(r.Context(), opapi.FileRestore, opapi.Args(opapi.FileRestoreRequest{ID: cp.ID}))
 		if err != nil {
 			status := http.StatusBadGateway
 			message := err.Error()

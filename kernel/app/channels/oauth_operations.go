@@ -18,10 +18,6 @@ type OAuthStartRequest struct {
 	RedirectURI  json.RawMessage `json:"redirect_uri,omitempty"`
 	InstanceURL  json.RawMessage `json:"instance_url,omitempty"`
 }
-type OAuthCallbackRequest struct {
-	Code  json.RawMessage `json:"code,omitempty"`
-	State json.RawMessage `json:"state,omitempty"`
-}
 type OAuthStatusRequest struct {
 	State json.RawMessage `json:"state,omitempty"`
 }
@@ -52,9 +48,11 @@ func OAuthOperations(provider func(context.Context) *OAuth) ([]app.Operation, er
 		return nil, err
 	}
 	// The public GET callback is an existing Web UI page which forwards with its
-	// own operator credential. This internal operation declares no public HTTP route.
-	callback, err := app.NewOperation(spec(opapi.ChannelOAuthCallback, false, `"code":{"type":"string"},"state":{"type":"string"}`), func(ctx context.Context, in OAuthCallbackRequest) (OAuthCallbackOutput, error) {
-		return provider(ctx).Callback(ctx, OAuthCallbackInput{Code: oauthText(in.Code), State: oauthText(in.State)})
+	// own operator credential. This internal operation declares no public HTTP
+	// route. Its request row is the callback's own: the code and the state the
+	// provider sent, and the declared input is derived from that row.
+	callback, err := app.NewOperation(opapi.Spec{Name: opapi.ChannelOAuthCallback, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true}, func(ctx context.Context, in opapi.ChannelOAuthCallbackRequest) (OAuthCallbackOutput, error) {
+		return provider(ctx).Callback(ctx, OAuthCallbackInput{Code: in.Code, State: in.State})
 	})
 	if err != nil {
 		return nil, err

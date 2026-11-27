@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/agezt/agezt/kernel/contract/opapi"
+	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/platform/rollbackstore"
 	"strings"
 )
@@ -21,18 +22,18 @@ func (s *Server) applyRollbackCheckpoint(ctx context.Context, cp rollbackCheckpo
 		}
 		callCtx, cancel := context.WithTimeout(ctx, rollbackApplyTimeout)
 		defer cancel()
-		return s.client.Call(callCtx, opapi.SkillRestore, map[string]any{
-			"id": cp.SubjectID, "status": cp.BeforeStatus, "reason": reason,
-		})
+		return s.client.Call(callCtx, opapi.SkillRestore, opapi.Args(opapi.SkillRestoreRequest{
+			ID: cp.SubjectID, Status: skillapi.Status(cp.BeforeStatus), Reason: reason,
+		}))
 	case rollbackCheckpointKindFlow:
 		if len(cp.Before) == 0 {
 			return nil, fmt.Errorf("checkpoint %s is missing workflow snapshot data", cp.ID)
 		}
 		callCtx, cancel := context.WithTimeout(ctx, rollbackApplyTimeout)
 		defer cancel()
-		return s.client.Call(callCtx, opapi.WorkflowRestore, map[string]any{
-			"workflow": cp.Before, "reason": reason,
-		})
+		return s.client.Call(callCtx, opapi.WorkflowRestore, opapi.Args(opapi.WorkflowRestoreRequest{
+			Workflow: cp.Before, Reason: reason,
+		}))
 	case rollbackCheckpointKindConfig:
 		if rollbackable, ok := cp.Before["rollbackable"].(bool); ok && !rollbackable {
 			if why := rollbackString(cp.Before["non_rollbackable_reason"]); why != "" {
@@ -53,7 +54,7 @@ func (s *Server) applyRollbackCheckpoint(ctx context.Context, cp rollbackCheckpo
 		}
 		callCtx, cancel := context.WithTimeout(ctx, rollbackApplyTimeout)
 		defer cancel()
-		return s.client.Call(callCtx, opapi.ConfigSet, map[string]any{"name": env, "value": value})
+		return s.client.Call(callCtx, opapi.ConfigSet, opapi.Args(opapi.ConfigSetRequest{Name: env, Value: value}))
 	default:
 		return nil, fmt.Errorf("checkpoint kind %q is not supported yet", cp.Kind)
 	}

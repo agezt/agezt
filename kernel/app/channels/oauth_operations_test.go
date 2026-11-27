@@ -22,7 +22,7 @@ func TestChannelOAuthOperationMetadataAndPresence(t *testing.T) {
 		t.Fatal(ops, err)
 	}
 	names := []string{opapi.ChannelOAuthStart, "channel_oauth_callback", "channel_oauth_status"}
-	inputs := []reflect.Type{reflect.TypeFor[OAuthStartRequest](), reflect.TypeFor[OAuthCallbackRequest](), reflect.TypeFor[OAuthStatusRequest]()}
+	inputs := []reflect.Type{reflect.TypeFor[OAuthStartRequest](), reflect.TypeFor[opapi.ChannelOAuthCallbackRequest](), reflect.TypeFor[OAuthStatusRequest]()}
 	outputs := []reflect.Type{reflect.TypeFor[OAuthStartOutput](), reflect.TypeFor[OAuthCallbackOutput](), reflect.TypeFor[OAuthStatusOutput]()}
 	counts := []int{2, 5, 4}
 	for i, op := range ops {

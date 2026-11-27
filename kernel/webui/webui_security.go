@@ -111,9 +111,9 @@ func (s *Server) handleWorkflowHook(w http.ResponseWriter, r *http.Request) {
 	// (M812) legitimately hold until the run finishes (2m control-plane cap).
 	ctx, cancel := context.WithTimeout(r.Context(), 130*time.Second)
 	defer cancel()
-	res, err := s.client.Call(ctx, opapi.WorkflowWebhook, map[string]any{
-		"ref": name, "secret": secret, "payload": payload,
-	})
+	res, err := s.client.Call(ctx, opapi.WorkflowWebhook, opapi.Args(opapi.WorkflowWebhookRequest{
+		Ref: name, Secret: secret, Payload: opapi.AnyValueOf(payload),
+	}))
 	if err != nil {
 		// Post-auth run failures are honest (the caller knew the secret);
 		// auth refusals stay uniform — never tell a prober WHY (unknown

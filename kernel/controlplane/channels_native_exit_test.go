@@ -18,7 +18,7 @@ func TestChannelNativeElevenTypedOperationsExit(t *testing.T) {
 		opapi.ChannelAccountSet:     {reflect.TypeFor[appchannels.SetAccountRequest](), reflect.TypeFor[appchannels.SetAccountOutput](), false},
 		opapi.ChannelAccountRemove:  {reflect.TypeFor[appchannels.RemoveAccountRequest](), reflect.TypeFor[appchannels.RemoveAccountOutput](), false},
 		opapi.ChannelOAuthStart:     {reflect.TypeFor[appchannels.OAuthStartRequest](), reflect.TypeFor[appchannels.OAuthStartOutput](), false},
-		opapi.ChannelOAuthCallback:  {reflect.TypeFor[appchannels.OAuthCallbackRequest](), reflect.TypeFor[appchannels.OAuthCallbackOutput](), false},
+		opapi.ChannelOAuthCallback:  {reflect.TypeFor[opapi.ChannelOAuthCallbackRequest](), reflect.TypeFor[appchannels.OAuthCallbackOutput](), false},
 		opapi.ChannelOAuthStatus:    {reflect.TypeFor[appchannels.OAuthStatusRequest](), reflect.TypeFor[appchannels.OAuthStatusOutput](), true},
 		opapi.WhatsAppGatewayStatus: {reflect.TypeFor[appchannels.GatewayRequest](), reflect.TypeFor[appchannels.GatewayStatusOutput](), true},
 		opapi.WhatsAppGatewayQR:     {reflect.TypeFor[appchannels.GatewayRequest](), reflect.TypeFor[appchannels.GatewayQROutput](), true},

@@ -25,7 +25,7 @@ func TestChannelOAuthNativeTypedMetadata(t *testing.T) {
 		t.Fatal(channelOAuthOperations)
 	}
 	seen := map[string]int{}
-	inputs := map[string]reflect.Type{opapi.ChannelOAuthStart: reflect.TypeFor[appchannels.OAuthStartRequest](), opapi.ChannelOAuthCallback: reflect.TypeFor[appchannels.OAuthCallbackRequest](), opapi.ChannelOAuthStatus: reflect.TypeFor[appchannels.OAuthStatusRequest]()}
+	inputs := map[string]reflect.Type{opapi.ChannelOAuthStart: reflect.TypeFor[appchannels.OAuthStartRequest](), opapi.ChannelOAuthCallback: reflect.TypeFor[opapi.ChannelOAuthCallbackRequest](), opapi.ChannelOAuthStatus: reflect.TypeFor[appchannels.OAuthStatusRequest]()}
 	outputs := map[string]reflect.Type{opapi.ChannelOAuthStart: reflect.TypeFor[appchannels.OAuthStartOutput](), opapi.ChannelOAuthCallback: reflect.TypeFor[appchannels.OAuthCallbackOutput](), opapi.ChannelOAuthStatus: reflect.TypeFor[appchannels.OAuthStatusOutput]()}
 	for _, op := range registeredAppOperations() {
 		s := op.Spec()

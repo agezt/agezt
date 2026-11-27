@@ -160,7 +160,7 @@ func Operations(reads func(context.Context) *Service, lifecycle func(context.Con
 			})
 		},
 		func() error {
-			return bind(&operations, opapi.Spec{Name: opapi.SkillRestore}, func(ctx context.Context, in RestoreInput) (RestoreOutput, error) {
+			return bind(&operations, opapi.Spec{Name: opapi.SkillRestore}, func(ctx context.Context, in opapi.SkillRestoreRequest) (RestoreOutput, error) {
 				if err := required(in.ID, "id"); err != nil {
 					return RestoreOutput{}, err
 				}

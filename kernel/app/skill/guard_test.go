@@ -6,6 +6,8 @@ import (
 	"context"
 	"errors"
 	"testing"
+
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 // TestTheAppLayerRefusesWithoutACurator: the skill library is the DAEMON's
@@ -35,7 +37,7 @@ func TestTheAppLayerRefusesWithoutACurator(t *testing.T) {
 	if _, err := life.Revert(ctx, GetInput{ID: "s-1"}); !errors.Is(err, errNoSkillLibrary) {
 		t.Fatalf("revert must refuse without a curator, got %v", err)
 	}
-	if _, err := life.Restore(ctx, RestoreInput{ID: "s-1"}); !errors.Is(err, errNoSkillLibrary) {
+	if _, err := life.Restore(ctx, opapi.SkillRestoreRequest{ID: "s-1"}); !errors.Is(err, errNoSkillLibrary) {
 		t.Fatalf("restore must refuse without a curator, got %v", err)
 	}
 
