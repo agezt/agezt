@@ -40,15 +40,25 @@ const (
 )
 
 // HTTPRoute is one operation's console binding: the path the console answers
-// at, the method it answers with, and the argument allowlist it forwards.
-// Args is the allowlist the browser may set — a fixed list, so the browser can
-// only ever invoke the operation with these arguments.
+// at, the method it answers with, and the arguments the browser may set.
+//
+// The browser's arguments are two lists. Args are the OPERATION's arguments:
+// every one of them is forwarded to the daemon, so every one of them must be a
+// field the operation's request row declares. Consumed are the console's own
+// inputs — the browser may send them, the console reads them, and the daemon
+// never sees them; an argument the console folds into another one (the chat
+// view's prior turns, which become the intent) belongs here, not in Args. A
+// field in both lists is one row with two homes, and that is the drift this
+// table exists to prevent.
 type HTTPRoute struct {
 	Op     string
 	Method string
 	Path   string
 	Kind   HTTPRouteKind
 	Args   []string
+	// Consumed are the arguments the browser may send that the console
+	// consumes itself and does not forward.
+	Consumed []string
 }
 
 // consoleRoutes is the console's route table, one entry per operation the
@@ -507,7 +517,10 @@ var consoleRoutes = []HTTPRoute{
 	{Op: Plan, Method: "POST", Path: "/api/plan/run", Kind: HTTPRouteStream, Args: []string{"plan_json"}},
 	// The Chat view's send button: a free-text intent through the governed loop.
 	// The streamed events ARE the chat payload, so each one is forwarded inline.
-	{Op: Run, Method: "POST", Path: "/api/run", Kind: HTTPRouteStream, Args: []string{"intent", "model", "history", "system", "agent", "execution_profile", "auto_approve_caps"}},
+	// `history` is the console's OWN input: the browser sends the prior turns,
+	// the console folds them into the intent and keeps them — the operation
+	// never sees them, so they are not the operation's arguments.
+	{Op: Run, Method: "POST", Path: "/api/run", Kind: HTTPRouteStream, Args: []string{"intent", "model", "system", "agent", "execution_profile", "auto_approve_caps"}, Consumed: []string{"history"}},
 	// CLI Toolbox install (M956): runs the host package manager for the requested
 	// tools and streams the per-tool progress event then a final summary.
 	{Op: ToolboxInstall, Method: "POST", Path: "/api/toolbox/install", Kind: HTTPRouteStream, Args: []string{"names"}},

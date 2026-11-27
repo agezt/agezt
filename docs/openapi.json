@@ -20523,7 +20523,7 @@
     "/api/run": {
       "post": {
         "operationId": "run",
-        "summary": "run — POST /api/run (forwards intent, model, history, system, agent, execution_profile, auto_approve_caps)",
+        "summary": "run — POST /api/run (forwards intent, model, system, agent, execution_profile, auto_approve_caps) (consumes history)",
         "tags": [
           "run"
         ],

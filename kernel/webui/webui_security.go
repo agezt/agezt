@@ -152,7 +152,12 @@ func (s *Server) handleWorkflowHook(w http.ResponseWriter, r *http.Request) {
 // IS the chat payload, so it's forwarded inline.
 func (s *Server) runStreamProxy() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		args, ok := s.decodeAllowedBody(w, r, opapi.ConsoleArgs(opapi.Run))
+		route, ok := opapi.ConsoleRoute(opapi.Run)
+		if !ok {
+			writeError(w, http.StatusInternalServerError, "the run route is not in the console's catalogue")
+			return
+		}
+		args, consumed, ok := s.decodeRouteBody(w, r, route)
 		if !ok {
 			return
 		}
@@ -164,11 +169,11 @@ func (s *Server) runStreamProxy() http.HandlerFunc {
 		// Multi-turn continuity (M591): the Chat view sends the prior turns as
 		// `history`; fold them with this turn into one transcript intent — the
 		// same convo mapping the OpenAI-compatible API uses — so the governed loop
-		// (single-intent by design) sees the whole conversation. `history` is
-		// dropped from the args the control plane receives; opapi.Run only ever sees
-		// the resolved intent.
-		turns := historyTurns(args["history"])
-		delete(args, "history")
+		// (single-intent by design) sees the whole conversation. `history` is the
+		// CONSOLE's own input: it comes back in the consumed half of the body, so
+		// it cannot reach the control plane — opapi.Run only ever sees the
+		// resolved intent.
+		turns := historyTurns(consumed["history"])
 		if len(turns) > 0 {
 			turns = append(turns, convoapi.Turn{Role: "user", Text: intent})
 			args["intent"] = convoapi.TranscriptIntent(turns)
