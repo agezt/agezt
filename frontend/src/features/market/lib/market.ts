@@ -1,4 +1,5 @@
 import { authHeaders, getJSON } from "@/app/api";
+import type { ConsoleErrorResponse } from "@/app/api/types.generated";
 import { parseSSEChunk, type ChatFrame } from "@/lib/chat";
 import type {
   MarketShowResponse ,
@@ -66,7 +67,9 @@ export async function streamMarket(
   if (!res.ok || !res.body) {
     let msg = `HTTP ${res.status}`;
     try {
-      const j = await res.json();
+      // The console's error envelope: the console's OWN row, from the
+      // generated catalogue — this view names no field of it by hand.
+      const j = (await res.json()) as ConsoleErrorResponse;
       if (j?.error) msg = String(j.error);
     } catch {
       /* no JSON body */

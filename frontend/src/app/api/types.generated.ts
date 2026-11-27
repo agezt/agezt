@@ -3818,6 +3818,11 @@ export interface WorkflowHookResponse {
   workflow: string | null;
 }
 
+/** ConsoleErrorResponse */
+export interface ConsoleErrorResponse {
+  error: string;
+}
+
 /** AgentAddResponseProfileHealthPolicy is the same shape as AgentListResponseProfilesItemHealthPolicy. */
 export type AgentAddResponseProfileHealthPolicy = AgentListResponseProfilesItemHealthPolicy;
 

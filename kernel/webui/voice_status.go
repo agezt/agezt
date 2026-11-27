@@ -15,7 +15,7 @@ import (
 func (s *Server) handleVoiceStatus(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		w.Header().Set("Allow", http.MethodGet)
-		writeJSON(w, http.StatusMethodNotAllowed, map[string]any{"error": "GET required"})
+		writeError(w, http.StatusMethodNotAllowed, "GET required")
 		return
 	}
 	writeJSON(w, http.StatusOK, consoleapi.VoiceStatus{

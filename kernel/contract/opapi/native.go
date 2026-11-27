@@ -152,6 +152,25 @@ func ConsoleNativePath(name NativeRouteName) string {
 	panic("opapi: no console-native endpoint named " + string(name))
 }
 
+// ConsoleNativeErrorName is the name the catalogue gives the console's error
+// envelope.
+//
+// The catalogue names a row after the route that answers with it, in Pascal
+// case plus "Response". The error envelope belongs to no route — it is the
+// answer of a REFUSAL — so its name is stated here instead.
+const ConsoleNativeErrorName = "console_error"
+
+// ConsoleNativeErrorRow is the row every console refusal carries: the error
+// envelope.
+//
+// It is not a route's answer, but the browser reads it — every refusal the
+// console writes carries it — so it is a row like any other and needs a home.
+// The console writes it through one helper (kernel/webui), so the envelope is
+// spelled once.
+func ConsoleNativeErrorRow() any {
+	return consoleapi.Error{}
+}
+
 // consoleNativeRoutes is the console's own endpoint list: one entry per
 // endpoint the console answers that is not an operation binding.
 var consoleNativeRoutes = []NativeRoute{

@@ -309,6 +309,21 @@ func renderTypes(routes []opapi.HTTPRoute, native []opapi.NativeRoute, document 
 		})
 	}
 
+	// The console's ERROR envelope: the row every refusal carries. It belongs
+	// to no route — it is the answer of a refusal — but the browser reads it,
+	// so the catalogue renders it and the browser names it.
+	errorRow := opapi.ConsoleNativeErrorRow()
+	if errorRow != nil {
+		schema, err := schemaOf(errorRow)
+		if err != nil {
+			return "", fmt.Errorf("the console's error envelope: %w", err)
+		}
+		name := pascalName(opapi.ConsoleNativeErrorName) + "Response"
+		if _, err := renderer.renderType(name, schema); err != nil {
+			return "", err
+		}
+	}
+
 	var out strings.Builder
 	out.WriteString(typesHeader)
 

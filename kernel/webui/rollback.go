@@ -34,12 +34,12 @@ type rollbackCheckpoint = rollbackstore.Checkpoint
 func (s *Server) handleRollbackCheckpoints(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		w.Header().Set("Allow", http.MethodGet)
-		writeJSON(w, http.StatusMethodNotAllowed, map[string]any{"error": "GET required"})
+		writeError(w, http.StatusMethodNotAllowed, "GET required")
 		return
 	}
 	cat, err := loadRollbackCatalog()
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	runID := strings.TrimSpace(r.URL.Query().Get("run_id"))
@@ -72,35 +72,35 @@ func (s *Server) handleRollbackCheckpoints(w http.ResponseWriter, r *http.Reques
 func (s *Server) handleRollbackApply(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", http.MethodPost)
-		writeJSON(w, http.StatusMethodNotAllowed, map[string]any{"error": "POST required"})
+		writeError(w, http.StatusMethodNotAllowed, "POST required")
 		return
 	}
 	var body rollbackApplyBody
 	ok, err := decodeNativeBody(w, r, opapi.NativeRollbackApply, &body)
 	if !ok {
 		if err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid JSON body: " + err.Error()})
+			writeError(w, http.StatusBadRequest, "invalid JSON body: "+err.Error())
 		}
 		return
 	}
 	id := strings.TrimSpace(body.ID)
 	if id == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "checkpoint id required"})
+		writeError(w, http.StatusBadRequest, "checkpoint id required")
 		return
 	}
 	path, err := rollbackCatalogPath()
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	cat, err := loadRollbackCatalogAt(path)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	idx, cp := findRollbackCheckpoint(cat, id)
 	if cp == nil {
-		writeJSON(w, http.StatusNotFound, map[string]any{"error": "checkpoint not found"})
+		writeError(w, http.StatusNotFound, "checkpoint not found")
 		return
 	}
 	if cp.AppliedMS > 0 {
@@ -125,7 +125,7 @@ func (s *Server) handleRollbackApply(w http.ResponseWriter, r *http.Request) {
 					status = http.StatusInternalServerError
 				}
 			}
-			writeJSON(w, status, map[string]any{"error": message})
+			writeError(w, status, message)
 			return
 		}
 		writeJSON(w, http.StatusOK, result)
@@ -137,12 +137,12 @@ func (s *Server) handleRollbackApply(w http.ResponseWriter, r *http.Request) {
 	}
 	res, err := s.applyRollbackCheckpoint(r.Context(), *cp, reason)
 	if err != nil {
-		writeJSON(w, http.StatusBadGateway, map[string]any{"error": err.Error()})
+		writeError(w, http.StatusBadGateway, err.Error())
 		return
 	}
 	cat.Checkpoints[idx].AppliedMS = time.Now().UnixMilli()
 	if err := writeRollbackCatalogAt(path, cat); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "mark applied: " + err.Error()})
+		writeError(w, http.StatusInternalServerError, "mark applied: "+err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, rollbackapi.Applied{

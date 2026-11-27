@@ -1,5 +1,6 @@
 import { num } from "@/lib/rundetail";
 import { authHeaders } from "@/app/api";
+import type { ConsoleErrorResponse } from "@/app/api/types.generated";
 
 // A frame is one SSE `data:` object streamed by the webui /api/run proxy. Most
 // frames carry a forwarded agent event ({kind, payload, ...}); the proxy also
@@ -414,7 +415,9 @@ export async function streamRun(
   if (!res.ok || !res.body) {
     let msg = `HTTP ${res.status}`;
     try {
-      const j = await res.json();
+      // The console's error envelope: the console's OWN row, from the
+      // generated catalogue — this view names no field of it by hand.
+      const j = (await res.json()) as ConsoleErrorResponse;
       if (j?.error) msg = String(j.error);
     } catch {
       /* no JSON body */

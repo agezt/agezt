@@ -78,6 +78,19 @@ func TestTheConsoleServesTheContractVoiceStatusBytes(t *testing.T) {
 	}
 }
 
+func TestTheConsoleServesTheContractErrorEnvelopeBytes(t *testing.T) {
+	// A refusal carries the console's error envelope — the row, byte for byte.
+	s, _ := newServer(t, &fakeCaller{}, "secret")
+	rec := httpJSON(t, s.Handler(), http.MethodPost, "/api/rollback/apply?token=secret", `{}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	want := `{"error":"checkpoint id required"}`
+	if got := strings.TrimSpace(rec.Body.String()); got != want {
+		t.Fatalf("the error envelope's bytes moved:\n got %s\nwant %s", got, want)
+	}
+}
+
 func TestTheConsoleServesTheContractFileTreeBytes(t *testing.T) {
 	// An empty listing: the row's two members, in the order the wire speaks
 	// them.

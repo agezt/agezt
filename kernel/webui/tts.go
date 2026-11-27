@@ -24,13 +24,11 @@ const ttsTextMaxBytes = 8 << 10 // 8 KiB of text
 func (s *Server) handleTTS(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", http.MethodPost)
-		writeJSON(w, http.StatusMethodNotAllowed, map[string]any{"error": "POST required"})
+		writeError(w, http.StatusMethodNotAllowed, "POST required")
 		return
 	}
 	if s.synthesizer == nil {
-		writeJSON(w, http.StatusNotImplemented, map[string]any{
-			"error": "text-to-speech is not configured: set AGEZT_TTS_URL + AGEZT_TTS_MODEL (and optionally AGEZT_TTS_VOICE / AGEZT_TTS_KEY)",
-		})
+		writeError(w, http.StatusNotImplemented, "text-to-speech is not configured: set AGEZT_TTS_URL + AGEZT_TTS_MODEL (and optionally AGEZT_TTS_VOICE / AGEZT_TTS_KEY)")
 		return
 	}
 	var in ttsBody
@@ -38,17 +36,17 @@ func (s *Server) handleTTS(w http.ResponseWriter, r *http.Request) {
 	ok, err := decodeNativeBody(w, r, opapi.NativeTTS, &in)
 	if !ok {
 		if err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "expected JSON body {\"text\": …}: " + err.Error()})
+			writeError(w, http.StatusBadRequest, "expected JSON body {\"text\": …}: "+err.Error())
 		}
 		return
 	}
 	if in.Text == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "text is required"})
+		writeError(w, http.StatusBadRequest, "text is required")
 		return
 	}
 	audio, mime, err := s.synthesizer.Speak(r.Context(), in.Text)
 	if err != nil {
-		writeJSON(w, http.StatusBadGateway, map[string]any{"error": err.Error()})
+		writeError(w, http.StatusBadGateway, err.Error())
 		return
 	}
 	if mime == "" {

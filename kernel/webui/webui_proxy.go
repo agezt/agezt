@@ -10,6 +10,7 @@ package webui
 import (
 	"context"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/contract/consoleapi"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/httpserver"
@@ -74,7 +75,7 @@ func (s *Server) proxy(cmd string) http.HandlerFunc {
 		defer cancel()
 		res, err := s.client.Call(ctx, cmd, nil)
 		if err != nil {
-			writeJSON(w, http.StatusBadGateway, map[string]any{"error": err.Error()})
+			writeError(w, http.StatusBadGateway, err.Error())
 			return
 		}
 		writeJSON(w, http.StatusOK, res)
@@ -123,7 +124,7 @@ func (s *Server) readArgsProxy(cmd string, allowed []string) http.HandlerFunc {
 		defer cancel()
 		res, err := s.client.Call(ctx, cmd, args)
 		if err != nil {
-			writeJSON(w, http.StatusBadGateway, map[string]any{"error": err.Error()})
+			writeError(w, http.StatusBadGateway, err.Error())
 			return
 		}
 		writeJSON(w, http.StatusOK, res)
@@ -137,7 +138,7 @@ func (s *Server) writeProxy(cmd string, allowed []string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			w.Header().Set("Allow", http.MethodPost)
-			writeJSON(w, http.StatusMethodNotAllowed, map[string]any{"error": "POST required"})
+			writeError(w, http.StatusMethodNotAllowed, "POST required")
 			return
 		}
 		args := map[string]any{}
@@ -150,7 +151,7 @@ func (s *Server) writeProxy(cmd string, allowed []string) http.HandlerFunc {
 		defer cancel()
 		res, err := s.client.Call(ctx, cmd, args)
 		if err != nil {
-			writeJSON(w, http.StatusBadGateway, map[string]any{"error": err.Error()})
+			writeError(w, http.StatusBadGateway, err.Error())
 			return
 		}
 		writeJSON(w, http.StatusOK, res)
@@ -165,13 +166,13 @@ func (s *Server) writeProxy(cmd string, allowed []string) http.HandlerFunc {
 func (s *Server) decodeAllowedBody(w http.ResponseWriter, r *http.Request, allowed []string) (map[string]any, bool) {
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", http.MethodPost)
-		writeJSON(w, http.StatusMethodNotAllowed, map[string]any{"error": "POST required"})
+		writeError(w, http.StatusMethodNotAllowed, "POST required")
 		return nil, false
 	}
 	var body map[string]any
 	dec := json.NewDecoder(r.Body)
 	if err := dec.Decode(&body); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid JSON body: " + err.Error()})
+		writeError(w, http.StatusBadRequest, "invalid JSON body: "+err.Error())
 		return nil, false
 	}
 	args := map[string]any{}
@@ -198,7 +199,7 @@ func (s *Server) jsonProxy(cmd string, allowed []string) http.HandlerFunc {
 		defer cancel()
 		res, err := s.client.Call(ctx, cmd, args)
 		if err != nil {
-			writeJSON(w, http.StatusBadGateway, map[string]any{"error": err.Error()})
+			writeError(w, http.StatusBadGateway, err.Error())
 			return
 		}
 		writeJSON(w, http.StatusOK, res)
@@ -223,7 +224,7 @@ func (s *Server) planRunProxy() http.HandlerFunc {
 		defer cancel()
 		res, err := s.client.Stream(ctx, opapi.Plan, args, func(*event.Event) {})
 		if err != nil {
-			writeJSON(w, http.StatusBadGateway, map[string]any{"error": err.Error()})
+			writeError(w, http.StatusBadGateway, err.Error())
 			return
 		}
 		writeJSON(w, http.StatusOK, res)
@@ -238,4 +239,14 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(code)
 	_ = json.NewEncoder(w).Encode(v)
+}
+
+// writeError writes the console's error envelope: the row every refusal
+// carries (kernel/contract/consoleapi.Error).
+//
+// ONE helper, so the envelope is written once: a refusal that spelled its own
+// map would be a second spelling of the row, and nothing would say the two
+// are the same row.
+func writeError(w http.ResponseWriter, code int, message string) {
+	writeJSON(w, code, consoleapi.Error{Error: message})
 }

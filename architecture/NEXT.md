@@ -1,5 +1,72 @@
 # NEXT — handoff for the next coding agent
 
+## Current checkpoint — W5.32 the console's error envelope has one home, 2026-11-27
+
+The W0–W5 objective remains open. W5.8–W5.15 gave the **browser**, the
+**registry** and the **SDKs** their request vocabulary; W5.11–W5.19 gave
+**every surface** that reads a request body its contract, its door and the
+boot-time check that holds the two together; W5.20 put a **gate** behind that
+sentence so it cannot decay; W5.21 closed W5.1's open end on the browser's
+**response** side; W5.22–W5.28 gave the daemon's own rows one home, one family
+at a time; W5.29–W5.31 put the console's rows into the browser's catalogue,
+moved the browser's views onto it and gave the file manager's answer the row it
+never had. **This slice gives the console's ERROR envelope a home** — the one
+answer the console writes that was still a shape rather than a row.
+
+### What was on the tree
+
+- **Every refusal the console wrote spelled the envelope by hand** —
+  **thirty-seven** times, across seven files. The envelope had no declaration,
+  no name and no home, so nothing could say that one of the thirty-seven
+  spellings had drifted.
+- **The envelope is a row now** (`kernel/contract/consoleapi.Error`), beside
+  the console's other rows. It is not a route's answer — it is the answer of a
+  **refusal** — but it is a row, and the browser reads it.
+- **The console writes it through one helper**: thirty-seven hand-written
+  envelopes became thirty-seven calls to `writeError`. The bytes did not move.
+- **The catalogue carries it** (`ConsoleErrorResponse`), because the console
+  declares it in the operation contract — and the browser's **four** reads of
+  it (the transport's error message, the chat's and the marketplace's stream
+  failures, the voice uploader's refusal) now name the catalogue's row.
+- **The console's guard watches the envelope too**, with a floor of **one**
+  member: a floor of two would never have seen a one-member row.
+- **The envelope's bytes are pinned**, and the browser's catalogue test says
+  the catalogue must carry it.
+
+### What the measurement said
+
+- The console's hand-written error envelopes: **37 → 0** (one helper).
+- Error envelopes in the browser's catalogue: **0 → 1**.
+- Contract-owned rows the console's guard watches: **15 → 16**.
+- Browser reads of the envelope bound to the catalogue's row: **0 → 4** (of 4).
+- The served bytes: **unchanged**.
+
+### The evidence
+
+`architecture/352-w532-the-consols-error-envelope-has-one-home-evidence.md` —
+the row, the helper, the catalogue, the browser's four reads, the one-member
+floor, the measurement, the five reverted mutations, and what remains open.
+
+### What the next slice should do
+
+**The daemon's own error payloads, and the second refusal shape.** Two
+families are left that are not rows:
+
+- **The daemon's error payloads are still maps.** The *event* payloads the
+  daemon publishes ("the run failed", "the tool errored", the roster's
+  activity rows) are a different family from the console's HTTP envelope, and
+  they have their own homes — but they are spelled by hand in many places, and
+  the browser reads several of them.
+- **The console's route policy answers a wrong verb in plain text**
+  ("method not allowed"), not with the envelope. That is a **second refusal
+  shape** on the wire: it should be a decision, not an accident.
+- **`docs/openapi.json` does not carry the console's answers**, and the
+  document says so. A caller outside the browser still has no published shape
+  for `/api/authmeta` or `/api/files/tree`. Deciding whether the document
+  grows the native paths (and with which schemas) is a real choice.
+- **The `/hooks/` path is a prefix**, not a path the browser calls: the hook's
+  row is rendered, but the browser never fetches it.
+
 ## Current checkpoint — W5.31 the console's file-tree answer has one home, 2026-11-27
 
 The W0–W5 objective remains open. W5.8–W5.15 gave the **browser**, the
