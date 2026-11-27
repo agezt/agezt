@@ -21,6 +21,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type {
   AuthmetaResponse,
+  FilesTreeResponse,
   ResponseOf,
   SseTokenResponse,
   VoiceStatusResponse,
@@ -67,10 +68,12 @@ function nativeMap(): Map<string, string> {
 
 // ── the rows the browser's console-native views read ─────────────────────────
 // The auth gate reads the auth meta, the Jarvis card reads the voice status,
-// and the event feed reads the SSE token. All three come from the catalogue.
+// the event feed reads the SSE token, and the file manager reads the file
+// tree. All four come from the catalogue.
 type _authMeta = Expect<Equal<ResponseOf<"/api/authmeta">, AuthmetaResponse>>;
 type _voiceStatus = Expect<Equal<ResponseOf<"/api/voice/status">, VoiceStatusResponse>>;
 type _sseToken = Expect<Equal<ResponseOf<"/api/sse-token">, SseTokenResponse>>;
+type _fileTree = Expect<Equal<ResponseOf<"/api/files/tree">, FilesTreeResponse>>;
 
 describe("the console's own rows in the browser's catalogue", () => {
   it("binds every console-native path that names a row", () => {
@@ -98,5 +101,6 @@ describe("the console's own rows in the browser's catalogue", () => {
     expect(map.get("/api/authmeta")).toBe("AuthmetaResponse");
     expect(map.get("/api/voice/status")).toBe("VoiceStatusResponse");
     expect(map.get("/api/sse-token")).toBe("SseTokenResponse");
+    expect(map.get("/api/files/tree")).toBe("FilesTreeResponse");
   });
 });

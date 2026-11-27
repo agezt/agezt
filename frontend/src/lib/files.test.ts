@@ -26,6 +26,39 @@ vi.mock("@/app/api", async (importOriginal) => {
 
 import { HTTPError, getJSON } from "@/app/api";
 import { useFileTree, basename, isPathSafe, joinPath, parentPath, __resetTreeCacheForTest } from "./files";
+import type { FileNode, FileTreeResponse } from "./files";
+import type { FilesTreeResponse, FilesTreeResponseNodesItem } from "@/app/api/types.generated";
+
+// The browser's file-tree view is the CATALOGUE's row.
+//
+// The console's file-tree answer is declared in the contract
+// (kernel/contract/consoleapi) and the catalogue is generated from that
+// declaration. These assertions do not run; they COMPILE: if the view ever
+// spells the row by hand again — or promises a member the row does not carry,
+// or narrows one it does — the typecheck gate says so.
+//
+// The one member the view adds is `children`: the daemon lists ONE directory
+// at a time, and the browser walks the tree by loading a folder's children
+// when it opens it. That structure is the browser's own.
+type Equal<X, Y> = (<T>() => T extends X ? 1 : 2) extends (<T>() => T extends Y ? 1 : 2)
+  ? true
+  : false;
+/** Expect fails the typecheck when its argument is not true. */
+type Expect<T extends true> = T;
+
+type _fileNodeIsTheRow = Expect<
+  Equal<FileNode, FilesTreeResponseNodesItem & { children?: FileNode[] }>
+>;
+type _fileNodeNames = Expect<Equal<keyof FileNode, keyof FilesTreeResponseNodesItem | "children">>;
+type _fileNodeTypes = Expect<
+  Equal<FilesTreeResponseNodesItem["name"], FileNode["name"]> &
+  Equal<FilesTreeResponseNodesItem["path"], FileNode["path"]> &
+  Equal<FilesTreeResponseNodesItem["type"], FileNode["type"]> &
+  Equal<FilesTreeResponseNodesItem["size"], FileNode["size"]> &
+  Equal<FilesTreeResponseNodesItem["modified_ms"], FileNode["modified_ms"]>
+>;
+type _fileTreeNames = Expect<Equal<keyof FileTreeResponse, "root" | "nodes">>;
+type _fileTreeRoot = Expect<Equal<FilesTreeResponse["root"], FileTreeResponse["root"]>>;
 
 const mockedGetJSON = vi.mocked(getJSON);
 

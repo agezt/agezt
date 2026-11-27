@@ -71,6 +71,33 @@ type VoiceHalf struct {
 	Configured bool `json:"configured"`
 }
 
+// FileTree answers the file manager's listing: the directory it lists and the
+// entries it found.
+//
+// The rows are the console's own — the file manager is a console-native
+// endpoint, not an operation binding — so they live here with the rest of the
+// console's answers.
+type FileTree struct {
+	Root  string     `json:"root"`
+	Nodes []FileNode `json:"nodes"`
+}
+
+// FileNode is one entry in the tree.
+//
+// Type is a plain string on purpose: the daemon says "dir" or "file", but the
+// row does not narrow it. A third kind of entry must not break the reader —
+// and the row says what the daemon sends, not what the reader hopes for.
+//
+// Size and ModifiedMS are omitted when they are zero, so a directory carries
+// no size and a file with no timestamp carries none.
+type FileNode struct {
+	Name       string `json:"name"`
+	Path       string `json:"path"`
+	Type       string `json:"type"`
+	Size       int64  `json:"size,omitempty"`
+	ModifiedMS int64  `json:"modified_ms,omitempty"`
+}
+
 // WorkflowHook is the answer to a webhook.
 //
 // The hook answers in one of two shapes: it either RAN the workflow and

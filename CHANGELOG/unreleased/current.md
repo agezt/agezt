@@ -837,6 +837,28 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The console's file-tree answer has one home: the row is declared, the route
+  names it, and the browser binds to it.** The file manager was the **last**
+  console-native answer without a row — the console answered
+  `/api/files/tree` itself, so the row was spelled by hand on **both** sides of
+  the wire: a `fileNode`/`fileTreeResponse` struct pair in the console and a
+  `FileNode`/`FileTreeResponse` interface pair in the browser, with nothing to
+  say they were the same row — and two drifts already in them (the browser
+  promised a `children` member the daemon never sends, and narrowed `type` to
+  `"dir" | "file"`, a promise the daemon's row never made). The row now lives
+  in the console's own contract (`kernel/contract/consoleapi`), the console
+  serves it by **alias** (so a copy cannot grow next to it), the native route
+  **names** it — **nine** routes name their row now, and the console's ratchet
+  drives every one — the catalogue renders it, and the browser binds to the
+  catalogue's row and says which one member (`children`, the browser's own
+  on-demand structure) is its own. The browser's view is **pinned** to the
+  catalogue's row, so a hand-written copy cannot come back without the
+  compiler saying so, and the answer's bytes are pinned on the console's side.
+  Measured: browser declarations that spell the row **2 → 0**; the console's
+  own spellings **2 → 0** (and **2** aliases); native routes that name their
+  row **8 → 9**; file-tree rows in the browser's catalogue **0 → 2**. **Five**
+  reverted mutations prove it. The served bytes did not move.
+
 - **The browser's console-native views come from the catalogue: the auth gate,
   the voice card and the event feed's token name no field of their own.** The
   console's own answers were already declared in the contract and already
