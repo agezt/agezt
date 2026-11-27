@@ -1,10 +1,10 @@
 import { getJSON } from "@/app/api";
 import { speechSupported } from "@/lib/speech";
 
-interface ServerVoiceStatus {
-  stt?: { configured?: boolean };
-  tts?: { configured?: boolean };
-}
+// The voice status is the console's own row: the console's answer is declared
+// in the contract (kernel/contract/consoleapi) and the browser's catalogue is
+// generated from that declaration, so `getJSON("/api/voice/status")` already
+// answers with the row's type — this view names none of its fields.
 
 export interface VoiceReadiness {
   serverSTT: boolean;

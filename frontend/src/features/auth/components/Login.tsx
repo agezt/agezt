@@ -9,11 +9,12 @@ import { Button } from "@/components/ui/button";
 // password is required and this browser hasn't logged in, renders the lock
 // screen INSTEAD of the app — so no data call fires (and 401s) before login.
 // With no password configured the gate is a transparent pass-through.
-
-interface AuthMeta {
-  password_required: boolean;
-  authed: boolean;
-}
+//
+// The probe's shape is the console's own row, and this view names none of its
+// fields: the console's auth meta is declared in the contract
+// (kernel/contract/consoleapi) and the browser's catalogue is generated from
+// that declaration, so `getJSON("/api/authmeta")` already answers with the
+// row's type.
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<"unknown" | "ok" | "need">("unknown");

@@ -837,6 +837,26 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The browser's console-native views come from the catalogue: the auth gate,
+  the voice card and the event feed's token name no field of their own.** The
+  console's own answers were already declared in the contract and already
+  carried by the browser's catalogue, but the **browser** still spelled them by
+  hand in four places — the auth gate's `AuthMeta`, the voice card's and the
+  voice readiness's `ServerVoiceStatus`, and the event feed's inline
+  `as { token?: string }` cast: **seven** member names for rows the console
+  already publishes. One of them was **fiction**: the voice card rendered a
+  `provider` name, and the console's voice row carries **no provider at all**
+  (it deliberately exposes no endpoint, model or credential) — and two of the
+  card's own tests asserted the fiction. The views now bind to the catalogue
+  (the event feed binds the **path** to its row), the provider render is gone,
+  and the browser's ratchet grew a second arm: a type that names a row's
+  **whole** vocabulary is that row, whatever its size — which is how a
+  one-member row like the SSE token is caught too. A new catalogue test holds
+  the console-native paths to their rows. Measured: browser copies of a
+  console-native row **4 → 0**, members spelled by hand **7 → 0**, browser
+  fields the console never sends **1 → 0**. **Five** reverted mutations prove
+  it.
+
 - **The browser's catalogue carries the console's rows: the browser's rollback
   view is pinned, and it works again.** The console's own answers are Go
   **structs** in the contracts, and the browser's catalogue is rendered from
