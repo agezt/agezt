@@ -22,7 +22,7 @@
 // browser history, the window title, bookmarks, and the Referer of anything the
 // console ever links out to. replaceState rewrites the current entry rather than
 // pushing one, so Back still behaves and a reload no longer re-reads it.
-import type { ResponseOf } from "@/app/api/types.generated";
+import type { ConsoleErrorResponse, ResponseOf } from "@/app/api/types.generated";
 
 // The console's SSE-token answer is the console's OWN row, and the browser
 // names none of its fields: the row is declared in the contract
@@ -93,7 +93,10 @@ export function authHeaders(headers?: HeadersInit): Headers {
 /** errMsg reads the console's error envelope, falling back to the status line. */
 export async function errMsg(res: Response): Promise<string> {
   try {
-    const j = await res.json();
+    // The console's error envelope is the console's OWN row: it is declared in
+    // the contract (kernel/contract/consoleapi) and the browser's catalogue is
+    // generated from that declaration — so this view names no field by hand.
+    const j = (await res.json()) as ConsoleErrorResponse;
     if (j?.error) return String(j.error);
   } catch {
     /* fall through */

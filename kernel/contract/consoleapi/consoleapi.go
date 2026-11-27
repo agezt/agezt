@@ -53,6 +53,19 @@ type SSEToken struct {
 	Token string `json:"token"`
 }
 
+// Error is the console's error envelope: every refusal the console writes
+// carries this one-member row.
+//
+// It is not a route's ANSWER — it is the answer of a REFUSAL — but it is a
+// row all the same, and the browser reads it, so it needs a home like every
+// other row the console writes.
+//
+// The message is the console's own sentence about the refusal; the row says
+// only that there is one.
+type Error struct {
+	Error string `json:"error"`
+}
+
 // Logout is the answer to a logout: the session cookie is gone.
 type Logout struct {
 	OK bool `json:"ok"`

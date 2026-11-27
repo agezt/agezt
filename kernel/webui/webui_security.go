@@ -119,7 +119,7 @@ func (s *Server) handleWorkflowHook(w http.ResponseWriter, r *http.Request) {
 		// auth refusals stay uniform — never tell a prober WHY (unknown
 		// name, bad secret, and disabled all read the same 403).
 		if strings.Contains(err.Error(), "webhook run failed") {
-			writeJSON(w, http.StatusBadGateway, map[string]any{"error": err.Error()})
+			writeError(w, http.StatusBadGateway, err.Error())
 			return
 		}
 		http.Error(w, "webhook refused", http.StatusForbidden)
@@ -158,7 +158,7 @@ func (s *Server) runStreamProxy() http.HandlerFunc {
 		}
 		intent, _ := args["intent"].(string)
 		if strings.TrimSpace(intent) == "" {
-			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "intent is required"})
+			writeError(w, http.StatusBadRequest, "intent is required")
 			return
 		}
 		// Multi-turn continuity (M591): the Chat view sends the prior turns as
@@ -212,7 +212,7 @@ func (s *Server) toolInstallProxy() http.HandlerFunc {
 			return
 		}
 		if len(stringList(args["names"])) == 0 {
-			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "names (non-empty list) is required"})
+			writeError(w, http.StatusBadRequest, "names (non-empty list) is required")
 			return
 		}
 
@@ -251,7 +251,7 @@ func (s *Server) marketStreamProxy(cmd string) http.HandlerFunc {
 			return
 		}
 		if strings.TrimSpace(toStr(args["name"])) == "" {
-			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "name is required"})
+			writeError(w, http.StatusBadRequest, "name is required")
 			return
 		}
 		sse, ok := httpserver.StartSSE(w, r)

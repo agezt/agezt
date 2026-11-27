@@ -100,13 +100,12 @@ func decodeNativeBody(w http.ResponseWriter, r *http.Request, name opapi.NativeR
 		// The console answers an oversized body with a 400, the way its own
 		// endpoints always have (the REST surface answers 413). The status is
 		// the console's; the sentence is clearer than the decoder's.
-		writeJSON(w, http.StatusBadRequest,
-			map[string]any{"error": "request body exceeds the size limit"})
+		writeError(w, http.StatusBadRequest, "request body exceeds the size limit")
 		return false, nil
 	}
 	var refusal *httpserver.SchemaRefusal
 	if errors.As(err, &refusal) {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": refusal.Error()})
+		writeError(w, http.StatusBadRequest, refusal.Error())
 		return false, nil
 	}
 	return false, err

@@ -103,4 +103,16 @@ describe("the console's own rows in the browser's catalogue", () => {
     expect(map.get("/api/sse-token")).toBe("SseTokenResponse");
     expect(map.get("/api/files/tree")).toBe("FilesTreeResponse");
   });
+
+  it("carries the console's error envelope", () => {
+    // The envelope belongs to no route — it is the answer of a REFUSAL — but
+    // the browser reads it on every failed request, so the catalogue must
+    // carry it and the browser must be able to name it.
+    expect(generated).toContain("export interface ConsoleErrorResponse {");
+    const body = /export interface ConsoleErrorResponse \{([\s\S]*?)\n\}/.exec(generated);
+    expect(body).not.toBeNull();
+    const members = [...(body as RegExpExecArray)[1].matchAll(/^\s*([A-Za-z_$][\w$]*)\??\s*:/gm)]
+      .map((m) => m[1]);
+    expect(members).toEqual(["error"]);
+  });
 });

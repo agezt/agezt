@@ -22,23 +22,21 @@ const audioMaxBytes = 25 << 20
 func (s *Server) handleTranscribe(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", http.MethodPost)
-		writeJSON(w, http.StatusMethodNotAllowed, map[string]any{"error": "POST required"})
+		writeError(w, http.StatusMethodNotAllowed, "POST required")
 		return
 	}
 	if s.transcriber == nil {
-		writeJSON(w, http.StatusNotImplemented, map[string]any{
-			"error": "speech-to-text is not configured: set AGEZT_STT_API_KEY (and optionally AGEZT_STT_API_URL / AGEZT_STT_MODEL)",
-		})
+		writeError(w, http.StatusNotImplemented, "speech-to-text is not configured: set AGEZT_STT_API_KEY (and optionally AGEZT_STT_API_URL / AGEZT_STT_MODEL)")
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, audioMaxBytes)
 	if err := r.ParseMultipartForm(audioMaxBytes); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "expected multipart/form-data with a 'file' field: " + err.Error()})
+		writeError(w, http.StatusBadRequest, "expected multipart/form-data with a 'file' field: "+err.Error())
 		return
 	}
 	f, hdr, err := r.FormFile("file")
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "missing 'file' form field"})
+		writeError(w, http.StatusBadRequest, "missing 'file' form field")
 		return
 	}
 	defer f.Close()
@@ -48,7 +46,7 @@ func (s *Server) handleTranscribe(w http.ResponseWriter, r *http.Request) {
 func (s *Server) transcribeFile(w http.ResponseWriter, r *http.Request, hdr *multipart.FileHeader, f multipart.File) {
 	audio, err := io.ReadAll(f)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "read upload: " + err.Error()})
+		writeError(w, http.StatusBadRequest, "read upload: "+err.Error())
 		return
 	}
 	filename := hdr.Filename
@@ -57,7 +55,7 @@ func (s *Server) transcribeFile(w http.ResponseWriter, r *http.Request, hdr *mul
 	}
 	text, err := s.transcriber.Transcribe(r.Context(), filename, audio)
 	if err != nil {
-		writeJSON(w, http.StatusBadGateway, map[string]any{"error": err.Error()})
+		writeError(w, http.StatusBadGateway, err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"text": text})

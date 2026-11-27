@@ -38,25 +38,33 @@ import (
 // does is declared below, with the reason.
 
 // contractOwnedRows are the rows the contracts own, by name.
+//
+// Floor is the number of shared field names that makes a map literal a
+// violation. It is TWO for every row — two names in common are a coincidence
+// of English — and ONE for the error envelope, which carries a single member:
+// a refusal that spelled its own map would be a second spelling of the row,
+// and a one-member row would never be seen by a floor of two.
 var contractOwnedRows = []struct {
-	Name string
-	Row  reflect.Type
+	Name  string
+	Row   reflect.Type
+	Floor int
 }{
-	{"rollback_checkpoint", reflect.TypeOf(rollbackapi.Checkpoint{})},
-	{"rollback_list", reflect.TypeOf(rollbackapi.List{})},
-	{"rollback_applied", reflect.TypeOf(rollbackapi.Applied{})},
-	{"console_auth_meta", reflect.TypeOf(consoleapi.AuthMeta{})},
-	{"console_login", reflect.TypeOf(consoleapi.Login{})},
-	{"console_logout", reflect.TypeOf(consoleapi.Logout{})},
-	{"console_sse_token", reflect.TypeOf(consoleapi.SSEToken{})},
-	{"console_voice_status", reflect.TypeOf(consoleapi.VoiceStatus{})},
-	{"console_voice_half", reflect.TypeOf(consoleapi.VoiceHalf{})},
-	{"console_workflow_hook", reflect.TypeOf(consoleapi.WorkflowHook{})},
-	{"console_stream_open", reflect.TypeOf(consoleapi.StreamOpen{})},
-	{"console_stream_event", reflect.TypeOf(consoleapi.StreamEvent{})},
-	{"console_run_stream_event", reflect.TypeOf(consoleapi.RunStreamEvent{})},
-	{"console_stream_error", reflect.TypeOf(consoleapi.StreamError{})},
-	{"console_stream_result", reflect.TypeOf(consoleapi.StreamResult{})},
+	{"rollback_checkpoint", reflect.TypeOf(rollbackapi.Checkpoint{}), 0},
+	{"rollback_list", reflect.TypeOf(rollbackapi.List{}), 0},
+	{"rollback_applied", reflect.TypeOf(rollbackapi.Applied{}), 0},
+	{"console_auth_meta", reflect.TypeOf(consoleapi.AuthMeta{}), 0},
+	{"console_login", reflect.TypeOf(consoleapi.Login{}), 0},
+	{"console_logout", reflect.TypeOf(consoleapi.Logout{}), 0},
+	{"console_sse_token", reflect.TypeOf(consoleapi.SSEToken{}), 0},
+	{"console_voice_status", reflect.TypeOf(consoleapi.VoiceStatus{}), 0},
+	{"console_voice_half", reflect.TypeOf(consoleapi.VoiceHalf{}), 0},
+	{"console_workflow_hook", reflect.TypeOf(consoleapi.WorkflowHook{}), 0},
+	{"console_stream_open", reflect.TypeOf(consoleapi.StreamOpen{}), 0},
+	{"console_stream_event", reflect.TypeOf(consoleapi.StreamEvent{}), 0},
+	{"console_run_stream_event", reflect.TypeOf(consoleapi.RunStreamEvent{}), 0},
+	{"console_stream_error", reflect.TypeOf(consoleapi.StreamError{}), 0},
+	{"console_stream_result", reflect.TypeOf(consoleapi.StreamResult{}), 0},
+	{"console_error", reflect.TypeOf(consoleapi.Error{}), 1},
 }
 
 // rowExceptions are the hand-written views of a contract-owned row that are
@@ -134,9 +142,6 @@ func TestTheConsoleSpellsNoContractOwnedRowByHand(t *testing.T) {
 			for _, key := range literalKey.FindAllStringSubmatch(match[1], -1) {
 				keys[key[1]] = true
 			}
-			if len(keys) < 2 {
-				continue
-			}
 			names := make([]string, 0, len(keys))
 			for key := range keys {
 				names = append(names, key)
@@ -144,13 +149,20 @@ func TestTheConsoleSpellsNoContractOwnedRowByHand(t *testing.T) {
 			sort.Strings(names)
 			literal := strings.Join(names, ",")
 			for _, row := range contractOwnedRows {
+				floor := row.Floor
+				if floor == 0 {
+					floor = 2
+				}
+				if len(keys) < floor {
+					continue
+				}
 				shared := 0
 				for _, field := range rowFields(row.Row) {
 					if keys[field] {
 						shared++
 					}
 				}
-				if shared < 2 {
+				if shared < floor {
 					continue
 				}
 				if _, ok := rowExceptions[name][literal]; ok {

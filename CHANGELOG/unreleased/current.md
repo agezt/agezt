@@ -837,6 +837,26 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The console's error envelope has one home: one row, one helper, and the
+  browser reads it from the catalogue.** Every refusal the console writes
+  carried the same envelope — and the console spelled it **by hand,
+  thirty-seven times**, across seven files (`map[string]any{"error": …}`). The
+  envelope was a **shape**, not a row: no declaration, no name, no home, and
+  nothing to say that the thirty-seven spellings were the same shape — so
+  nothing could say that one of them had drifted. The envelope is now a row in
+  the console's own contract (`kernel/contract/consoleapi`), the console
+  writes it through **one helper**, the catalogue renders it
+  (`ConsoleErrorResponse`), and the browser's **four** reads of it — the
+  transport's error message, the chat's and the marketplace's stream failures
+  and the voice uploader's refusal — name the catalogue's row instead of
+  guessing. The console's guard now watches the envelope too, with a floor of
+  **one** member (a floor of two would never have seen a one-member row), and
+  the envelope's bytes are pinned. Measured: the console's hand-written
+  envelopes **37 → 0** (one helper); error envelopes in the browser's
+  catalogue **0 → 1**; contract-owned rows the console's guard watches
+  **15 → 16**; browser reads bound to the catalogue's row **0 → 4**. **Five**
+  reverted mutations prove it. The served bytes did not move.
+
 - **The console's file-tree answer has one home: the row is declared, the route
   names it, and the browser binds to it.** The file manager was the **last**
   console-native answer without a row — the console answered
