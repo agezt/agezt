@@ -48,10 +48,14 @@ func code(err error) string {
 	return ""
 }
 
-func TestMutateDecodesLeniently(t *testing.T) {
+// The mutation's arguments are the operation's request row, read through the
+// contract's Args. The leniency a mistyped argument used to meet here is the
+// door's now: the declared schema refuses a wrong-typed field before the
+// mutation is applied.
+func TestMutateCarriesTheRowsFields(t *testing.T) {
 	runner := &fakeRunner{result: toolapi.Result{Output: `{"ok":true,"path":""}`}}
 	s := New(Ports{Runner: runner, Correlation: "c1", CallID: "req-1"})
-	out, err := s.Mutate(context.Background(), Mkdir, MutationRequest{Path: json.RawMessage(`5`), Parents: json.RawMessage(`"true"`), From: json.RawMessage(`"ignored"`)})
+	out, err := s.Mutate(context.Background(), Mkdir, opapi.Args(opapi.FileMkdirRequest{}))
 	if err != nil || !out.OK || out.Path == nil || *out.Path != "" || out.From != nil || out.To != nil {
 		t.Fatal(out, err)
 	}
@@ -60,18 +64,18 @@ func TestMutateDecodesLeniently(t *testing.T) {
 	}
 	for _, c := range []struct {
 		op   string
-		in   MutationRequest
+		in   map[string]any
 		want string
 	}{
-		{Rename, MutationRequest{From: json.RawMessage(`"a"`), To: json.RawMessage(`null`)}, `{"from":"a","to":""}`},
-		{Delete, MutationRequest{Path: json.RawMessage(`"d"`), Recursive: json.RawMessage(`true`)}, `{"path":"d","recursive":true}`},
-		{Delete, MutationRequest{}, `{"path":"","recursive":false}`},
+		{Rename, opapi.Args(opapi.FileRenameRequest{From: "a"}), `{"from":"a","to":""}`},
+		{Delete, opapi.Args(opapi.FileDeleteRequest{Path: "d", Recursive: true}), `{"path":"d","recursive":true}`},
+		{Delete, opapi.Args(opapi.FileDeleteRequest{}), `{"path":"","recursive":false}`},
 	} {
 		if _, err := s.Mutate(context.Background(), c.op, c.in); err != nil || runner.input != c.want {
 			t.Fatal(c.op, runner.input, err)
 		}
 	}
-	if _, err := s.Mutate(context.Background(), "file_chmod", MutationRequest{}); code(err) != InvalidPath || err.Error() != `unknown file operation "file_chmod"` {
+	if _, err := s.Mutate(context.Background(), "file_chmod", map[string]any{}); code(err) != InvalidPath || err.Error() != `unknown file operation "file_chmod"` {
 		t.Fatal(err)
 	}
 }
@@ -87,7 +91,7 @@ func TestMutateClassifiesFailures(t *testing.T) {
 		{&fakeRunner{result: toolapi.Result{Output: "disk full", IsError: true}}, IOFailure},
 		{&fakeRunner{result: toolapi.Result{Output: "not json"}}, Unavailable},
 	} {
-		_, err := New(Ports{Runner: c.runner}).Mutate(context.Background(), Mkdir, MutationRequest{})
+		_, err := New(Ports{Runner: c.runner}).Mutate(context.Background(), Mkdir, map[string]any{})
 		if code(err) != c.code {
 			t.Fatalf("%+v: %v (%s)", c.runner, err, code(err))
 		}
@@ -98,17 +102,17 @@ func TestMutateRunsTheWorkspaceAdapter(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv("AGEZT_FILE_ROOT", root)
 	s := New(Ports{Runner: &fakeRunner{invoke: true}})
-	if out, err := s.Mutate(context.Background(), Mkdir, MutationRequest{Path: json.RawMessage(`"a/b"`), Parents: json.RawMessage(`true`)}); err != nil || *out.Path != "a/b" {
+	if out, err := s.Mutate(context.Background(), Mkdir, opapi.Args(opapi.FileMkdirRequest{Path: "a/b", Parents: true})); err != nil || *out.Path != "a/b" {
 		t.Fatal(out, err)
 	}
-	out, err := s.Mutate(context.Background(), Rename, MutationRequest{From: json.RawMessage(`"a"`), To: json.RawMessage(`"c"`)})
+	out, err := s.Mutate(context.Background(), Rename, opapi.Args(opapi.FileRenameRequest{From: "a", To: "c"}))
 	if raw, _ := json.Marshal(out); err != nil || string(raw) != `{"ok":true,"from":"a","to":"c"}` {
 		t.Fatal(string(raw), err)
 	}
-	if _, err := s.Mutate(context.Background(), Delete, MutationRequest{Path: json.RawMessage(`"missing"`)}); code(err) != NotFound {
+	if _, err := s.Mutate(context.Background(), Delete, opapi.Args(opapi.FileDeleteRequest{Path: "missing"})); code(err) != NotFound {
 		t.Fatal(err)
 	}
-	if _, err := s.Mutate(context.Background(), Rename, MutationRequest{From: json.RawMessage(`"c"`)}); code(err) != InvalidPath || err.Error() != "from and to are required" {
+	if _, err := s.Mutate(context.Background(), Rename, opapi.Args(opapi.FileRenameRequest{From: "c"})); code(err) != InvalidPath || err.Error() != "from and to are required" {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(root, "c", "b")); err != nil {
@@ -126,19 +130,21 @@ func TestRestore(t *testing.T) {
 	}
 	runner := &fakeRunner{invoke: true}
 	s := New(Ports{Runner: runner, Correlation: "c", CallID: "r", CatalogPath: catalog})
-	for raw, want := range map[string]string{``: InvalidPath, `5`: InvalidPath, `" "`: InvalidPath, `"nope"`: NotFound, `"agent"`: InvalidPath} {
-		if _, err := s.Restore(context.Background(), RestoreRequest{ID: json.RawMessage(raw)}); code(err) != want {
-			t.Fatal(raw, err)
+	// The id is TEXT now: a number used to read as no id at all, and the door
+	// refuses a mistyped id before the handler sees it.
+	for id, want := range map[string]string{"": InvalidPath, "5": NotFound, " ": InvalidPath, "nope": NotFound, "agent": InvalidPath} {
+		if _, err := s.Restore(context.Background(), opapi.FileRestoreRequest{ID: id}); code(err) != want {
+			t.Fatal(id, err)
 		}
 	}
-	out, err := s.Restore(context.Background(), RestoreRequest{ID: json.RawMessage(`" c1 "`)})
+	out, err := s.Restore(context.Background(), opapi.FileRestoreRequest{ID: " c1 "})
 	if err != nil || !out.Applied || out.Reason != "" || out.Checkpoint.AppliedMS <= 0 || out.Result["restored"] != "content" || runner.tool != RestoreOperation || runner.callID != "r" {
 		t.Fatal(out, err)
 	}
 	if data, _ := os.ReadFile(target); string(data) != "prior" {
 		t.Fatal(string(data))
 	}
-	again, err := s.Restore(context.Background(), RestoreRequest{ID: json.RawMessage(`"c1"`)})
+	again, err := s.Restore(context.Background(), opapi.FileRestoreRequest{ID: "c1"})
 	if err != nil || again.Applied || again.Reason != "already applied" || again.Result != nil {
 		t.Fatal(again, err)
 	}
@@ -149,7 +155,7 @@ func TestRestore(t *testing.T) {
 	if err := os.WriteFile(catalog, []byte("{"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.Restore(context.Background(), RestoreRequest{ID: json.RawMessage(`"c1"`)}); code(err) != IOFailure {
+	if _, err := s.Restore(context.Background(), opapi.FileRestoreRequest{ID: "c1"}); code(err) != IOFailure {
 		t.Fatal(err)
 	}
 }
@@ -179,10 +185,10 @@ func TestOperations(t *testing.T) {
 		name, props   string
 		input, output reflect.Type
 	}{
-		{Mkdir, `{"path":{"type":"string"},"parents":{"type":"boolean"}}`, reflect.TypeFor[MutationRequest](), reflect.TypeFor[MutationOutput]()},
-		{Rename, `{"from":{"type":"string"},"to":{"type":"string"}}`, reflect.TypeFor[MutationRequest](), reflect.TypeFor[MutationOutput]()},
-		{Delete, `{"path":{"type":"string"},"recursive":{"type":"boolean"}}`, reflect.TypeFor[MutationRequest](), reflect.TypeFor[MutationOutput]()},
-		{RestoreOperation, `{"id":{"type":"string"}}`, reflect.TypeFor[RestoreRequest](), reflect.TypeFor[RestoreOutput]()},
+		{Mkdir, `{"parents":{"type":"boolean"},"path":{"type":"string"}}`, reflect.TypeFor[opapi.FileMkdirRequest](), reflect.TypeFor[MutationOutput]()},
+		{Rename, `{"from":{"type":"string"},"to":{"type":"string"}}`, reflect.TypeFor[opapi.FileRenameRequest](), reflect.TypeFor[MutationOutput]()},
+		{Delete, `{"path":{"type":"string"},"recursive":{"type":"boolean"}}`, reflect.TypeFor[opapi.FileDeleteRequest](), reflect.TypeFor[MutationOutput]()},
+		{RestoreOperation, `{"id":{"type":"string"}}`, reflect.TypeFor[opapi.FileRestoreRequest](), reflect.TypeFor[RestoreOutput]()},
 	} {
 		s := ops[i].Spec()
 		out, err := schema.FromType(want.output, false)

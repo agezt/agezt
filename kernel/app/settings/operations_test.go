@@ -84,7 +84,7 @@ func TestSettingsTypedFiveOperationsMetadataAdmissionContextAndAudit(t *testing.
 		name, raw     string
 		input, output reflect.Type
 		read          bool
-	}{{"config_schema", `{"unknown":true,"name":"ignored"}`, reflect.TypeFor[SchemaInput](), reflect.TypeFor[SchemaOutput](), true}, {"config_values", `{"unknown":true,"value":"ignored"}`, reflect.TypeFor[ValuesInput](), reflect.TypeFor[ValuesOutput](), true}, {"config_set", `{"name":" owned ","value":" raw ","unknown":true}`, reflect.TypeFor[SetRequest](), reflect.TypeFor[SetOutput](), false}, {"config_schema_register", `{"section":{"id":" raw id ","name":" raw name ","fields":[]},"unknown":true}`, reflect.TypeFor[RegisterRequest](), reflect.TypeFor[RegisterOutput](), false}, {"config_schema_unregister", `{"id":" raw-id ","force":true,"unknown":true}`, reflect.TypeFor[UnregisterRequest](), reflect.TypeFor[UnregisterOutput](), false}}
+	}{{"config_schema", `{"unknown":true,"name":"ignored"}`, reflect.TypeFor[SchemaInput](), reflect.TypeFor[SchemaOutput](), true}, {"config_values", `{"unknown":true,"value":"ignored"}`, reflect.TypeFor[ValuesInput](), reflect.TypeFor[ValuesOutput](), true}, {"config_set", `{"name":" owned ","value":" raw ","unknown":true}`, reflect.TypeFor[opapi.ConfigSetRequest](), reflect.TypeFor[SetOutput](), false}, {"config_schema_register", `{"section":{"id":" raw id ","name":" raw name ","fields":[]},"unknown":true}`, reflect.TypeFor[RegisterRequest](), reflect.TypeFor[RegisterOutput](), false}, {"config_schema_unregister", `{"id":" raw-id ","force":true,"unknown":true}`, reflect.TypeFor[UnregisterRequest](), reflect.TypeFor[UnregisterOutput](), false}}
 	for _, tc := range cases {
 		sp := d.Specs()
 		found := false

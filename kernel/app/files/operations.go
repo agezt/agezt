@@ -4,7 +4,6 @@ package files
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"reflect"
 
@@ -27,49 +26,18 @@ type Service struct{ ports Ports }
 
 func New(ports Ports) *Service { return &Service{ports: ports} }
 
-// MutationRequest carries a mutation's arguments as sent. Text and flags of
-// another type read as empty and false.
-type MutationRequest struct {
-	Path      json.RawMessage `json:"path,omitempty"`
-	From      json.RawMessage `json:"from,omitempty"`
-	To        json.RawMessage `json:"to,omitempty"`
-	Parents   json.RawMessage `json:"parents,omitempty"`
-	Recursive json.RawMessage `json:"recursive,omitempty"`
-}
-
-func (in MutationRequest) args() map[string]any {
-	args := map[string]any{}
-	for name, raw := range map[string]json.RawMessage{"path": in.Path, "from": in.From, "to": in.To, "parents": in.Parents, "recursive": in.Recursive} {
-		if len(raw) != 0 {
-			var v any
-			_ = json.Unmarshal(raw, &v)
-			args[name] = v
-		}
-	}
-	return args
-}
-
 // Mutate applies mkdir, rename or delete through the governed tool runner.
-func (s *Service) Mutate(ctx context.Context, operation string, in MutationRequest) (MutationOutput, error) {
-	return Apply(ctx, s.ports.Runner, s.ports.Correlation, s.ports.CallID, operation, in.args())
-}
-
-// RestoreRequest names the checkpoint to restore. Anything other than text
-// reads as no id.
-type RestoreRequest struct {
-	ID json.RawMessage `json:"id,omitempty"`
+//
+// The arguments are the operation's request row, read by the caller through
+// opapi.Args — so the field names are spelled once, in the contract.
+func (s *Service) Mutate(ctx context.Context, operation string, args map[string]any) (MutationOutput, error) {
+	return Apply(ctx, s.ports.Runner, s.ports.Correlation, s.ports.CallID, operation, args)
 }
 
 // Restore applies a file checkpoint from the daemon's own catalog. Snapshot
 // data the caller sends is never read.
-func (s *Service) Restore(ctx context.Context, in RestoreRequest) (RestoreOutput, error) {
-	var id string
-	if len(in.ID) != 0 {
-		var v any
-		_ = json.Unmarshal(in.ID, &v)
-		id, _ = v.(string)
-	}
-	return ApplyRestore(ctx, s.ports.Runner, s.ports.Correlation, s.ports.CallID, s.ports.CatalogPath, id)
+func (s *Service) Restore(ctx context.Context, in opapi.FileRestoreRequest) (RestoreOutput, error) {
+	return ApplyRestore(ctx, s.ports.Runner, s.ports.Correlation, s.ports.CallID, s.ports.CatalogPath, in.ID)
 }
 
 // classified keeps every failure's domain code: an unclassified error is
@@ -98,28 +66,36 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 	if err != nil {
 		return nil, err
 	}
-	var ops []app.Operation
-	for _, d := range []struct{ name, input string }{
-		{Mkdir, `{"type":"object","additionalProperties":true,"properties":{"path":{"type":"string"},"parents":{"type":"boolean"}}}`},
-		{Rename, `{"type":"object","additionalProperties":true,"properties":{"from":{"type":"string"},"to":{"type":"string"}}}`},
-		{Delete, `{"type":"object","additionalProperties":true,"properties":{"path":{"type":"string"},"recursive":{"type":"boolean"}}}`},
-	} {
-		operation := d.name
-		op, err := app.NewOperation(opapi.Spec{Name: operation, OutputSchema: mutationOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(d.input)}, func(ctx context.Context, in MutationRequest) (MutationOutput, error) {
-			out, err := provider(ctx).Mutate(ctx, operation, in)
-			return out, classified(err)
-		})
-		if err != nil {
-			return nil, err
-		}
-		ops = append(ops, op)
+	// The three mutations are three operations with three request rows, and
+	// each row's own shape is the operation's declared input — no schema is
+	// written by hand here.
+	mkdir, err := app.NewOperation(opapi.Spec{Name: Mkdir, OutputSchema: mutationOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true}, func(ctx context.Context, in opapi.FileMkdirRequest) (MutationOutput, error) {
+		out, err := provider(ctx).Mutate(ctx, Mkdir, opapi.Args(in))
+		return out, classified(err)
+	})
+	if err != nil {
+		return nil, err
 	}
-	restore, err := app.NewOperation(opapi.Spec{Name: RestoreOperation, OutputSchema: restoreOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"id":{"type":"string"}}}`)}, func(ctx context.Context, in RestoreRequest) (RestoreOutput, error) {
+	rename, err := app.NewOperation(opapi.Spec{Name: Rename, OutputSchema: mutationOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true}, func(ctx context.Context, in opapi.FileRenameRequest) (MutationOutput, error) {
+		out, err := provider(ctx).Mutate(ctx, Rename, opapi.Args(in))
+		return out, classified(err)
+	})
+	if err != nil {
+		return nil, err
+	}
+	remove, err := app.NewOperation(opapi.Spec{Name: Delete, OutputSchema: mutationOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true}, func(ctx context.Context, in opapi.FileDeleteRequest) (MutationOutput, error) {
+		out, err := provider(ctx).Mutate(ctx, Delete, opapi.Args(in))
+		return out, classified(err)
+	})
+	if err != nil {
+		return nil, err
+	}
+	restore, err := app.NewOperation(opapi.Spec{Name: RestoreOperation, OutputSchema: restoreOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true}, func(ctx context.Context, in opapi.FileRestoreRequest) (RestoreOutput, error) {
 		out, err := provider(ctx).Restore(ctx, in)
 		return out, classified(err)
 	})
 	if err != nil {
 		return nil, err
 	}
-	return append(ops, restore), nil
+	return []app.Operation{mkdir, rename, remove, restore}, nil
 }

@@ -163,7 +163,7 @@ func (s *Server) handleFileMkdir(w http.ResponseWriter, r *http.Request) {
 	if !fileMutationBody(w, r, opapi.NativeFilesMkdir, &body) {
 		return
 	}
-	s.callFileMutation(w, r, opapi.FileMkdir, map[string]any{"path": body.Path, "parents": body.Parents})
+	s.callFileMutation(w, r, opapi.FileMkdir, opapi.Args(body))
 }
 
 // handleFileRename preserves the console's request and result contract.
@@ -177,7 +177,7 @@ func (s *Server) handleFileRename(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "from and to are required", http.StatusBadRequest)
 		return
 	}
-	s.callFileMutation(w, r, opapi.FileRename, map[string]any{"from": from, "to": to})
+	s.callFileMutation(w, r, opapi.FileRename, opapi.Args(body))
 }
 
 // handleFileDelete preserves the explicit recursive opt-in.
@@ -186,7 +186,7 @@ func (s *Server) handleFileDelete(w http.ResponseWriter, r *http.Request) {
 	if !fileMutationBody(w, r, opapi.NativeFilesDelete, &body) {
 		return
 	}
-	s.callFileMutation(w, r, opapi.FileDelete, map[string]any{"path": body.Path, "recursive": body.Recursive})
+	s.callFileMutation(w, r, opapi.FileDelete, opapi.Args(body))
 }
 
 // typeOf returns "dir" or "file" for an os.DirEntry — keeping the JSON

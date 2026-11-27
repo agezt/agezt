@@ -11,10 +11,6 @@ import (
 	"strings"
 )
 
-type SetRequest struct {
-	Name  json.RawMessage `json:"name,omitempty"`
-	Value json.RawMessage `json:"value,omitempty"`
-}
 type RegisterRequest struct {
 	Section json.RawMessage `json:"section,omitempty"`
 }
@@ -80,17 +76,16 @@ func Operations(reads func(context.Context) *Reads, writes func(context.Context)
 	if err != nil {
 		return nil, err
 	}
-	set, err := app.NewOperation(spec(opapi.ConfigSet, false), func(ctx context.Context, in SetRequest) (SetOutput, error) {
-		name, err := settingsText(in.Name, "name", true)
+	// config_set carries its own request row: the setting's name and the value
+	// under it. The row IS the operation's declared input — no schema is
+	// written by hand here.
+	set, err := app.NewOperation(opapi.Spec{Name: opapi.ConfigSet, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true}, func(ctx context.Context, in opapi.ConfigSetRequest) (SetOutput, error) {
+		name, err := opapi.RequiredText(in.Name, "name")
 		if err != nil {
 			return SetOutput{}, err
 		}
 		name = strings.TrimSpace(name)
-		value, err := settingsText(in.Value, "value", false)
-		if err != nil {
-			return SetOutput{}, err
-		}
-		return writes(ctx).Set(ctx, SetInput{Name: name, Value: value})
+		return writes(ctx).Set(ctx, SetInput{Name: name, Value: in.Value})
 	})
 	if err != nil {
 		return nil, err

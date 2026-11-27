@@ -23,9 +23,25 @@ func FromType(t reflect.Type, allowUnknown bool) (json.RawMessage, error) {
 	return json.Marshal(node)
 }
 
+// anyJSONValue is the marker a request field carries when it holds ANY JSON
+// value.
+//
+// The contract's own row types implement it (a method is enough — the marker
+// is structural, so the schema package needs no import from the contracts).
+// Such a field derives the union of the JSON types, which says "any" out
+// loud: an empty property schema would say nothing, and the request
+// contract's own ratchet refuses a property that names no type.
+type anyJSONValue interface{ AnyJSONValue() }
+
+// anyJSONValueTypes is the union a field carrying any JSON value derives.
+var anyJSONValueTypes = []string{"object", "array", "string", "number", "boolean", "null"}
+
 func typeNode(t reflect.Type, allowUnknown bool, visiting map[reflect.Type]bool) (map[string]any, error) {
 	if t == nil {
 		return nil, fmt.Errorf("missing type")
+	}
+	if t.Implements(reflect.TypeFor[anyJSONValue]()) {
+		return map[string]any{"type": anyJSONValueTypes}, nil
 	}
 	marshaler, unmarshaler := reflect.TypeFor[json.Marshaler](), reflect.TypeFor[json.Unmarshaler]()
 	if t.Implements(marshaler) || t.Implements(unmarshaler) || reflect.PointerTo(t).Implements(marshaler) || reflect.PointerTo(t).Implements(unmarshaler) {

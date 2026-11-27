@@ -27,7 +27,7 @@ func (s *Server) handleArtifactRaw(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 	defer cancel()
-	res, err := s.client.Call(ctx, opapi.ArtifactGet, map[string]any{"ref": ref})
+	res, err := s.client.Call(ctx, opapi.ArtifactGet, opapi.Args(opapi.ArtifactGetRequest{Ref: ref}))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return

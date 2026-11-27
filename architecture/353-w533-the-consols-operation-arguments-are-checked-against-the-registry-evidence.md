@@ -128,6 +128,15 @@ The guard's core (`checkArguments`) is kept apart from the test bodies so that
 the **guard itself** can be measured: a check that is quietly dropped must
 fail the guard's own test.
 
+> **W5.34 rewrote this guard.** The three rules below stay — an argument must
+> be declared, a required field must be sent, a consumed argument must not be
+> the operation's field — and three more rules were added, because the request
+> row itself moved into the contract: a call must pass the operation's own row
+> through `opapi.Args` (a hand-written map is refused), the row must be the
+> operation's own, and the registry's declared input must **be** the schema
+> derived from the row. See
+> [354](354-w534-the-consols-ten-operations-take-their-request-row-from-the-contract-evidence.md).
+
 ### 2.4 The document tells the truth
 
 `docs/openapi.json` is derived, so it moved with the catalogue:
@@ -207,6 +216,8 @@ mutation was reverted and the tree is back to green).
   input schema) is still a JSON literal in the app layer, and the app layer's
   own request structs are a second spelling of the same fields. The next step
   is a contract-owned request row per operation, derived by both sides.
+  **Done in W5.34** — see
+  [354](354-w534-the-consols-ten-operations-take-their-request-row-from-the-contract-evidence.md).
 - **The catalogue still does not cover every operation the console binds.** Ten
   operations the console calls (the file mutations, the restores, the OAuth
   callback, the workflow hook) are not in the route table — their paths live

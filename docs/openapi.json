@@ -12278,7 +12278,6 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
                 "additionalProperties": true,
                 "properties": {
                   "name": {
@@ -12286,17 +12285,10 @@
                   },
                   "value": {
                     "type": "string"
-                  },
-                  "section": {
-                    "type": "object"
-                  },
-                  "id": {
-                    "type": "string"
-                  },
-                  "force": {
-                    "type": "boolean"
                   }
-                }
+                },
+                "required": null,
+                "type": "object"
               }
             }
           }

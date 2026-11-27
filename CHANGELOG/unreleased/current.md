@@ -837,6 +837,33 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The console's ten operations take their request row from the contract, and
+  the schema is derived from that row.** The ten operations the console calls
+  had their request shape written **twice** — as a JSON Schema literal in the
+  app layer and as the console's own request struct or hand-written argument
+  map — and **nine of the ten** carried a hand-written literal. Two spellings of
+  one row drift, and the guard could not see it happen: it compared the
+  console's list with the registry's list, and both could move together. One
+  had already drifted: `config_set`'s published schema was the settings
+  **family's** schema (name, value, section, id, force) while the operation is
+  only ever asked for name and value, and the browser's generated type for it
+  was an alias of the **wrong** row. The request rows now live in the contract
+  (`kernel/contract/opapi/requests.go`), bound to their operations in one
+  table, and both sides read them: the app layer **derives** the declared input
+  from the row instead of writing it, and the console **passes the row** to the
+  daemon through `opapi.Args` instead of spelling a map by hand — its own body
+  structs became aliases of the contract's rows. The guard now holds three
+  rules instead of comparing two spellings: a call must pass the operation's
+  own row through `opapi.Args`, the row must be the operation's own, and the
+  registry's declared input must **be** the schema derived from the row — so a
+  hand-written schema beside a row is a failure, not a second copy. Measured:
+  hand-written argument maps in the console **10 → 0**; arguments spelled by
+  hand **20 → 0**; request rows held by the contract **0 → 10**; operations
+  whose input schema is written by hand in the app layer **9 → 0**. **Five**
+  reverted mutations prove it. The daemon's behaviour did not change; the
+  published document's `config_set` body is now the row it always meant.
+
+
 - **The console's operation arguments are checked against the registry's
   declared request rows: the catalogue says what it forwards, the console says
   what it keeps, and a guard holds both to the registry.** The console sent

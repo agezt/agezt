@@ -7,6 +7,7 @@ import (
 	"errors"
 	appskill "github.com/agezt/agezt/kernel/app/skill"
 	"github.com/agezt/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/journal"
 	curated "github.com/agezt/agezt/kernel/modules/skills/skill"
 	"testing"
@@ -47,11 +48,11 @@ func TestSkillLifecycleRetainsActualTransitionsAndLineage(t *testing.T) {
 	if err != nil || out.Status != curated.StatusQuarantined || out.ID != seed.ID {
 		t.Fatalf("quarantine=%+v err=%v", out, err)
 	}
-	restored, err := s.Restore(ctx, appskill.RestoreInput{ID: seed.ID, Status: curated.StatusActive, Reason: "rollback"})
+	restored, err := s.Restore(ctx, opapi.SkillRestoreRequest{ID: seed.ID, Status: curated.StatusActive, Reason: "rollback"})
 	if err != nil || restored.ID != seed.ID || restored.From != curated.StatusQuarantined || restored.Status != curated.StatusActive || restored.Reason != "rollback" {
 		t.Fatalf("restore=%+v err=%v", restored, err)
 	}
-	if _, err := s.Restore(ctx, appskill.RestoreInput{ID: seed.ID, Status: "invalid"}); !errors.Is(err, curated.ErrIllegalTransition) {
+	if _, err := s.Restore(ctx, opapi.SkillRestoreRequest{ID: seed.ID, Status: "invalid"}); !errors.Is(err, curated.ErrIllegalTransition) {
 		t.Fatalf("invalid restore=%v", err)
 	}
 	child, _, err := forge.Create("seed", curated.CreateSpec{Name: "fixture", Body: "v2"})
@@ -135,7 +136,7 @@ func TestSkillLifecycleForwardsInputsAndOriginalCauses(t *testing.T) {
 		run    func() error
 		reason string
 	}{{"promote", func() error { _, err := s.Promote(ctx, appskill.GetInput{ID: "owned"}); return err }, ""}, {"quarantine", func() error { _, err := s.Quarantine(ctx, appskill.ReasonInput{ID: "owned", Reason: "q"}); return err }, "q"}, {"archive", func() error { _, err := s.Archive(ctx, appskill.ReasonInput{ID: "owned", Reason: "a"}); return err }, "a"}, {"revert", func() error { _, err := s.Revert(ctx, appskill.GetInput{ID: "owned"}); return err }, ""}, {"restore", func() error {
-		_, err := s.Restore(ctx, appskill.RestoreInput{ID: "owned", Status: curated.StatusDraft, Reason: "r"})
+		_, err := s.Restore(ctx, opapi.SkillRestoreRequest{ID: "owned", Status: curated.StatusDraft, Reason: "r"})
 		return err
 	}, "r"}}
 	cause := errors.New("owned lifecycle failure")

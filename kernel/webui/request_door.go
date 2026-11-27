@@ -59,21 +59,16 @@ type (
 	rollbackApplyBody struct {
 		ID string `json:"id"`
 	}
-	// fileMkdirBody is the body of POST /api/files/mkdir.
-	fileMkdirBody struct {
-		Path    string `json:"path"`
-		Parents bool   `json:"parents"`
-	}
-	// fileRenameBody is the body of POST /api/files/rename.
-	fileRenameBody struct {
-		From string `json:"from"`
-		To   string `json:"to"`
-	}
-	// fileDeleteBody is the body of POST /api/files/delete.
-	fileDeleteBody struct {
-		Path      string `json:"path"`
-		Recursive bool   `json:"recursive"`
-	}
+	// fileMkdirBody is the body of POST /api/files/mkdir. It IS the
+	// operation's request row: the console forwards the very same fields, so
+	// the row is written once.
+	fileMkdirBody = opapi.FileMkdirRequest
+	// fileRenameBody is the body of POST /api/files/rename — the operation's
+	// own request row.
+	fileRenameBody = opapi.FileRenameRequest
+	// fileDeleteBody is the body of POST /api/files/delete — the operation's
+	// own request row.
+	fileDeleteBody = opapi.FileDeleteRequest
 	// ttsBody is the body of POST /api/tts.
 	ttsBody struct {
 		Text string `json:"text"`

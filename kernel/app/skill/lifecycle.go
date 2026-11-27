@@ -24,11 +24,6 @@ type ReasonInput struct {
 	ID     string `json:"id"`
 	Reason string `json:"reason,omitempty"`
 }
-type RestoreInput struct {
-	ID     string          `json:"id"`
-	Status skillapi.Status `json:"status"`
-	Reason string          `json:"reason,omitempty"`
-}
 type StatusOutput struct {
 	ID     string          `json:"id"`
 	Status skillapi.Status `json:"status"`
@@ -89,7 +84,7 @@ func (s *Lifecycle) Revert(ctx context.Context, in GetInput) (RevertOutput, erro
 	}
 	return RevertOutput{ID: in.ID, Restored: restored}, nil
 }
-func (s *Lifecycle) Restore(ctx context.Context, in RestoreInput) (RestoreOutput, error) {
+func (s *Lifecycle) Restore(ctx context.Context, in opapi.SkillRestoreRequest) (RestoreOutput, error) {
 	if s.forge == nil {
 		return RestoreOutput{}, errNoSkillLibrary
 	}
