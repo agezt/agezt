@@ -1,5 +1,81 @@
 # NEXT — handoff for the next coding agent
 
+## Current checkpoint — W5.33 the console's operation arguments are checked against the registry, 2026-11-27
+
+The W0–W5 objective remains open. W5.8–W5.15 gave the **browser**, the
+**registry** and the **SDKs** their request vocabulary; W5.11–W5.19 gave
+**every surface** that reads a request body its contract, its door and the
+boot-time check that holds the two together; W5.20 put a **gate** behind that
+sentence so it cannot decay; W5.21 closed W5.1's open end on the browser's
+**response** side; W5.22–W5.28 gave the daemon's own rows one home, one family
+at a time; W5.29–W5.32 gave the console's own answers one home each. **This
+slice turns the console's REQUESTS around** — the arguments it sends are now
+checked against the operation registry that says what each operation accepts.
+
+### What was on the tree
+
+- **The console sent 407 arguments and nothing compared them with the
+  registry.** 388 of them through the operation catalogue's route table, 10 more
+  from the console's own handlers spelling their argument maps by hand. The
+  registry — the JSON Schema that names each operation's fields and marks the
+  required ones — was never read.
+- **One had already drifted.** The chat route forwarded `history`, a field the
+  `run` operation's request row does not declare: the console folds the prior
+  turns into the intent and keeps them, so the daemon never read it and only
+  tolerated it because the schema allows unknown input. The catalogue claimed
+  it, and the published document repeated the claim.
+- **The route row now says two things**: `Args` (the operation's arguments)
+  and `Consumed` (the console's own inputs). The chat route's `history` is
+  `Consumed` now, and the body read splits the route's two lists.
+- **The console reads the browser's body in two halves**: the forwarded
+  arguments and the consumed ones never share a map, so a consumed argument
+  cannot reach the daemon by accident — the chat handler no longer has to
+  remember to delete the key.
+- **A new guard holds the console to the registry**
+  (`kernel/webui/operation_args_test.go`): an argument must be **declared** by
+  the operation's request row, a **required** field must be **sent**, and a
+  consumed argument must not be the operation's field. It reads the console's
+  own sources with `go/parser`, so the hand-written argument maps are read as
+  syntax. The guard's core is apart from the test bodies, so the guard itself
+  can be measured.
+
+### What the measurement said
+
+- Arguments checked against the registry's request rows: **0 → 407** (of 407).
+- Forwarded arguments the request row does not name: **1 → 0**.
+- Catalogue routes checked: **0 → 203**; hand-written argument maps checked:
+  **0 → 10**.
+- The daemon's behaviour: **unchanged**; the published document now tells the
+  truth about the chat route.
+
+### The evidence
+
+`architecture/353-w533-the-consols-operation-arguments-are-checked-against-the-registry-evidence.md`
+— the two lists in the route row, the structural split in the body read, the
+three rules of the guard, the measurement, the five reverted mutations, and
+what remains open.
+
+### What the next slice should do
+
+**The request row itself — one home, derived by both sides.** The guard
+compares two lists at build time; it does not make them one.
+
+- **The operation's input schema is still a JSON literal in the app layer**,
+  and the app layer's request structs are a second spelling of the same
+  fields. A contract-owned request row per operation, which both the
+  registry's schema and the console's arguments are derived from, would make
+  the comparison unnecessary.
+- **The console's ten hand-written argument maps are still hand-written.** The
+  guard holds them; a typed row would remove them.
+- **The catalogue still does not cover every operation the console binds** —
+  the file mutations, the restores, the OAuth callback and the workflow hook
+  are bound outside the route table.
+- **The daemon's error payloads are still maps** — the *event* payloads the
+  daemon publishes are a different family from the console's HTTP envelope.
+- **The console's route policy answers a wrong verb in plain text**
+  ("method not allowed"), not with the envelope. That is a **second refusal
+  shape** on the wire: it should be a decision, not an accident.
+
 ## Current checkpoint — W5.32 the console's error envelope has one home, 2026-11-27
 
 The W0–W5 objective remains open. W5.8–W5.15 gave the **browser**, the

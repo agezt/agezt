@@ -837,6 +837,32 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The console's operation arguments are checked against the registry's
+  declared request rows: the catalogue says what it forwards, the console says
+  what it keeps, and a guard holds both to the registry.** The console sent
+  **388** arguments across the **203** routes of the operation catalogue, plus
+  **10** argument maps its own handlers spelled out by hand — **407** arguments
+  in all — and **nothing** compared them with the operation registry that says
+  what each operation accepts. One had already drifted: the chat route
+  forwarded **`history`**, a field the `run` operation's request row does not
+  declare, because the console folds the prior turns into the intent and keeps
+  them. The catalogue said "forwards … history", the published OpenAPI document
+  repeated it, and the daemon only tolerated it because its schema allows
+  unknown input — the argument was a promise nobody made. The route row now
+  says **two** things: `Args` (the operation's arguments) and `Consumed` (the
+  console's own inputs), and the chat route's `history` is `Consumed`. The
+  console reads the browser's body in **two halves** — the forwarded arguments
+  and the consumed ones never share a map, so a consumed argument cannot reach
+  the daemon by accident. A new guard
+  (`kernel/webui/operation_args_test.go`) holds the console to the registry: an
+  argument must be **declared** by the operation's request row, a **required**
+  field must be **sent**, and a consumed argument must not be the operation's
+  field — one row, two homes. Measured: arguments checked against the registry
+  **0 → 407**; forwarded arguments the request row does not name **1 → 0**;
+  required fields the console never sends **0 → 0**. **Five** reverted mutations
+  prove it. The daemon's behaviour did not change; the published document now
+  tells the truth about the chat route.
+
 - **The console's error envelope has one home: one row, one helper, and the
   browser reads it from the catalogue.** Every refusal the console writes
   carried the same envelope — and the console spelled it **by hand,

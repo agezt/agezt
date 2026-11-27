@@ -164,6 +164,49 @@ func (s *Server) writeProxy(cmd string, allowed []string) http.HandlerFunc {
 // An unexpected key in the body is silently dropped — the control plane only
 // ever sees the named arguments, mirroring writeProxy's query-arg allowlist.
 func (s *Server) decodeAllowedBody(w http.ResponseWriter, r *http.Request, allowed []string) (map[string]any, bool) {
+	body, ok := s.readJSONBody(w, r)
+	if !ok {
+		return nil, false
+	}
+	args := map[string]any{}
+	for _, k := range allowed {
+		if v, present := body[k]; present {
+			args[k] = v
+		}
+	}
+	return args, true
+}
+
+// decodeRouteBody reads a JSON object from a POST body and splits it by the
+// route's own two lists: the arguments the console forwards to the operation,
+// and the arguments it consumes itself.
+//
+// The two never share a map, so an argument the console keeps cannot be
+// forwarded by accident — the split is structural, not a convention.
+func (s *Server) decodeRouteBody(w http.ResponseWriter, r *http.Request, route opapi.HTTPRoute) (map[string]any, map[string]any, bool) {
+	body, ok := s.readJSONBody(w, r)
+	if !ok {
+		return nil, nil, false
+	}
+	args := map[string]any{}
+	for _, k := range route.Args {
+		if v, present := body[k]; present {
+			args[k] = v
+		}
+	}
+	consumed := map[string]any{}
+	for _, k := range route.Consumed {
+		if v, present := body[k]; present {
+			consumed[k] = v
+		}
+	}
+	return args, consumed, true
+}
+
+// readJSONBody reads one JSON object from a POST body (size-capped). It
+// enforces POST and writes the error response itself; ok=false means the
+// caller should return immediately.
+func (s *Server) readJSONBody(w http.ResponseWriter, r *http.Request) (map[string]any, bool) {
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", http.MethodPost)
 		writeError(w, http.StatusMethodNotAllowed, "POST required")
@@ -175,13 +218,7 @@ func (s *Server) decodeAllowedBody(w http.ResponseWriter, r *http.Request, allow
 		writeError(w, http.StatusBadRequest, "invalid JSON body: "+err.Error())
 		return nil, false
 	}
-	args := map[string]any{}
-	for _, k := range allowed {
-		if v, ok := body[k]; ok {
-			args[k] = v
-		}
-	}
-	return args, true
+	return body, true
 }
 
 // jsonProxy returns a handler for one allowlisted mutating command whose

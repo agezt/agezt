@@ -229,11 +229,15 @@ func schemaRequiresFields(schema json.RawMessage) bool {
 }
 
 // routeSummary writes the operation's one-line description: what it answers
-// at, and what it forwards.
+// at, what it forwards, and — when the console keeps an argument for itself —
+// what it consumes.
 func routeSummary(route HTTPRoute) string {
 	summary := route.Op + " — " + route.Method + " " + route.Path
 	if len(route.Args) > 0 {
 		summary += " (forwards " + strings.Join(route.Args, ", ") + ")"
+	}
+	if len(route.Consumed) > 0 {
+		summary += " (consumes " + strings.Join(route.Consumed, ", ") + ")"
 	}
 	return summary
 }
