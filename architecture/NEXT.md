@@ -1,5 +1,75 @@
 # NEXT — handoff for the next coding agent
 
+## Current checkpoint — W5.31 the console's file-tree answer has one home, 2026-11-27
+
+The W0–W5 objective remains open. W5.8–W5.15 gave the **browser**, the
+**registry** and the **SDKs** their request vocabulary; W5.11–W5.19 gave
+**every surface** that reads a request body its contract, its door and the
+boot-time check that holds the two together; W5.20 put a **gate** behind that
+sentence so it cannot decay; W5.21 closed W5.1's open end on the browser's
+**response** side; W5.22–W5.28 gave the daemon's own rows one home, one family
+at a time; W5.29–W5.30 put the console's rows into the browser's catalogue
+and moved the browser's last hand-written views of them onto it. **This slice
+gives the file manager's answer the row it never had** — the last console-native
+answer that was spelled by hand on both sides of the wire.
+
+### What was on the tree
+
+- **The file tree was the one console-native answer without a row.** The
+  console answered `/api/files/tree` itself, so the row was spelled by hand in
+  the console (`fileNode`, `fileTreeResponse`) **and** in the browser
+  (`FileNode`, `FileTreeResponse`) — with nothing to say they were the same
+  row, and **two drifts** already in them: the browser promised a `children`
+  member the daemon never sends, and narrowed `type` to `"dir" | "file"`.
+- **The row is declared in the console's contract** (`kernel/contract/consoleapi`),
+  in the order the wire speaks it, so the served bytes did not move.
+- **The console serves it by alias** — `type fileNode = consoleapi.FileNode` —
+  so a copy cannot grow next to it.
+- **The native route names it**: **nine** routes name their row now, and the
+  console's ratchet drives every one of them, in both directions.
+- **The catalogue carries it and the browser binds to it** — the browser's
+  view is the catalogue's row plus the one member that is the browser's own
+  (`children`: the daemon lists one directory at a time, the browser walks the
+  tree by loading a folder's children).
+- **The browser's view is pinned to the catalogue's row**, so a hand-written
+  copy cannot come back without the compiler saying so; the answer's bytes
+  are pinned on the console's side.
+
+### What the measurement said
+
+- Browser declarations that spell the file-tree row: **2 → 0**.
+- The console's own spellings of the row: **2 → 0** (and **2** aliases).
+- Native routes that name the row they answer with: **8 → 9**.
+- File-tree rows in the browser's catalogue: **0 → 2**.
+- The served bytes: **unchanged**.
+
+### The evidence
+
+`architecture/351-w531-the-consols-file-tree-answer-has-one-home-evidence.md` —
+the row, the alias, the route, the catalogue, the browser's pin, the
+measurement, the five reverted mutations, and what remains open.
+
+### What the next slice should do
+
+**The console's remaining shapes, and the published document.** Every console
+answer that is a ROW now has one home; what is left are the answers that are
+not rows:
+
+- **The console's error envelopes are still maps** — `{"error": "…"}` is a
+  shape, not a row: it is spelled by hand wherever an error is served, and
+  nothing says it is the same shape twice. Giving the error envelope a row is
+  the same move this programme has been making, one shape at a time.
+- **`docs/openapi.json` does not carry the console's answers.** The document
+  describes the operation-bound surface, and the console's own endpoints are
+  not operation bindings — that is stated in the document's own description,
+  but a caller outside the browser still has no published shape for
+  `/api/authmeta` or `/api/files/tree`. Deciding whether the document grows
+  the native paths (and with which schemas) is a real choice.
+- **The `/hooks/` path is a prefix**, not a path the browser calls: the hook's
+  row is rendered, but the browser never fetches it.
+- **The browser's file manager still builds a stub tree** when the route
+  answers 404 — the stub is the browser's own vocabulary, and it stays.
+
 ## Current checkpoint — W5.30 the browser's console-native views come from the catalogue, 2026-11-26
 
 The W0–W5 objective remains open. W5.8–W5.15 gave the **browser**, the

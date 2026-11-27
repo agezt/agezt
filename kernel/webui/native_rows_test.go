@@ -63,6 +63,14 @@ func TestTheConsoleAnswersEachNativeRouteWithTheRowItNames(t *testing.T) {
 				httpJSON(t, sAccepted.Handler(), http.MethodPost, "/hooks/hooked", `{}`).Body.String(),
 			}
 		},
+		opapi.NativeFilesTree: func(t *testing.T) []string {
+			// The file manager answers with the console's own row: the listing
+			// it found under the configured root.
+			withFileRoot(t, t.TempDir())
+			s, _ := newServer(t, &fakeCaller{}, "secret")
+			return []string{httpJSON(t, s.Handler(), http.MethodGet,
+				"/api/files/tree?path=&token=secret", "").Body.String()}
+		},
 		opapi.NativeRollbackList: func(t *testing.T) []string {
 			home := t.TempDir()
 			t.Setenv("AGEZT_HOME", home)

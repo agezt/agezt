@@ -4,6 +4,8 @@ package webui
 
 import (
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -73,6 +75,36 @@ func TestTheConsoleServesTheContractVoiceStatusBytes(t *testing.T) {
 	want := `{"stt":{"configured":false},"tts":{"configured":false}}`
 	if got := strings.TrimSpace(rec.Body.String()); got != want {
 		t.Fatalf("the voice status answer's bytes moved:\n got %s\nwant %s", got, want)
+	}
+}
+
+func TestTheConsoleServesTheContractFileTreeBytes(t *testing.T) {
+	// An empty listing: the row's two members, in the order the wire speaks
+	// them.
+	root := t.TempDir()
+	withFileRoot(t, root)
+	s, _ := newServer(t, &fakeCaller{}, "secret")
+	rec := httpJSON(t, s.Handler(), http.MethodGet, "/api/files/tree?path=&token=secret", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	want := `{"root":".","nodes":[]}`
+	if got := strings.TrimSpace(rec.Body.String()); got != want {
+		t.Fatalf("the file tree answer's bytes moved:\n got %s\nwant %s", got, want)
+	}
+
+	// A listing with one entry: the node's members, in the wire's order. The
+	// timestamp moves on every write, so the pin stops before it.
+	if err := os.WriteFile(filepath.Join(root, "a.txt"), []byte("hello"), 0o600); err != nil {
+		t.Fatalf("write the file: %v", err)
+	}
+	rec = httpJSON(t, s.Handler(), http.MethodGet, "/api/files/tree?path=&token=secret", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	prefix := `{"root":".","nodes":[{"name":"a.txt","path":"a.txt","type":"file","size":5,"modified_ms":`
+	if got := strings.TrimSpace(rec.Body.String()); !strings.HasPrefix(got, prefix) {
+		t.Fatalf("the file tree answer's bytes moved:\n got %s\nwant a body starting with %s", got, prefix)
 	}
 }
 

@@ -2,6 +2,8 @@
 
 package webui
 
+import "github.com/agezt/agezt/kernel/contract/consoleapi"
+
 // Provenance: WebUI files route: types + path resolution + safety layer. Code
 //             extracted from files_route.go during the Day-89 god-file split. Public
 //             API unchanged.
@@ -27,22 +29,14 @@ const (
 	defaultMkdirMaxParents = 8
 )
 
-// fileNode mirrors frontend/src/lib/files.ts FileNode. Field names + JSON
-// casing are part of the cross-package contract; renaming here means the
-// UI must move too.
-type fileNode struct {
-	Name       string `json:"name"`
-	Path       string `json:"path"`
-	Type       string `json:"type"` // "dir" | "file"
-	Size       int64  `json:"size,omitempty"`
-	ModifiedMS int64  `json:"modified_ms,omitempty"`
-}
+// fileNode is the console's file-tree row: the CONTRACT's row, by alias, so
+// a second spelling of it cannot grow here. The field names and their JSON
+// casing live in kernel/contract/consoleapi.
+type fileNode = consoleapi.FileNode
 
-// fileTreeResponse mirrors frontend/src/lib/files.ts FileTreeResponse.
-type fileTreeResponse struct {
-	Root  string     `json:"root"`
-	Nodes []fileNode `json:"nodes"`
-}
+// fileTreeResponse is the console's file-tree answer: the contract's row, by
+// alias, for the same reason.
+type fileTreeResponse = consoleapi.FileTree
 
 // handleFileTree lists one directory under the workspace root. Pagination is
 // a hard cap, not page-over-page: this is a browse surface, not a search index.

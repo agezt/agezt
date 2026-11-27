@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { getJSON, authHeaders, HTTPError } from "@/app/api";
+import type { FilesTreeResponse, FilesTreeResponseNodesItem } from "@/app/api/types.generated";
 
 // Files workspace — types + hooks backed by /api/files/{tree,raw,…}. The Go
 // side lands in Slice 5; until then the tree hook falls back to a small in-memory
@@ -11,21 +12,25 @@ import { getJSON, authHeaders, HTTPError } from "@/app/api";
 // The UI never constructs absolute paths and never trusts a user-supplied
 // path as a FileSystem access — that's the route's job.
 
-export interface FileNode {
-  name: string;
-  path: string; // POSIX, no leading slash, root = ""
-  type: "dir" | "file";
-  size?: number;
-  modified_ms?: number;
+// The daemon's file-tree answer, as the generated catalogue renders it, with
+// the browser's own node type in place of the daemon's.
+//
+// The answer is declared in the console's contract (kernel/contract/consoleapi)
+// and the catalogue is generated from that declaration, so this view names
+// none of the row's fields by hand.
+export type FileTreeResponse = Omit<FilesTreeResponse, "nodes"> & {
+  nodes: FileNode[];
+};
+
+// The daemon's node row, plus the browser's own on-demand children.
+//
+// The daemon lists ONE directory at a time — the browser walks the tree by
+// loading a folder's children when it opens it, so the children are the
+// browser's own structure and not a member the daemon sends.
+export type FileNode = FilesTreeResponseNodesItem & {
   // Children are loaded on demand by useFileTree; absent on a leaf.
   children?: FileNode[];
-}
-
-/** @public Response envelope for the file-tree API. */
-export interface FileTreeResponse {
-  root: string;
-  nodes: FileNode[];
-}
+};
 
 // isPathSafe is the client-side sanity check — UI never offers an unsafe path.
 // The route must always re-validate; this just keeps the UI quiet.

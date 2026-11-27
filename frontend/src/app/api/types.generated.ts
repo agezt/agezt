@@ -3793,6 +3793,21 @@ export interface VoiceStatusResponse {
   tts: VoiceStatusResponseStt;
 }
 
+/** FilesTreeResponseNodesItem */
+export interface FilesTreeResponseNodesItem {
+  modified_ms?: number;
+  name: string;
+  path: string;
+  size?: number;
+  type: string;
+}
+
+/** FilesTreeResponse */
+export interface FilesTreeResponse {
+  nodes: FilesTreeResponseNodesItem[];
+  root: string;
+}
+
 /** WorkflowHookResponse */
 export interface WorkflowHookResponse {
   accepted?: boolean;
@@ -4539,6 +4554,7 @@ export interface NativeResponseMap {
   "/api/rollback/apply": RollbackApplyResponse;
   "/api/sse-token": SseTokenResponse;
   "/api/voice/status": VoiceStatusResponse;
+  "/api/files/tree": FilesTreeResponse;
   "/hooks/": WorkflowHookResponse;
 }
 

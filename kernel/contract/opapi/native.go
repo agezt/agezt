@@ -205,7 +205,12 @@ var consoleNativeRoutes = []NativeRoute{
 	// `AGEZT_FILE_ROOT` (default `~/agezt/workspace`). Every endpoint here
 	// path-traversal-guards before touching the OS — see files_route.go for
 	// the chokepoint.
-	{Name: NativeFilesTree, Path: "/api/files/tree", Method: "GET"},
+	//
+	// The tree answers with the console's own row: the file manager is a
+	// console-native endpoint, and its answer is declared in the contract like
+	// every other console answer.
+	{Name: NativeFilesTree, Path: "/api/files/tree", Method: "GET",
+		Answer: consoleapi.FileTree{}},
 	{Name: NativeFilesRaw, Path: "/api/files/raw", Method: "GET"},
 	{Name: NativeFilesMkdir, Path: "/api/files/mkdir", Method: "POST", Mutation: true,
 		Body: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"path":{"type":"string"},"parents":{"type":"boolean"}}}`)},
