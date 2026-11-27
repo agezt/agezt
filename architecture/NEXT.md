@@ -1,5 +1,76 @@
 # NEXT — handoff for the next coding agent
 
+## Current checkpoint — W5.30 the browser's console-native views come from the catalogue, 2026-11-26
+
+The W0–W5 objective remains open. W5.8–W5.15 gave the **browser**, the
+**registry** and the **SDKs** their request vocabulary; W5.11–W5.19 gave
+**every surface** that reads a request body its contract, its door and the
+boot-time check that holds the two together; W5.20 put a **gate** behind that
+sentence so it cannot decay; W5.21 closed W5.1's open end on the browser's
+**response** side; W5.22–W5.28 gave the daemon's own rows one home, one family
+at a time; W5.29 put the console's rows into the browser's catalogue. **This
+slice moves the browser's last hand-written console-native views onto that
+catalogue** — and the voice card stops promising a provider the console has
+never sent.
+
+### What was on the tree
+
+- **The catalogue could name the console's answers; the browser did not use
+  it.** The auth gate, the voice card, the voice readiness and the event feed's
+  token still spelled the console's rows by hand — **four** copies, **seven**
+  member names, for rows the contract declares and the catalogue carries.
+- **One of those copies was fiction.** The voice card rendered a `provider`
+  name; the console's voice row carries **no provider** — it deliberately
+  exposes no endpoint, model or credential — and **two of the card's own tests
+  asserted the fiction**. The browser was keeping a promise the console had
+  never made.
+- **The views bind to the catalogue now.** The auth gate reads the catalogue's
+  `AuthmetaResponse`; the voice card and the voice readiness read
+  `VoiceStatusResponse`; the event feed binds the **path** to its row
+  (`ResponseOf<"/api/sse-token">`).
+- **The ratchet grew a second arm**: a type that names a row's **whole**
+  vocabulary is that row, whatever its size — so a **one-member** row (the SSE
+  token) is caught too. The one coincidence that the arm now counts is listed
+  in the **ledger** (a hook's own option bag that shares the member name
+  "provider").
+- **A new catalogue test** holds the console-native paths to their rows; its
+  compile-time half **compiles**: a path that stops resolving to its row
+  resolves to `any`, and the typecheck gate says so.
+
+### What the measurement said
+
+- Browser copies of a console-native row, spelled by hand: **4 → 0**.
+- Members of the console's rows spelled by hand in the browser: **7 → 0**.
+- Browser fields the console never sends (the voice card): **1 → 0**.
+- Tests asserting the console sends a provider: **2 → 0**.
+
+### The evidence
+
+`architecture/350-w530-the-browsers-console-native-views-come-from-the-catalogue-evidence.md`
+— the four copies, the fiction, the two-arm ratchet, the catalogue test, the
+measurement, the five reverted mutations, and what remains open.
+
+### What the next slice should do
+
+**The console's file-tree answer, and the published document.** One console-native
+answer still has **no row at all**, so the browser cannot bind to it:
+
+- **The file-tree row is still hand-written.** `lib/files.ts` declares
+  `FileNode` and `FileTreeResponse` itself — and the browser's copy promises a
+  `children` member the daemon's `fileTreeResponse` does not carry. The
+  console's own contract does not declare that row yet: declare it in
+  `kernel/contract/consoleapi`, let the native route name it, and let the
+  browser bind to it — the way the other eight rows were done.
+- **`docs/openapi.json` does not carry the console's answers.** The document
+  describes the operation-bound surface, and the console's own endpoints are
+  not operation bindings — that is stated in the document's own description,
+  but a caller outside the browser still has no published shape for
+  `/api/authmeta` or `/api/rollback/checkpoints`. Deciding whether the
+  document grows the native paths (and with which schemas) is a real choice.
+- **The `/hooks/` path is a prefix**, not a path the browser calls: the hook's
+  row is rendered, but the browser never fetches it.
+- **The console's error envelopes are still maps** — a shape, not a row.
+
 ## Current checkpoint — W5.29 the browser's catalogue carries the console's rows, 2026-11-26
 
 The W0–W5 objective remains open. W5.8–W5.15 gave the **browser**, the

@@ -175,12 +175,16 @@ describe("Jarvis view", () => {
   // "ready" arm of each capability's label is reachable only in the mirrored
   // half-configured case. Both are asserted because the card's whole job is to
   // tell you which half is missing and which is fine.
-  it("reports STT as ready with its provider while TTS is unconfigured but named", async () => {
+  //
+  // The daemon's voice row carries only WHETHER each half is wired
+  // (kernel/contract/consoleapi.VoiceStatus) — no provider, no endpoint, no
+  // credential. So the mocks answer with the row the daemon really sends.
+  it("reports STT as ready while TTS is unconfigured", async () => {
     mockedGetJSON.mockImplementation(async (path: string) => {
       if (path === "/api/agents") return { profiles: [] };
       if (path === "/api/runs") return { runs: [] };
       if (path === "/api/voice/status") {
-        return { stt: { configured: true, provider: "whisper.cpp" }, tts: { configured: false, provider: "piper" } };
+        return { stt: { configured: true }, tts: { configured: false } };
       }
       return {};
     });
@@ -189,18 +193,14 @@ describe("Jarvis view", () => {
     expect(screen.getByText("ready")).toBeTruthy();
     // Two capabilities, so the unconfigured label can land on either half.
     expect(screen.getAllByText(/provider not configured/i).length).toBeGreaterThan(0);
-    // The provider name is shown for an unconfigured capability too: it is the
-    // env var the operator has to fill in.
-    expect(screen.getByText("(whisper.cpp)")).toBeTruthy();
-    expect(screen.getByText("(piper)")).toBeTruthy();
   });
 
-  it("reports TTS as ready with its provider while STT is unconfigured but named", async () => {
+  it("reports TTS as ready while STT is unconfigured", async () => {
     mockedGetJSON.mockImplementation(async (path: string) => {
       if (path === "/api/agents") return { profiles: [] };
       if (path === "/api/runs") return { runs: [] };
       if (path === "/api/voice/status") {
-        return { stt: { configured: false, provider: "whisper.cpp" }, tts: { configured: true, provider: "piper" } };
+        return { stt: { configured: false }, tts: { configured: true } };
       }
       return {};
     });
@@ -208,7 +208,30 @@ describe("Jarvis view", () => {
     await waitFor(() => expect(screen.getByText(/Voice needs setup/i)).toBeTruthy());
     expect(screen.getByText("ready")).toBeTruthy();
     expect(screen.getAllByText(/provider not configured/i).length).toBeGreaterThan(0);
-    expect(screen.getByText("(piper)")).toBeTruthy();
+  });
+
+  // The browser may not name a field the console's row does not carry. An older
+  // daemon (or a hand-edited answer) that offers a provider name must not put
+  // it on screen: the view's vocabulary is the console's row, and the row says
+  // only whether each half is wired.
+  it("renders no provider name even when the answer carries one", async () => {
+    mockedGetJSON.mockImplementation(async (path: string) => {
+      if (path === "/api/agents") return { profiles: [] };
+      if (path === "/api/runs") return { runs: [] };
+      if (path === "/api/voice/status") {
+        return {
+          stt: { configured: false, provider: "whisper.cpp" },
+          tts: { configured: true, provider: "piper" },
+        };
+      }
+      return {};
+    });
+    render(<UIProvider><Jarvis /></UIProvider>);
+    await waitFor(() => expect(screen.getByText(/Voice needs setup/i)).toBeTruthy());
+    expect(screen.queryByText("(whisper.cpp)")).toBeNull();
+    expect(screen.queryByText("(piper)")).toBeNull();
+    expect(screen.queryByText("whisper.cpp")).toBeNull();
+    expect(screen.queryByText("piper")).toBeNull();
   });
 
   it("treats an agents payload with no agents key as an empty roster", async () => {

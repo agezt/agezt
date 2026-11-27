@@ -12,7 +12,7 @@
 import { useEffect, useState } from "react";
 import { Activity, ArrowRight, Brain, Check, Ear, History, MessageCircle, Mic, Sparkles } from "lucide-react";
 import { getJSON } from "@/app/api";
-import type { AgentListResponseProfilesItem } from "@/app/api/types.generated";
+import type { AgentListResponseProfilesItem, VoiceStatusResponse } from "@/app/api/types.generated";
 import { useChat } from "@/lib/chatStore";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/app/utils";
@@ -29,10 +29,12 @@ interface AgentRow {
   enabled?: AgentListResponseProfilesItem["enabled"];
   status?: AgentListResponseProfilesItem["status"];}
 
-interface ServerVoiceStatus {
-  stt?: { configured?: boolean; provider?: string };
-  tts?: { configured?: boolean; provider?: string };
-}
+// The voice status is the console's OWN row, and this view names none of its
+// fields: the console's answer is declared in the contract
+// (kernel/contract/consoleapi) and the browser's catalogue is generated from
+// that declaration. The console deliberately exposes no provider detail — the
+// row carries only whether each half is wired.
+type ServerVoiceStatus = VoiceStatusResponse;
 
 function useAgents(): AgentRow[] {
   const [rows, setRows] = useState<AgentRow[]>([]);
@@ -156,18 +158,12 @@ export default function Jarvis() {
                 <span className={cn("font-medium", sttReady ? "text-good" : "text-warning")}>
                   {sttReady ? "ready" : "provider not configured"}
                 </span>
-                {voice?.stt?.provider && (
-                  <span className="ml-1 text-muted">({voice.stt.provider})</span>
-                )}
               </li>
               <li>
                 Speaking (TTS):{" "}
                 <span className={cn("font-medium", ttsReady ? "text-good" : "text-warning")}>
                   {ttsReady ? "ready" : "provider not configured"}
                 </span>
-                {voice?.tts?.provider && (
-                  <span className="ml-1 text-muted">({voice.tts.provider})</span>
-                )}
               </li>
             </ul>
             <Button

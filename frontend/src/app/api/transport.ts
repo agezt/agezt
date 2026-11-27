@@ -22,6 +22,15 @@
 // browser history, the window title, bookmarks, and the Referer of anything the
 // console ever links out to. replaceState rewrites the current entry rather than
 // pushing one, so Back still behaves and a reload no longer re-reads it.
+import type { ResponseOf } from "@/app/api/types.generated";
+
+// The console's SSE-token answer is the console's OWN row, and the browser
+// names none of its fields: the row is declared in the contract
+// (kernel/contract/consoleapi) and the catalogue is generated from that
+// declaration. The alias binds the PATH to the row, so the browser asks the
+// catalogue what /api/sse-token answers with instead of guessing a shape.
+type SSETokenRow = ResponseOf<"/api/sse-token">;
+
 export function readAndScrubToken(): string {
   if (typeof location === "undefined") return "";
   const params = new URLSearchParams(location.search);
@@ -49,7 +58,11 @@ function getSSEToken(): Promise<string> {
       try {
         const res = await fetch("/api/sse-token", { headers: authHeaders() });
         if (!res.ok) throw new Error("/api/sse-token returned " + res.status);
-        const body = (await res.json()) as { token?: string };
+        // The console's SSE-token answer is declared in the contract
+        // (kernel/contract/consoleapi) and the browser's catalogue is generated
+        // from that declaration — so the body is the row, not a shape this
+        // file guesses.
+        const body = (await res.json()) as SSETokenRow;
         if (!body.token) throw new Error("empty sse token");
         return body.token;
       } catch (err) {

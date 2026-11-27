@@ -35,6 +35,12 @@ const LEDGER: Record<string, string> = {
   "features/agents/components/roster/removal.ts": "AgentRemovalDecisionSummary",
   "features/workflows/components/types.ts": "WorkflowChainKind",
   "lib/fleet.ts": "FleetAgentIdentityCardSummary",
+  // A hook's OWN option bag: the provider id it forwards ALONGSIDE the
+  // request, plus the toast and the refresh callback. It is not the daemon's
+  // oauth-start row — it only shares the member NAME "provider", and the
+  // ratchet counts a one-member coincidence because the console's own rows
+  // are that small (the SSE token carries one member too).
+  "components/apikeys/useApiKeySubmit.ts": "UseApiKeySubmitOptions",
 };
 
 /** Every source file under src/: the module graph is the graph. */
@@ -208,6 +214,31 @@ function copiedRow(decl: Decl): string | null {
   return best;
 }
 
+/**
+ * The daemon row a type copies EXACTLY: every member the row names, and
+ * nothing else.
+ *
+ * The floor of three is about a view that copies a BIG row by accident — two
+ * field names in common ("id", "label") are a coincidence of English, and a
+ * ratchet that cries wolf gets ignored. But a view that names a row's WHOLE
+ * vocabulary is that row, whatever its size: the console's own rows are small
+ * (the SSE token carries one member, the auth meta two), and a hand-written
+ * copy of one of them is a second contract all the same.
+ *
+ * So the floor here is ONE — and the ledger below is where the coincidences
+ * live: a browser shape that happens to carry the same member name as a
+ * one-member daemon row is listed, not silently tolerated.
+ */
+function copiedRowExactly(decl: Decl): string | null {
+  const own = decl.members.filter((m) => handwritten(m.type, boundNames));
+  if (own.length < 1) return null;
+  for (const [row, fields] of ROWS) {
+    if (fields.size !== own.length) continue;
+    if (own.every((m) => fields.has(m.name))) return row;
+  }
+  return null;
+}
+
 describe("the browser's views of the daemon's rows", () => {
   it("never spell a daemon row by hand", () => {
     const violations: string[] = [];
@@ -217,7 +248,7 @@ describe("the browser's views of the daemon's rows", () => {
     );
     const seen = new Set<string>();
     for (const decl of DECLS) {
-      const row = copiedRow(decl);
+      const row = copiedRow(decl) ?? copiedRowExactly(decl);
       if (!row) continue;
       const key = `${decl.file}:${decl.name}`;
       seen.add(key);
