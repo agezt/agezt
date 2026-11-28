@@ -1,5 +1,79 @@
 # NEXT — handoff for the next coding agent
 
+## Current checkpoint — W5.36 the board family has one request row per operation, 2026-11-28
+
+The W0–W5 objective remains open. W5.8–W5.15 gave the **browser**, the
+**registry** and the **SDKs** their request vocabulary; W5.11–W5.19 gave
+**every surface** that reads a request body its contract, its door and the
+boot-time check that holds the two together; W5.20 put a **gate** behind that
+sentence so it cannot decay; W5.21 closed W5.1's open end on the browser's
+**response** side; W5.22–W5.28 gave the daemon's own rows one home, one family
+at a time; W5.29–W5.32 gave the console's own answers one home each; W5.33
+checked the console's arguments against the registry, W5.34 gave the console's
+ten typed calls their rows and W5.35 finished the **workflow** family. **This
+slice gives the BOARD family the same home** — the surface where agents talk to
+each other, whose send row was already a contract row while its other six were
+not.
+
+### What was on the tree
+
+- **The board declared its request shape twice** — a JSON Schema literal in the
+  app layer and a request struct beside it. Six structs and four literals
+  served seven operations, and the **send** row was already a contract row
+  (`boardapi.Draft`) — which made the family look finished when it was not.
+- **Six rows now live in the contract**, beside the send row, and the app layer
+  keeps no copy. The seven operations bind through the contract's rows, and the
+  guard holds all **twenty-eight**.
+- **The page size kept its rules.** The board reads it as a **number that may
+  be a fraction**: nothing asked → the default 50; zero or below → 50 (no page
+  size was asked for); **0.5 → 0** (a fraction is not a page, so the store
+  reads every message); 1.9 → 1; 9999 → the cap of 500. Those rules were
+  spread over three places; the number now carries **whether it was sent at
+  all**, and the board's own rules stay in the board — they are the board's
+  vocabulary, not the contract's.
+- **The published document did not move**: the board's four literals already
+  said what the rows now say. The shape changed homes, not its words.
+
+### What the measurement said
+
+- Request rows held by the contract: **21 → 28**.
+- Board operations with a row: **0 → 7** (of 7).
+- Hand-written input schemas in the board family: **4 → 0**; hand-written
+  request structs: **6 → 0**.
+- Hand-written input schemas in the app layer: **161 → 157**.
+- The daemon's behaviour: **unchanged**.
+
+### The evidence
+
+`architecture/356-w536-the-board-family-has-one-request-row-per-operation-evidence.md`
+— the two declarations, the six rows, the page size's rules, the measurement,
+the five reverted mutations, and what remains open.
+
+### What the next slice should do
+
+**The families that still write their own schemas — and the reading rules they
+carry.** The rule is in place; the rows are the remaining work.
+
+- **The app layer still carries 157 hand-written input schemas.** The biggest
+  families left are the **workboard** (21), the **roster** (19), the **edict**
+  (11), the **runs** (8), the **okr** (7), the **memory** (7), the **tenants**
+  (6), the **channels** (6), the **steer** (6), the **journal** (5), the
+  **audit** (5), the **tools** (5), the **approvals** (4), the **system** (4),
+  the **taste** (3), the **artifacts**' three, the **skill**'s two and the
+  **settings**' remaining two. One family at a time, the way the workflow and
+  board families were finished.
+- **Those families read their fields loosely** — `any` and `json.RawMessage`
+  fields with hand-written readers that tolerate what the door would refuse.
+  Their rows need the same **reading rules** the board's page size just got
+  (a number that may be a fraction, a list that may be one comma-separated
+  string, a member list whose unusable members are filtered rather than
+  refused).
+- **The catalogue's `Args` and the request row are still two lists.**
+- **The console's ten native routes are not in the catalogue's route table.**
+- **The console's route policy answers a wrong verb in plain text**
+  ("method not allowed"), not with the envelope — a second refusal shape on the
+  wire.
+
 ## Current checkpoint — W5.35 the workflow family has one request row per operation, 2026-11-28
 
 The W0–W5 objective remains open. W5.8–W5.15 gave the **browser**, the

@@ -246,6 +246,34 @@ func TestTheObjectIsTheObjectItCarries(t *testing.T) {
 	}
 }
 
+// TestTheLimitKnowsWhetherItCame says a limit that was not sent and a limit of
+// zero are different answers, and a fraction keeps the number it came as.
+func TestTheLimitKnowsWhetherItCame(t *testing.T) {
+	if (Limit{}).Present() {
+		t.Error("a limit that was not sent must not read as present")
+	}
+	var zero Limit
+	if err := json.Unmarshal([]byte(`0`), &zero); err != nil {
+		t.Fatal(err)
+	}
+	if !zero.Present() || zero.Number() != 0 {
+		t.Errorf("a limit of zero = (%v, %v), want (true, 0)", zero.Present(), zero.Number())
+	}
+	var half Limit
+	if err := json.Unmarshal([]byte(`0.5`), &half); err != nil {
+		t.Fatal(err)
+	}
+	if !half.Present() || half.Number() != 0.5 {
+		t.Errorf("a limit of 0.5 = (%v, %v), want (true, 0.5)", half.Present(), half.Number())
+	}
+	if got := LimitValue(zero, 25); got != 0 {
+		t.Errorf("a limit of zero reads as %d, want 0", got)
+	}
+	if got := LimitValue(half, 25); got != 0 {
+		t.Errorf("a limit of 0.5 reads as %d, want 0", got)
+	}
+}
+
 // boolFlagOf reads a flag from the JSON value it arrives as.
 func boolFlagOf(t *testing.T, value any) BoolFlag {
 	t.Helper()

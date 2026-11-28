@@ -32,6 +32,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/agezt/agezt/kernel/contract/boardapi"
 	"github.com/agezt/agezt/kernel/contract/skillapi"
 )
 
@@ -308,6 +309,13 @@ func (l Limit) MarshalJSON() ([]byte, error) { return json.Marshal(l.value) }
 // Value returns the number the field carries.
 func (l Limit) Value() any { return l.value }
 
+// Present reports whether the field carried a number at all: a limit that was
+// not sent and a limit of zero are different answers.
+func (l Limit) Present() bool { return l.present }
+
+// Number returns the number the field carries, as it came.
+func (l Limit) Number() float64 { return l.value }
+
 // JSONNumber marks the type as carrying a number, so the schema derives the
 // number itself.
 func (Limit) JSONNumber() {}
@@ -319,6 +327,47 @@ func LimitValue(limit Limit, fallback int) int {
 		return fallback
 	}
 	return int(limit.value)
+}
+
+// BoardReadRequest is the board_read request row: the topic to read, the
+// cursor to continue from, and the page size.
+type BoardReadRequest struct {
+	Topic  string `json:"topic,omitempty"`
+	Cursor string `json:"cursor,omitempty"`
+	Limit  Limit  `json:"limit,omitempty"`
+}
+
+// BoardHelpRequest is the board_help request row: how many unanswered requests
+// to read.
+type BoardHelpRequest struct {
+	Limit Limit `json:"limit,omitempty"`
+}
+
+// BoardInboxRequest is the board_inbox request row: whose mail to read, whether
+// to read all of it, and the page size.
+type BoardInboxRequest struct {
+	To    string `json:"to,omitempty"`
+	All   bool   `json:"all,omitempty"`
+	Limit Limit  `json:"limit,omitempty"`
+}
+
+// BoardGetRequest is the board_get request row: the message to read.
+type BoardGetRequest struct {
+	ID string `json:"id,omitempty"`
+}
+
+// BoardRepliesRequest is the board_replies request row: the message to read
+// the replies of, and the page size.
+type BoardRepliesRequest struct {
+	ID    string `json:"id,omitempty"`
+	Limit Limit  `json:"limit,omitempty"`
+}
+
+// BoardAckRequest is the board_ack request row: the message to acknowledge,
+// and who acknowledges it.
+type BoardAckRequest struct {
+	ID string `json:"id,omitempty"`
+	By string `json:"by,omitempty"`
 }
 
 // WorkflowListRequest is the workflow_list request row: whether the listing
@@ -429,6 +478,15 @@ var RequestRows = []RequestRow{
 	{Operation: WorkflowRuns, Row: WorkflowRunsRequest{}},
 	{Operation: WorkflowTemplates, Row: WorkflowTemplatesRequest{}},
 	{Operation: WorkflowTestNode, Row: WorkflowTestNodeRequest{}},
+	{Operation: BoardRead, Row: BoardReadRequest{}},
+	{Operation: BoardHelp, Row: BoardHelpRequest{}},
+	{Operation: BoardInbox, Row: BoardInboxRequest{}},
+	{Operation: BoardGet, Row: BoardGetRequest{}},
+	{Operation: BoardReplies, Row: BoardRepliesRequest{}},
+	{Operation: BoardAck, Row: BoardAckRequest{}},
+	// The board's send row is the board's own: the wire row the REST surface
+	// decodes and the contract names.
+	{Operation: BoardSend, Row: boardapi.Draft{}},
 }
 
 // Args returns the operation arguments a request row describes.
