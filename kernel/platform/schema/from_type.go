@@ -59,6 +59,22 @@ type jsonObject interface{ JSONObject() }
 // it rides in a wrapper — and the wrapper still derives the number itself.
 type jsonNumber interface{ JSONNumber() }
 
+// jsonText is the marker a request field carries when it holds a text.
+//
+// A text that knows whether it was sent derives the text itself — the shape
+// is the same as a plain string's, and only the reading differs.
+type jsonText interface{ JSONText() }
+
+// textArray is the marker a request field carries when it holds a list of
+// texts — a list, and nothing else.
+type textArray interface{ TextArray() }
+
+// jsonInteger is the marker a request field carries when it holds an integer.
+//
+// A number that must tell "not asked" from "zero" cannot be a plain int, so
+// it rides in a wrapper — and the wrapper still derives the integer itself.
+type jsonInteger interface{ JSONInteger() }
+
 // numberOrString is the marker a request field carries when it holds a
 // number — or the STRING a query string carries for one.
 //
@@ -101,6 +117,15 @@ func typeNode(t reflect.Type, allowUnknown bool, visiting map[reflect.Type]bool)
 	}
 	if t.Implements(reflect.TypeFor[numberOrString]()) {
 		return map[string]any{"type": numberOrStringTypes}, nil
+	}
+	if t.Implements(reflect.TypeFor[jsonText]()) {
+		return map[string]any{"type": "string"}, nil
+	}
+	if t.Implements(reflect.TypeFor[textArray]()) {
+		return map[string]any{"type": "array", "items": map[string]any{"type": "string"}}, nil
+	}
+	if t.Implements(reflect.TypeFor[jsonInteger]()) {
+		return map[string]any{"type": "integer"}, nil
 	}
 	marshaler, unmarshaler := reflect.TypeFor[json.Marshaler](), reflect.TypeFor[json.Unmarshaler]()
 	if t.Implements(marshaler) || t.Implements(unmarshaler) || reflect.PointerTo(t).Implements(marshaler) || reflect.PointerTo(t).Implements(unmarshaler) {

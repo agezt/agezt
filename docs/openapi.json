@@ -1171,13 +1171,14 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
                 "additionalProperties": true,
                 "properties": {
                   "profile": {
                     "type": "object"
                   }
-                }
+                },
+                "required": null,
+                "type": "object"
               }
             }
           }
@@ -1981,46 +1982,47 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
                 "additionalProperties": true,
                 "properties": {
-                  "ref": {
-                    "type": "string"
-                  },
-                  "trust_ceiling": {
-                    "type": "string"
-                  },
-                  "tool_allow": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  },
-                  "tool_deny": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  },
-                  "noise_policy": {
-                    "type": "object"
-                  },
                   "config_overrides": {
                     "type": "object"
-                  },
-                  "memory_scope": {
-                    "type": "string"
-                  },
-                  "workdir": {
-                    "type": "string"
                   },
                   "max_cost_mc": {
                     "type": "integer"
                   },
                   "max_daily_mc": {
                     "type": "integer"
+                  },
+                  "memory_scope": {
+                    "type": "string"
+                  },
+                  "noise_policy": {
+                    "type": "object"
+                  },
+                  "ref": {
+                    "type": "string"
+                  },
+                  "tool_allow": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "tool_deny": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "trust_ceiling": {
+                    "type": "string"
+                  },
+                  "workdir": {
+                    "type": "string"
                   }
-                }
+                },
+                "required": null,
+                "type": "object"
               }
             }
           }
@@ -3231,16 +3233,17 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
                 "additionalProperties": true,
                 "properties": {
-                  "ref": {
-                    "type": "string"
-                  },
                   "profile": {
                     "type": "object"
+                  },
+                  "ref": {
+                    "type": "string"
                   }
-                }
+                },
+                "required": null,
+                "type": "object"
               }
             }
           }
@@ -5793,16 +5796,17 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
                 "additionalProperties": true,
                 "properties": {
-                  "ref": {
-                    "type": "string"
-                  },
                   "cascade": {
                     "type": "object"
+                  },
+                  "ref": {
+                    "type": "string"
                   }
-                }
+                },
+                "required": null,
+                "type": "object"
               }
             }
           }
@@ -5913,25 +5917,26 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
                 "additionalProperties": true,
                 "properties": {
-                  "ref": {
+                  "incident_id": {
+                    "type": "string"
+                  },
+                  "parent_incident_id": {
                     "type": "string"
                   },
                   "reason": {
                     "type": "string"
                   },
-                  "incident_id": {
+                  "ref": {
                     "type": "string"
                   },
                   "root_incident_id": {
                     "type": "string"
-                  },
-                  "parent_incident_id": {
-                    "type": "string"
                   }
-                }
+                },
+                "required": null,
+                "type": "object"
               }
             }
           }
@@ -6651,40 +6656,41 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
                 "additionalProperties": true,
                 "properties": {
+                  "delegate_to": {
+                    "type": "string"
+                  },
+                  "incident_id": {
+                    "type": "string"
+                  },
+                  "parent_incident_id": {
+                    "type": "string"
+                  },
                   "ref": {
                     "type": "string"
                   },
                   "resolution": {
                     "type": "string"
                   },
-                  "summary": {
-                    "type": "string"
-                  },
-                  "delegate_to": {
-                    "type": "string"
-                  },
-                  "task_type": {
-                    "type": "string"
-                  },
-                  "task_model_chain": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  },
-                  "incident_id": {
-                    "type": "string"
-                  },
                   "root_incident_id": {
                     "type": "string"
                   },
-                  "parent_incident_id": {
+                  "summary": {
+                    "type": "string"
+                  },
+                  "task_model_chain": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "task_type": {
                     "type": "string"
                   }
-                }
+                },
+                "required": null,
+                "type": "object"
               }
             }
           }
@@ -8666,25 +8672,18 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
                 "additionalProperties": true,
                 "properties": {
-                  "ref": {
+                  "description": {
+                    "type": "string"
+                  },
+                  "id": {
                     "type": "string"
                   },
                   "op": {
                     "type": "string"
                   },
-                  "task": {
-                    "type": "object"
-                  },
-                  "id": {
-                    "type": "string"
-                  },
-                  "title": {
-                    "type": "string"
-                  },
-                  "description": {
+                  "ref": {
                     "type": "string"
                   },
                   "scope": {
@@ -8692,8 +8691,16 @@
                   },
                   "status": {
                     "type": "string"
+                  },
+                  "task": {
+                    "type": "object"
+                  },
+                  "title": {
+                    "type": "string"
                   }
-                }
+                },
+                "required": null,
+                "type": "object"
               }
             }
           }
@@ -9532,28 +9539,29 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
                 "additionalProperties": true,
                 "properties": {
-                  "ref": {
+                  "incident_id": {
                     "type": "string"
                   },
                   "intent": {
                     "type": "string"
                   },
+                  "parent_incident_id": {
+                    "type": "string"
+                  },
                   "reason": {
                     "type": "string"
                   },
-                  "incident_id": {
+                  "ref": {
                     "type": "string"
                   },
                   "root_incident_id": {
                     "type": "string"
-                  },
-                  "parent_incident_id": {
-                    "type": "string"
                   }
-                }
+                },
+                "required": null,
+                "type": "object"
               }
             }
           }

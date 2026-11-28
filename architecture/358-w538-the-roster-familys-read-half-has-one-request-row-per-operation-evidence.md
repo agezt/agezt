@@ -192,6 +192,12 @@ mutation was reverted and the tree is back to green).
   (`profile`, `cascade`, `noise_policy`, `config_overrides`, `task`), strict
   lists of texts (`tool_allow`, `tool_deny`, `task_model_chain`) and a flag
   that is a boolean or the string a query carries for one (`enabled`).
+
+  **Done in W5.39 for the roster's write half** — see
+  [359](359-w539-the-roster-familys-write-half-has-one-request-row-per-operation-evidence.md);
+  the contract grew the missing vocabulary (a text, a list of texts and an
+  integer that know whether they were sent) and all **nineteen** of the
+  roster's operations now have a row.
 - **The app layer still carries 128 hand-written input schemas.** The biggest
   families left are the roster's write half (**11**), the **edict** (11), the
   **runs** (8), the **memory** (7), the **okr** (7), the **channels** (6), the

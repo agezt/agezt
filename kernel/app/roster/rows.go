@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
@@ -31,18 +32,38 @@ func refOf(ref string) (string, error) {
 	return ref, nil
 }
 
-// rawRefOf reads the agent's ref a raw request field carried: a ref is a text,
-// and a blank one is refused.
-//
-// The write half still reads its refs raw; this is where that reading lives
-// until those rows come home too.
-func rawRefOf(raw json.RawMessage) (string, error) {
-	value, present := rawValue(raw)
-	ref, ok := value.(string)
-	if present && !ok {
-		return "", fmt.Errorf("args.ref must be a string")
+// objectRow reads a JSON object a request row carried: the row holds the
+// object as a decoded value, so the domain's own shape is read from it.
+func objectRow(value map[string]any, into any) error {
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return err
 	}
-	return refOf(ref)
+	return json.Unmarshal(encoded, into)
+}
+
+// profileRow reads a profile a request row carried: the row holds the object
+// as a decoded value, and the profile's own shape is read from it.
+func profileRow(profile opapi.Object) ([]byte, error) {
+	return json.Marshal(profile.Map())
+}
+
+// decodeNoisePolicy reads the noise policy a request row carried.
+func decodeNoisePolicy(value map[string]any) (agentapi.NoisePolicy, error) {
+	var policy agentapi.NoisePolicy
+	if err := objectRow(value, &policy); err != nil {
+		return agentapi.NoisePolicy{}, err
+	}
+	return policy, nil
+}
+
+// decodeStringMap reads the configuration overrides a request row carried.
+func decodeStringMap(value map[string]any) (map[string]string, error) {
+	overrides := map[string]string{}
+	if err := objectRow(value, &overrides); err != nil {
+		return nil, err
+	}
+	return overrides, nil
 }
 
 // pageLimit reads the page size a row asked for: the family's default when the

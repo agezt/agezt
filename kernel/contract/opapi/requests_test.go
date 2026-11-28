@@ -335,6 +335,105 @@ func TestTheTextListReadsAListOrTheOneStringThatCarriesIt(t *testing.T) {
 	}
 }
 
+// TestTheTextKnowsWhetherItWasSent says a text field tells a field that was
+// not sent from a field that was sent empty: one says "leave it alone", the
+// other says "clear it".
+func TestTheTextKnowsWhetherItWasSent(t *testing.T) {
+	var text Text
+	if text.Present() || text.String() != "" {
+		t.Errorf("a text that was not sent reads as %q", text.String())
+	}
+	if err := json.Unmarshal([]byte(`" a "`), &text); err != nil {
+		t.Fatal(err)
+	}
+	if !text.Present() || text.String() != " a " {
+		t.Errorf("the text reads as %q (present=%v)", text.String(), text.Present())
+	}
+	var empty Text
+	if err := json.Unmarshal([]byte(`""`), &empty); err != nil {
+		t.Fatal(err)
+	}
+	if !empty.Present() || empty.String() != "" {
+		t.Errorf("an empty text reads as %q (present=%v)", empty.String(), empty.Present())
+	}
+	var null Text
+	if err := json.Unmarshal([]byte(`null`), &null); err != nil {
+		t.Fatal(err)
+	}
+	if !null.Present() || null.String() != "" {
+		t.Errorf("a null text reads as %q (present=%v)", null.String(), null.Present())
+	}
+	for _, raw := range []string{`3`, `true`, `["a"]`, `{"a":1}`} {
+		var wrong Text
+		if err := json.Unmarshal([]byte(raw), &wrong); err == nil {
+			t.Errorf("%s must not read as a text", raw)
+		}
+	}
+}
+
+// TestTheTextArrayIsAListOfTexts says a list field carries a list of texts and
+// nothing else: a member that is not a text is refused.
+func TestTheTextArrayIsAListOfTexts(t *testing.T) {
+	var list TextArray
+	if list.Present() || list.Members() != nil {
+		t.Errorf("a list that was not sent reads as %v", list.Members())
+	}
+	if err := json.Unmarshal([]byte(`[" a ","","b"]`), &list); err != nil {
+		t.Fatal(err)
+	}
+	if !list.Present() || len(list.Members()) != 3 || list.Members()[0] != " a " {
+		t.Errorf("the list reads as %v", list.Members())
+	}
+	var empty TextArray
+	if err := json.Unmarshal([]byte(`[]`), &empty); err != nil {
+		t.Fatal(err)
+	}
+	if !empty.Present() || len(empty.Members()) != 0 {
+		t.Errorf("an empty list reads as %v", empty.Members())
+	}
+	for _, raw := range []string{`"a"`, `[1]`, `["a",2]`, `{"a":1}`, `true`} {
+		var wrong TextArray
+		if err := json.Unmarshal([]byte(raw), &wrong); err == nil {
+			t.Errorf("%s must not read as a list of texts", raw)
+		}
+	}
+}
+
+// TestTheIntegerIsAnInteger says a count field carries an integer — and that a
+// number that does not fit in a float still reads as itself.
+func TestTheIntegerIsAnInteger(t *testing.T) {
+	var count Integer
+	if count.Present() || count.Number() != 0 {
+		t.Errorf("a count that was not sent reads as %d", count.Number())
+	}
+	if err := json.Unmarshal([]byte(`7`), &count); err != nil {
+		t.Fatal(err)
+	}
+	if !count.Present() || count.Number() != 7 {
+		t.Errorf("the count reads as %d", count.Number())
+	}
+	var big Integer
+	if err := json.Unmarshal([]byte(`9007199254740993`), &big); err != nil {
+		t.Fatal(err)
+	}
+	if big.Number() != 9007199254740993 {
+		t.Errorf("the number that does not fit in a float reads as %d", big.Number())
+	}
+	var null Integer
+	if err := json.Unmarshal([]byte(`null`), &null); err != nil {
+		t.Fatal(err)
+	}
+	if !null.Present() || null.Number() != 0 {
+		t.Errorf("a null count reads as %d (present=%v)", null.Number(), null.Present())
+	}
+	for _, raw := range []string{`1.5`, `"7"`, `true`, `["7"]`} {
+		var wrong Integer
+		if err := json.Unmarshal([]byte(raw), &wrong); err == nil {
+			t.Errorf("%s must not read as an integer", raw)
+		}
+	}
+}
+
 // boolFlagOf reads a flag from the JSON value it arrives as.
 func boolFlagOf(t *testing.T, value any) BoolFlag {
 	t.Helper()

@@ -4,34 +4,14 @@ package roster
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"reflect"
-	"strings"
 
 	"github.com/agezt/agezt/kernel/app"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/platform/schema"
 )
-
-// SetEnabledRequest keeps enabled raw: CLI/JSON callers send a bool and the
-// Web UI query transport sends "true"/"false"/"1"/"0"; anything else pauses.
-type SetEnabledRequest struct {
-	Ref     json.RawMessage `json:"ref,omitempty"`
-	Enabled json.RawMessage `json:"enabled,omitempty"`
-}
-
-func (r SetEnabledRequest) enabled() bool {
-	v, _ := rawValue(r.Enabled)
-	switch t := v.(type) {
-	case bool:
-		return t
-	case string:
-		return strings.EqualFold(t, "true") || t == "1"
-	}
-	return false
-}
 
 type SetEnabledOutput struct {
 	Profile         ProfileOutput `json:"profile"`
@@ -53,12 +33,12 @@ func NewSetEnabled(set func(string, bool) (agentapi.Profile, error), pausedStand
 	return &SetEnabledService{set: set, pausedStanding: pausedStanding, pausedSchedules: pausedSchedules, invalidate: invalidate}
 }
 
-func (s *SetEnabledService) SetEnabled(_ context.Context, in SetEnabledRequest) (SetEnabledOutput, error) {
-	ref, err := rawRefOf(in.Ref)
+func (s *SetEnabledService) SetEnabled(_ context.Context, in opapi.AgentSetEnabledRequest) (SetEnabledOutput, error) {
+	ref, err := refOf(in.Ref)
 	if err != nil {
 		return SetEnabledOutput{}, err
 	}
-	enabled := in.enabled()
+	enabled := opapi.BoolFlagOrFalse(in.Enabled)
 	p, err := s.set(ref, enabled)
 	if err != nil {
 		if errors.Is(err, agentapi.ErrNotFound) {
@@ -93,7 +73,7 @@ func SetEnabledOperations(provider func(context.Context) *SetEnabledService) ([]
 	if err != nil {
 		return nil, err
 	}
-	op, err := app.NewOperation(opapi.Spec{Name: opapi.AgentSetEnabled, OutputSchema: output, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{"type":"string"},"enabled":{"type":["boolean","string"]}}}`)}, func(ctx context.Context, in SetEnabledRequest) (SetEnabledOutput, error) {
+	op, err := app.NewOperation(opapi.Spec{Name: opapi.AgentSetEnabled, OutputSchema: output, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true}, func(ctx context.Context, in opapi.AgentSetEnabledRequest) (SetEnabledOutput, error) {
 		return provider(ctx).SetEnabled(ctx, in)
 	})
 	if err != nil {

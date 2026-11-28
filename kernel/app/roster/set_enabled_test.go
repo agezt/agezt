@@ -35,7 +35,7 @@ func setEnabledFixture(fail error) (*SetEnabledService, *setEnabledCalls) {
 
 func setEnabledRun(t *testing.T, s *SetEnabledService, raw string) (SetEnabledOutput, error) {
 	t.Helper()
-	var in SetEnabledRequest
+	var in opapi.AgentSetEnabledRequest
 	if err := json.Unmarshal([]byte(raw), &in); err != nil {
 		t.Fatal(raw, err)
 	}
@@ -73,11 +73,17 @@ func TestRosterSetEnabledCodecAndEffects(t *testing.T) {
 }
 
 func TestRosterSetEnabledErrors(t *testing.T) {
-	for raw, want := range map[string]string{`{}`: "args.ref required", `{"ref":"  "}`: "args.ref required", `{"ref":3,"enabled":true}`: "args.ref must be a string"} {
+	for raw, want := range map[string]string{`{}`: "args.ref required", `{"ref":"  "}`: "args.ref required"} {
 		s, calls := setEnabledFixture(nil)
 		if _, err := setEnabledRun(t, s, raw); err == nil || err.Error() != want || calls.sets != nil || calls.invalidate != 0 {
 			t.Fatal(raw, err, calls)
 		}
+	}
+	// A ref that is not a text never reaches the service: the row reads its
+	// own fields.
+	var mistyped opapi.AgentSetEnabledRequest
+	if err := json.Unmarshal([]byte(`{"ref":3,"enabled":true}`), &mistyped); err == nil {
+		t.Fatal("a mistyped ref never reaches the service")
 	}
 	other := errors.New("disk full")
 	for cause, want := range map[error]string{
@@ -131,7 +137,7 @@ func TestRosterSetEnabledOperationIsAudited(t *testing.T) {
 		t.Fatal(ops, err)
 	}
 	spec := ops[0].Spec()
-	if spec.Name != "agent_set_enabled" || spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.Input != reflect.TypeFor[SetEnabledRequest]() || spec.Output != reflect.TypeFor[SetEnabledOutput]() {
+	if spec.Name != "agent_set_enabled" || spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.Input != reflect.TypeFor[opapi.AgentSetEnabledRequest]() || spec.Output != reflect.TypeFor[SetEnabledOutput]() {
 		t.Fatal(spec)
 	}
 	if schema.ValidateJSON(spec.OutputSchema, json.RawMessage(`{"profile":{"id":"i","slug":"s","enabled":true,"created_ms":0,"updated_ms":0,"kind":"custom","managed":false},"standing_paused":"x"}`)) == nil {

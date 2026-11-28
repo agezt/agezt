@@ -71,9 +71,9 @@ func setRetiredFixture(o setRetiredOpts) (*SetRetiredService, *setRetiredCalls) 
 	}), calls
 }
 
-func setRetiredReq(t *testing.T, raw string) SetRetiredRequest {
+func setRetiredReq(t *testing.T, raw string) opapi.AgentSetRetiredRequest {
 	t.Helper()
-	var in SetRetiredRequest
+	var in opapi.AgentSetRetiredRequest
 	if err := json.Unmarshal([]byte(raw), &in); err != nil {
 		t.Fatal(raw, err)
 	}
@@ -107,9 +107,9 @@ func TestRosterRetireReportsImpactBeforeTheChange(t *testing.T) {
 	if !strings.Contains(string(raw), `"impact_summary":{"slug":"ops","subagents":[],`) || !strings.Contains(string(raw), `"standing_paused":2,"schedules_paused":3},"standing_paused":2`) {
 		t.Fatal("wire", string(raw))
 	}
-	// Lenient reason; a miss before the write leaves the impact null.
+	// An empty reason; a miss before the write leaves the impact null.
 	s, calls = setRetiredFixture(setRetiredOpts{missingBefore: true})
-	out, err = s.Retire(context.Background(), setRetiredReq(t, `{"ref":"ops","reason":7}`))
+	out, err = s.Retire(context.Background(), setRetiredReq(t, `{"ref":"ops","reason":""}`))
 	if err != nil || out.Impact != nil || out.ImpactSummary != nil || calls.steps[1] != "set:ops:true:" || calls.published[0]["impact_summary"] != nil {
 		t.Fatal("no impact", out, calls.steps, err)
 	}
@@ -120,13 +120,21 @@ func TestRosterRetireReportsImpactBeforeTheChange(t *testing.T) {
 }
 
 func TestRosterRetireErrors(t *testing.T) {
-	for raw, want := range map[string]string{`{}`: "args.ref required", `{"ref":3}`: "args.ref must be a string", `{"ref":"  "}`: "args.ref required"} {
+	for raw, want := range map[string]string{`{}`: "args.ref required", `{"ref":"  "}`: "args.ref required"} {
 		s, calls := setRetiredFixture(setRetiredOpts{})
 		if _, err := s.Retire(context.Background(), setRetiredReq(t, raw)); err == nil || err.Error() != want || calls.steps != nil {
 			t.Fatal(raw, err, calls.steps)
 		}
 		if _, err := s.Revive(context.Background(), setRetiredReq(t, raw)); err == nil || err.Error() != want || calls.steps != nil {
 			t.Fatal(raw, err, calls.steps)
+		}
+	}
+	// A ref or a reason that is not a text never reaches the service: the row
+	// reads its own fields.
+	for _, raw := range []string{`{"ref":3}`, `{"ref":"ops","reason":7}`} {
+		var in opapi.AgentSetRetiredRequest
+		if err := json.Unmarshal([]byte(raw), &in); err == nil {
+			t.Fatal(raw)
 		}
 	}
 	for cause, want := range map[error]string{fmt.Errorf("wrap: %w", core.ErrNotFound): "unknown agent: ghost", errors.New("disk full"): "disk full"} {
@@ -190,7 +198,7 @@ func TestRosterSetRetiredOperationsAreAudited(t *testing.T) {
 		out        reflect.Type
 	}{{opapi.AgentRetire, "/api/agents/retire", reflect.TypeFor[RetireOutput]()}, {opapi.AgentRevive, "/api/agents/revive", reflect.TypeFor[ReviveOutput]()}} {
 		spec := ops[i].Spec()
-		if spec.Name != want.name || spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.Input != reflect.TypeFor[SetRetiredRequest]() || spec.Output != want.out {
+		if spec.Name != want.name || spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.Input != reflect.TypeFor[opapi.AgentSetRetiredRequest]() || spec.Output != want.out {
 			t.Fatal(spec)
 		}
 	}

@@ -55,7 +55,7 @@ func repairActionFixture() (*RepairService, *repairActionCalls) {
 
 func repairActionRun(t *testing.T, s *RepairService, raw string) (RepairOutput, error) {
 	t.Helper()
-	var in RepairRequest
+	var in opapi.AgentRepairRequest
 	if err := json.Unmarshal([]byte(raw), &in); err != nil {
 		t.Fatal(raw, err)
 	}
@@ -66,8 +66,6 @@ func TestRosterRepairRejectsWithoutEffects(t *testing.T) {
 	for raw, want := range map[string]string{
 		`{}`:                          "args.ref required",
 		`{"ref":" "}`:                 "args.ref required",
-		`{"ref":3}`:                   "args.ref must be a string",
-		`{"ref":"ghost","reason":3}`:  "unknown agent: ghost",
 		`{"ref":"gone"}`:              "agent gone is retired — revive it first",
 		`{"ref":"off"}`:               "agent off is paused",
 		`{"ref":"sub","reason":"x"}`:  "agent sub is a managed sub-agent and cannot be repaired directly; wake lead or delegate through it",
@@ -81,6 +79,14 @@ func TestRosterRepairRejectsWithoutEffects(t *testing.T) {
 			if !strings.HasPrefix(step, "get:") {
 				t.Fatal("effect before rejection", raw, calls.steps)
 			}
+		}
+	}
+	// A ref or a reason that is not a text never reaches the service: the row
+	// reads its own fields.
+	for _, raw := range []string{`{"ref":3}`, `{"ref":"ghost","reason":3}`} {
+		var in opapi.AgentRepairRequest
+		if err := json.Unmarshal([]byte(raw), &in); err == nil {
+			t.Fatal(raw)
 		}
 	}
 }
@@ -102,8 +108,15 @@ func TestRosterRepairJournalsThenLaunches(t *testing.T) {
 		t.Fatal("launch", calls.launches)
 	}
 	s, calls = repairActionFixture()
-	if _, err := repairActionRun(t, s, `{"ref":"ops","reason":7,"incident_id":true,"root_incident_id":{},"parent_incident_id":null}`); err != nil || !reflect.DeepEqual(calls.launches[0], repairActionLaunch{"corr-1", "ops", "", IncidentLineage{}}) || calls.published[0]["reason"] != "" {
-		t.Fatal("lenient args", calls.launches, err)
+	// A null id is an empty one; a mistyped one never reaches the service.
+	if _, err := repairActionRun(t, s, `{"ref":"ops","reason":"","incident_id":null,"root_incident_id":null,"parent_incident_id":null}`); err != nil || !reflect.DeepEqual(calls.launches[0], repairActionLaunch{"corr-1", "ops", "", IncidentLineage{}}) || calls.published[0]["reason"] != "" {
+		t.Fatal("null args", calls.launches, err)
+	}
+	for _, raw := range []string{`{"ref":"ops","reason":7}`, `{"ref":"ops","incident_id":true}`, `{"ref":"ops","root_incident_id":{}}`} {
+		var in opapi.AgentRepairRequest
+		if err := json.Unmarshal([]byte(raw), &in); err == nil {
+			t.Fatal(raw)
+		}
 	}
 }
 
@@ -124,7 +137,7 @@ func TestRosterRepairOperationIsAudited(t *testing.T) {
 		t.Fatal(ops, err)
 	}
 	spec := ops[0].Spec()
-	if spec.Name != "agent_repair" || spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.Input != reflect.TypeFor[RepairRequest]() || spec.Output != reflect.TypeFor[RepairOutput]() {
+	if spec.Name != "agent_repair" || spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.Input != reflect.TypeFor[opapi.AgentRepairRequest]() || spec.Output != reflect.TypeFor[RepairOutput]() {
 		t.Fatal(spec)
 	}
 	if schema.ValidateJSON(spec.OutputSchema, json.RawMessage(`{"accepted":true,"agent":"a","correlation_id":"c"}`)) != nil || schema.ValidateJSON(spec.OutputSchema, json.RawMessage(`{"accepted":true,"agent":1,"correlation_id":"c"}`)) == nil {

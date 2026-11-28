@@ -4,9 +4,7 @@ package roster
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"reflect"
 	"strings"
 
@@ -16,38 +14,10 @@ import (
 	"github.com/agezt/agezt/kernel/platform/schema"
 )
 
-// TaskUpdateRequest keeps every argument raw: args.task and the flat id/title/
-// description/scope/status arguments are both live transports, and presence
-// (not value) decides which fields an update touches.
-type TaskUpdateRequest struct {
-	Ref         json.RawMessage `json:"ref,omitempty"`
-	Op          json.RawMessage `json:"op,omitempty"`
-	Task        json.RawMessage `json:"task,omitempty"`
-	ID          json.RawMessage `json:"id,omitempty"`
-	Title       json.RawMessage `json:"title,omitempty"`
-	Description json.RawMessage `json:"description,omitempty"`
-	Scope       json.RawMessage `json:"scope,omitempty"`
-	Status      json.RawMessage `json:"status,omitempty"`
-}
-
-func optionalString(raw json.RawMessage, key string) (string, bool, error) {
-	v, present := rawValue(raw)
-	if !present {
-		return "", false, nil
-	}
-	s, ok := v.(string)
-	if !ok {
-		return "", true, fmt.Errorf("args.%s must be a string", key)
-	}
-	return s, true, nil
-}
-
-func taskFieldPresent(raw json.RawMessage, key string) bool {
-	var obj map[string]json.RawMessage
-	if json.Unmarshal(raw, &obj) != nil || obj == nil {
-		return false
-	}
-	_, ok := obj[key]
+// taskFieldPresent reports whether the task object carried a field at all:
+// presence, not value, decides which fields an update touches.
+func taskFieldPresent(task opapi.Object, key string) bool {
+	_, ok := task.Map()[key]
 	return ok
 }
 
@@ -67,16 +37,12 @@ func NewTaskUpdate(update func(string, func(*agentapi.Profile)) (agentapi.Profil
 	return &TaskUpdateService{update: update}
 }
 
-func (s *TaskUpdateService) TaskUpdate(_ context.Context, in TaskUpdateRequest) (TaskUpdateOutput, error) {
-	ref, err := rawRefOf(in.Ref)
+func (s *TaskUpdateService) TaskUpdate(_ context.Context, in opapi.AgentTaskUpdateRequest) (TaskUpdateOutput, error) {
+	ref, err := refOf(in.Ref)
 	if err != nil {
 		return TaskUpdateOutput{}, err
 	}
-	op, _, err := optionalString(in.Op, "op")
-	if err != nil {
-		return TaskUpdateOutput{}, err
-	}
-	op = strings.ToLower(strings.TrimSpace(op))
+	op := strings.ToLower(strings.TrimSpace(in.Op))
 	if op == "" {
 		op = "update"
 	}
@@ -84,27 +50,23 @@ func (s *TaskUpdateService) TaskUpdate(_ context.Context, in TaskUpdateRequest) 
 		return TaskUpdateOutput{}, errors.New("args.op must be add, update, or remove")
 	}
 	var task agentapi.AgentTask
-	if len(in.Task) > 0 {
-		if err := json.Unmarshal(in.Task, &task); err != nil {
+	if in.Task.Present() {
+		if err := objectRow(in.Task.Map(), &task); err != nil {
 			return TaskUpdateOutput{}, errors.New("args.task: " + err.Error())
 		}
 	}
 	// Flat-arg overrides layered over args.task.
 	flat := map[string]bool{}
 	for _, f := range []struct {
-		key string
-		raw json.RawMessage
-		dst *string
+		key  string
+		text opapi.Text
+		dst  *string
 	}{
 		{"id", in.ID, &task.ID}, {"title", in.Title, &task.Title}, {"description", in.Description, &task.Description},
 		{"scope", in.Scope, &task.Scope}, {"status", in.Status, &task.Status},
 	} {
-		v, present, err := optionalString(f.raw, f.key)
-		if err != nil {
-			return TaskUpdateOutput{}, err
-		}
-		if present {
-			*f.dst = v
+		if f.text.Present() {
+			*f.dst = f.text.String()
 			flat[f.key] = true
 		}
 	}
@@ -219,7 +181,7 @@ func TaskUpdateOperations(provider func(context.Context) *TaskUpdateService) ([]
 	if err != nil {
 		return nil, err
 	}
-	op, err := app.NewOperation(opapi.Spec{Name: opapi.AgentTaskUpdate, OutputSchema: output, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{"type":"string"},"op":{"type":"string"},"task":{"type":"object"},"id":{"type":"string"},"title":{"type":"string"},"description":{"type":"string"},"scope":{"type":"string"},"status":{"type":"string"}}}`)}, func(ctx context.Context, in TaskUpdateRequest) (TaskUpdateOutput, error) {
+	op, err := app.NewOperation(opapi.Spec{Name: opapi.AgentTaskUpdate, OutputSchema: output, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true}, func(ctx context.Context, in opapi.AgentTaskUpdateRequest) (TaskUpdateOutput, error) {
 		return provider(ctx).TaskUpdate(ctx, in)
 	})
 	if err != nil {

@@ -4,7 +4,6 @@ package roster
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"reflect"
 	"strings"
@@ -14,17 +13,6 @@ import (
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/platform/schema"
 )
-
-// WakeRequest keeps every argument raw: ref and intent are strict strings, while
-// reason and the incident ids are read leniently (anything but a string is empty).
-type WakeRequest struct {
-	Ref              json.RawMessage `json:"ref,omitempty"`
-	Intent           json.RawMessage `json:"intent,omitempty"`
-	Reason           json.RawMessage `json:"reason,omitempty"`
-	IncidentID       json.RawMessage `json:"incident_id,omitempty"`
-	RootIncidentID   json.RawMessage `json:"root_incident_id,omitempty"`
-	ParentIncidentID json.RawMessage `json:"parent_incident_id,omitempty"`
-}
 
 // IncidentLineage is the operator incident chain a wake or repair belongs to.
 type IncidentLineage struct {
@@ -39,15 +27,9 @@ type WakeOutput struct {
 	CorrelationID string `json:"correlation_id"`
 }
 
-func lenientString(raw json.RawMessage) string {
-	v, _ := rawValue(raw)
-	s, _ := v.(string)
-	return strings.TrimSpace(s)
-}
-
-// incidentLineage reads the incident ids leniently, like the reason.
-func incidentLineage(incident, root, parent json.RawMessage) IncidentLineage {
-	return IncidentLineage{IncidentID: lenientString(incident), RootIncidentID: lenientString(root), ParentIncidentID: lenientString(parent)}
+// incidentLineage reads the incident ids the row carried, trimmed.
+func incidentLineage(incident, root, parent string) IncidentLineage {
+	return IncidentLineage{IncidentID: strings.TrimSpace(incident), RootIncidentID: strings.TrimSpace(root), ParentIncidentID: strings.TrimSpace(parent)}
 }
 
 // ManagedDirectCallError is the operator-facing refusal for an action sent to a
@@ -66,8 +48,8 @@ func ManagedDirectCallError(p agentapi.Profile, action string) string {
 
 // directTarget resolves the agent an operator action is sent to, rejecting
 // unknown, retired, paused and managed agents in that order.
-func directTarget(get func(string) (agentapi.Profile, bool), rawRef json.RawMessage, action string) (agentapi.Profile, error) {
-	ref, err := rawRefOf(rawRef)
+func directTarget(get func(string) (agentapi.Profile, bool), ref string, action string) (agentapi.Profile, error) {
+	ref, err := refOf(ref)
 	if err != nil {
 		return agentapi.Profile{}, err
 	}
@@ -130,16 +112,13 @@ func NewWake(get func(string) (agentapi.Profile, bool), newCorrelation func() st
 	return &WakeService{get: get, newCorrelation: newCorrelation, publish: publish, launch: launch}
 }
 
-func (s *WakeService) Wake(_ context.Context, in WakeRequest) (WakeOutput, error) {
+func (s *WakeService) Wake(_ context.Context, in opapi.AgentWakeRequest) (WakeOutput, error) {
 	p, err := directTarget(s.get, in.Ref, "called")
 	if err != nil {
 		return WakeOutput{}, err
 	}
-	intent, _, err := optionalString(in.Intent, "intent")
-	if err != nil {
-		return WakeOutput{}, err
-	}
-	reason := lenientString(in.Reason)
+	intent := in.Intent
+	reason := strings.TrimSpace(in.Reason)
 	lineage := incidentLineage(in.IncidentID, in.RootIncidentID, in.ParentIncidentID)
 	intent = BuildOperatorWakeIntent(strings.TrimSpace(intent), p.Slug, reason, lineage)
 	if strings.TrimSpace(intent) == "" {
@@ -168,7 +147,7 @@ func WakeOperations(provider func(context.Context) *WakeService) ([]app.Operatio
 	if err != nil {
 		return nil, err
 	}
-	op, err := app.NewOperation(opapi.Spec{Name: opapi.AgentWake, OutputSchema: output, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{"type":"string"},"intent":{"type":"string"},"reason":{"type":"string"},"incident_id":{"type":"string"},"root_incident_id":{"type":"string"},"parent_incident_id":{"type":"string"}}}`)}, func(ctx context.Context, in WakeRequest) (WakeOutput, error) {
+	op, err := app.NewOperation(opapi.Spec{Name: opapi.AgentWake, OutputSchema: output, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true}, func(ctx context.Context, in opapi.AgentWakeRequest) (WakeOutput, error) {
 		return provider(ctx).Wake(ctx, in)
 	})
 	if err != nil {

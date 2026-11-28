@@ -15,17 +15,6 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 )
 
-// rawValue reads a raw request field as it came: the value it carries, and
-// whether the field was sent at all.
-func rawValue(raw json.RawMessage) (any, bool) {
-	if len(raw) == 0 {
-		return nil, false
-	}
-	var v any
-	_ = json.Unmarshal(raw, &v)
-	return v, true
-}
-
 type ActivityItem struct {
 	Seq           int64  `json:"seq"`
 	Kind          string `json:"kind"`

@@ -62,7 +62,6 @@ func (f *profileWriteFixture) service() *ProfileWriteService {
 func TestRosterProfileAddValidationAndEffects(t *testing.T) {
 	for raw, want := range map[string]string{
 		`{}`:                                 "args.profile required",
-		`{"profile":"x"}`:                    "args.profile: json: cannot unmarshal string into Go value of type agentapi.Profile",
 		`{"profile":{"max_cost_mc":"many"}}`: "args.profile: json: cannot unmarshal string into Go struct field Profile.max_cost_mc of type int64",
 		`{"profile":{"slug":"n","owner_agent":"ghost"}}`:                         `roster: owner_agent "ghost" does not exist`,
 		`{"profile":{"slug":"n","parent_agent":"gone"}}`:                         `roster: parent_agent "gone" is retired`,
@@ -76,10 +75,20 @@ func TestRosterProfileAddValidationAndEffects(t *testing.T) {
 			}
 		}
 	}
+	// A profile that is not an object never reaches the service: the row reads
+	// its own fields.
+	for _, raw := range []string{`{"profile":"x"}`, `{"profile":null}`, `{"profile":[1]}`} {
+		if err := addDecodeError(raw); err == nil {
+			t.Fatal(raw)
+		}
+	}
 	f := newProfileWriteFixture()
 	out, err := f.service().Add(context.Background(), addRequest(t, `{"profile":{"slug":"n","kind":" SubAgent ","system":true,"owner_agent":"boss","max_cost_mc":9007199254740993}}`))
 	if err != nil || len(f.added) != 1 || f.added[0].System || f.added[0].DirectCallable == nil || *f.added[0].DirectCallable || f.invalidates != 1 {
 		t.Fatal("added profile", f.added, err)
+	}
+	if f.added[0].MaxCostMc != 9007199254740993 {
+		t.Fatalf("the number that does not fit in a float reads as itself: %d", f.added[0].MaxCostMc)
 	}
 	raw, _ := json.Marshal(out)
 	var wire map[string]map[string]json.RawMessage
@@ -89,23 +98,30 @@ func TestRosterProfileAddValidationAndEffects(t *testing.T) {
 	}
 	f = newProfileWriteFixture()
 	f.addErr = errors.New("roster: slug required")
-	if _, err := f.service().Add(context.Background(), addRequest(t, `{"profile":null}`)); err == nil || err.Error() != "roster: slug required" || len(f.added) != 1 || f.invalidates != 0 {
+	if _, err := f.service().Add(context.Background(), addRequest(t, `{"profile":{}}`)); err == nil || err.Error() != "roster: slug required" || len(f.added) != 1 || f.invalidates != 0 {
 		t.Fatal("store error passes through", err)
 	}
 }
 
-func addRequest(t *testing.T, raw string) AddRequest {
+func addRequest(t *testing.T, raw string) opapi.AgentProfileAddRequest {
 	t.Helper()
-	var in AddRequest
+	var in opapi.AgentProfileAddRequest
 	if err := json.Unmarshal([]byte(raw), &in); err != nil {
 		t.Fatal(raw, err)
 	}
 	return in
 }
 
+// addDecodeError reads the add row the way the door reads it: a profile that
+// is not an object never reaches the service.
+func addDecodeError(raw string) error {
+	var in opapi.AgentProfileAddRequest
+	return json.Unmarshal([]byte(raw), &in)
+}
+
 func editRun(t *testing.T, f *profileWriteFixture, raw string) (ProfileWriteOutput, error) {
 	t.Helper()
-	var in EditRequest
+	var in opapi.AgentProfileEditRequest
 	if err := json.Unmarshal([]byte(raw), &in); err != nil {
 		t.Fatal(raw, err)
 	}
@@ -114,13 +130,24 @@ func editRun(t *testing.T, f *profileWriteFixture, raw string) (ProfileWriteOutp
 
 func TestRosterProfileEditPatchSemantics(t *testing.T) {
 	for raw, want := range map[string]string{
-		`{}`: "args.ref required", `{"ref":1,"profile":{}}`: "args.ref must be a string", `{"ref":"a"}`: "args.profile required",
-		`{"ref":"a","profile":[1]}`:    "args.profile: json: cannot unmarshal array into Go value of type agentapi.Profile",
+		`{}`: "args.ref required", `{"ref":"a"}`: "args.profile required",
 		`{"ref":"ghost","profile":{}}`: "unknown agent: ghost", `{"ref":"a","profile":{"parent_agent":"gone"}}`: `roster: parent_agent "gone" is retired`,
 	} {
 		f := newProfileWriteFixture()
 		if _, err := editRun(t, f, raw); err == nil || err.Error() != want || f.updates != 0 || f.invalidates != 0 {
 			t.Fatal(raw, err, f.updates)
+		}
+	}
+	// A ref or a profile that is not what the row says never reaches the
+	// service: the row reads its own fields.
+	for _, raw := range []string{`{"ref":1,"profile":{}}`, `{"ref":"a","profile":[1]}`, `{"ref":"a","profile":null}`} {
+		f := newProfileWriteFixture()
+		var in opapi.AgentProfileEditRequest
+		if err := json.Unmarshal([]byte(raw), &in); err == nil {
+			t.Fatal(raw)
+		}
+		if f.updates != 0 {
+			t.Fatal(raw, f.updates)
 		}
 	}
 	f := newProfileWriteFixture()

@@ -1,5 +1,97 @@
 # NEXT — handoff for the next coding agent
 
+## Current checkpoint — W5.39 the roster family's write half has one request row per operation, 2026-11-28
+
+The W0–W5 objective remains open. W5.8–W5.15 gave the **browser**, the
+**registry** and the **SDKs** their request vocabulary; W5.11–W5.19 gave
+**every surface** that reads a request body its contract, its door and the
+boot-time check that holds the two together; W5.20 put a **gate** behind that
+sentence so it cannot decay; W5.21 closed W5.1's open end on the browser's
+**response** side; W5.22–W5.28 gave the daemon's own rows one home, one family
+at a time; W5.29–W5.32 gave the console's own answers one home each; W5.33
+checked the console's arguments against the registry, W5.34 gave the console's
+ten typed calls their rows, W5.35 finished the **workflow** family, W5.36 the
+**board** family, W5.37 the **workboard** family and W5.38 the **roster**
+family's read half. **This slice finishes the ROSTER family** — the board of
+agents, whose nineteen operations declared their shape twice across fifteen
+files — so that every one of them now has a row in the contract.
+
+### What was on the tree
+
+- **The roster's write half declared its request shape twice** — a JSON Schema
+  literal in the app layer and a request struct beside it, spread over
+  **eight** files, with every field read **raw** by hand-written readers
+  (`rawRefOf`, `rawValue`, `lenientString`, `optionalString`, `decodeField`,
+  `rawChain`).
+- **The write half's patch fields carry THREE states, and the contract could
+  not say two of them yet.** `agent_capabilities` reads nine fields where each
+  one may be **not sent at all**, **sent as null** (which clears the field) or
+  **sent with a value** — the app's `decodeField` writes a pointer per field
+  and a `touched` flag says whether the field was touched at all. A plain
+  `string` row cannot tell "not sent" from "sent as an empty string", and the
+  contract's `Object` refuses a null outright. So the contract grew the
+  missing vocabulary first: a **text that knows whether it came**, a **strict
+  list of texts** (the plain `[]string` derives a **nullable** array, and the
+  old literals said `"array"`), and an **integer that knows whether it came**.
+  The door already refused the nulls and the mistyped fields before, so the
+  daemon's behaviour did not have to move — only the rows did.
+- **The write half's eleven operations now bind through ten contract rows** —
+  and the retirement and the revive share one, because they are the same
+  mutation with the flag turned around. The app layer keeps no copy: the ten
+  request structs and the eleven literals are gone. The contract's row table
+  grows from **57** to **68**.
+- **The object's numbers are read as they were written**, so a count that does
+  not fit in a float still reads as itself — the repo already had a test that
+  said so.
+- **The rules stayed in the family, and they are the family's own**: a patch
+  touches only the fields that were sent (a field that was sent empty is
+  patched, a field that was not sent is left alone), the task update reads
+  **presence** rather than value, and the enabled flag keeps its lenient
+  spelling.
+- **The daemon's behaviour did not change** — the door already refused the
+  mistyped bodies with the same words, so the app-level type readings were
+  unreachable anyway. The published document moved in **shape** only — the
+  roster's eight write-half endpoints now carry the derived form the read half
+  already had, and a semantic comparison of the whole document finds **zero**
+  changed paths; the generated client and the browser's generated types are
+  byte-identical.
+
+### What the measurement said
+
+- Request rows held by the contract: **57 → 68**.
+- Roster operations with a row: **8 → 19** (of 19); roster row types living in
+  the contract: **4 → 14**.
+- Hand-written input schemas in the roster family: **11 → 0**; hand-written
+  request structs: **10 → 0**.
+- Hand-written input schemas in the app layer: **128 → 117**.
+- The daemon's behaviour: **unchanged**.
+
+### The evidence
+
+`architecture/359-w539-the-roster-familys-write-half-has-one-request-row-per-operation-evidence.md`
+— the two declarations, the ten rows, the three new field types, the family's
+rules, the measurement, the five reverted mutations, and what remains open.
+
+### What the next slice should do
+
+**The families that still write their own schemas.** The rule is in place; the
+rows are the remaining work.
+
+- **The app layer still carries 117 hand-written input schemas.** The biggest
+  families left are the **edict** (11), the **runs** (8), the **memory** (7),
+  the **okr** (7), the **channels** (6), the **journal** (6), the **steer** (6),
+  the **tenants** (6), the **audit** (5), the **tools** (5), the **approvals**
+  (4), the **system** (4), and thirty more families of one to three.
+- **Those families read their fields loosely** — `any` and `json.RawMessage`
+  fields with hand-written readers that tolerate what the door would refuse.
+  Their rows need the same **reading rules** the roster's counts and lists
+  just got.
+- **The catalogue's `Args` and the request row are still two lists.**
+- **The console's ten native routes are not in the catalogue's route table.**
+- **The console's route policy answers a wrong verb in plain text**
+  ("method not allowed"), not with the envelope — a second refusal shape on the
+  wire.
+
 ## Current checkpoint — W5.38 the roster family's read half has one request row per operation, 2026-11-28
 
 The W0–W5 objective remains open. W5.8–W5.15 gave the **browser**, the

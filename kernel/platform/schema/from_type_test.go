@@ -352,6 +352,58 @@ func TestFromTypeDerivesTheUnionAListOfTextsCarries(t *testing.T) {
 	}
 }
 
+// TestFromTypeDerivesTheTextAndTheListOfTextsAndTheInteger says a field that
+// knows whether it was sent still derives the shape it carries: a text, a
+// list of texts, and an integer.
+func TestFromTypeDerivesTheTextAndTheListOfTextsAndTheInteger(t *testing.T) {
+	type payload struct {
+		Note   textField    `json:"note,omitempty"`
+		Tags   listField    `json:"tags,omitempty"`
+		Amount integerField `json:"amount,omitempty"`
+	}
+	raw, err := schema.FromType(reflect.TypeFor[payload](), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, value := range []string{`{"note":"a"}`, `{"tags":["a","b"]}`, `{"tags":[]}`, `{"amount":7}`} {
+		if err := schema.ValidateJSON(raw, json.RawMessage(value)); err != nil {
+			t.Errorf("valid input=%s error=%v", value, err)
+		}
+	}
+	for _, value := range []string{`{"note":7}`, `{"note":null}`, `{"tags":"a"}`, `{"tags":[1]}`, `{"amount":1.5}`, `{"amount":"7"}`} {
+		if err := schema.ValidateJSON(raw, json.RawMessage(value)); err == nil {
+			t.Errorf("invalid input=%s accepted", value)
+		}
+	}
+}
+
+// textField carries a text and knows whether it was sent.
+type textField struct{ text string }
+
+func (textField) JSONText() {}
+
+func (f *textField) UnmarshalJSON(data []byte) error { return json.Unmarshal(data, &f.text) }
+
+func (f textField) MarshalJSON() ([]byte, error) { return json.Marshal(f.text) }
+
+// listField carries a list of texts and knows whether it was sent.
+type listField struct{ texts []string }
+
+func (listField) TextArray() {}
+
+func (f *listField) UnmarshalJSON(data []byte) error { return json.Unmarshal(data, &f.texts) }
+
+func (f listField) MarshalJSON() ([]byte, error) { return json.Marshal(f.texts) }
+
+// integerField carries an integer and knows whether it was sent.
+type integerField struct{ number int64 }
+
+func (integerField) JSONInteger() {}
+
+func (f *integerField) UnmarshalJSON(data []byte) error { return json.Unmarshal(data, &f.number) }
+
+func (f integerField) MarshalJSON() ([]byte, error) { return json.Marshal(f.number) }
+
 // textList carries a list of texts, or the one string that stands for it.
 type textList struct{ texts []string }
 
