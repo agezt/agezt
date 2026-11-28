@@ -4,39 +4,14 @@ package roster
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"sort"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/agezt/agezt/kernel/app"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 )
-
-// GraveyardRequest keeps older_than_days raw: legacy callers send a number or a
-// numeric string, and any other value silently means "no age filter".
-type GraveyardRequest struct {
-	OlderThanDays json.RawMessage `json:"older_than_days,omitempty"`
-}
-
-func (r GraveyardRequest) days() float64 {
-	var v any
-	if json.Unmarshal(r.OlderThanDays, &v) != nil {
-		return 0
-	}
-	switch t := v.(type) {
-	case float64:
-		return t
-	case string:
-		// The parse error is ignored but its value kept (range errors yield ±Inf).
-		days, _ := strconv.ParseFloat(strings.TrimSpace(t), 64)
-		return days
-	}
-	return 0
-}
 
 type GraveyardRow struct {
 	AgeDays       int    `json:"age_days"`
@@ -97,8 +72,8 @@ func GraveyardOperations(provider func(context.Context) *GraveyardService) ([]ap
 	if provider == nil {
 		return nil, errors.New("roster graveyard provider required")
 	}
-	op, err := app.NewOperation(opapi.Spec{Name: opapi.AgentGraveyard, ReadOnly: true, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"older_than_days":{"type":["number","string"]}}}`)}, func(ctx context.Context, in GraveyardRequest) (GraveyardOutput, error) {
-		return provider(ctx).Graveyard(ctx, in.days()), nil
+	op, err := app.NewOperation(opapi.Spec{Name: opapi.AgentGraveyard, ReadOnly: true, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true}, func(ctx context.Context, in opapi.AgentGraveyardRequest) (GraveyardOutput, error) {
+		return provider(ctx).Graveyard(ctx, opapi.NumberFlagValue(in.OlderThanDays)), nil
 	})
 	if err != nil {
 		return nil, err

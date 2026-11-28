@@ -67,7 +67,7 @@ func ManagedDirectCallError(p agentapi.Profile, action string) string {
 // directTarget resolves the agent an operator action is sent to, rejecting
 // unknown, retired, paused and managed agents in that order.
 func directTarget(get func(string) (agentapi.Profile, bool), rawRef json.RawMessage, action string) (agentapi.Profile, error) {
-	ref, err := RefPageRequest{Ref: rawRef}.ref()
+	ref, err := rawRefOf(rawRef)
 	if err != nil {
 		return agentapi.Profile{}, err
 	}

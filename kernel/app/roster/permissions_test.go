@@ -81,9 +81,9 @@ func (f *permFixture) service() *PermissionService {
 	})
 }
 
-func permRequest(t *testing.T, raw string) PermissionsRequest {
+func permRequest(t *testing.T, raw string) opapi.AgentRefRequest {
 	t.Helper()
-	var in PermissionsRequest
+	var in opapi.AgentRefRequest
 	if err := json.Unmarshal([]byte(raw), &in); err != nil {
 		t.Fatal(err)
 	}
@@ -103,15 +103,20 @@ func TestPermissionsRef(t *testing.T) {
 	ctx := context.Background()
 	for raw, want := range map[string]string{`{}`: "args.ref required", `{"ref":""}`: "args.ref required", `{"ref":"  "}`: "args.ref required", `{"ref":3}`: "args.ref must be a string", `{"ref":null}`: "args.ref must be a string"} {
 		f := newPermFixture()
-		if _, err := f.service().Permissions(ctx, permRequest(t, raw)); err == nil || err.Error() != want || f.gets != 0 {
-			t.Fatal(raw, err, f.gets)
-		}
 		withField := strings.Replace(raw, "}", `,"workdir":3}`, 1)
 		if raw == `{}` {
 			withField = `{"workdir":3}`
 		}
 		if _, err := f.service().Capabilities(ctx, capRequest(t, withField)); err == nil || err.Error() != want || f.gets != 0 {
 			t.Fatal("capabilities checks the ref first", withField, err)
+		}
+	}
+	// The read half reads the same ref from the contract's row: a blank one is
+	// refused, and a mistyped one never reaches the service.
+	for raw, want := range map[string]string{`{}`: "args.ref required", `{"ref":""}`: "args.ref required", `{"ref":"  "}`: "args.ref required", `{"ref":null}`: "args.ref required"} {
+		f := newPermFixture()
+		if _, err := f.service().Permissions(ctx, permRequest(t, raw)); err == nil || err.Error() != want || f.gets != 0 {
+			t.Fatal(raw, err, f.gets)
 		}
 	}
 	f := newPermFixture()

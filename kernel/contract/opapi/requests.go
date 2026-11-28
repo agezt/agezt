@@ -30,6 +30,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 
 	"github.com/agezt/agezt/kernel/contract/boardapi"
@@ -327,6 +328,77 @@ func LimitValue(limit Limit, fallback int) int {
 		return fallback
 	}
 	return int(limit.value)
+}
+
+// NumberFlag is a request field that carries a number — or the STRING a
+// query string carries for one.
+//
+// The row says both forms are allowed: the schema derived from it is the union
+// of the two. The string is kept as it came, so the reader decides what it
+// means: the number it parses, and nothing at all when it does not parse.
+type NumberFlag struct {
+	present bool
+	isText  bool
+	number  float64
+	text    string
+}
+
+// UnmarshalJSON reads the number as it comes: a number, or a string to be read
+// as one.
+func (n *NumberFlag) UnmarshalJSON(data []byte) error {
+	var raw any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	switch value := raw.(type) {
+	case float64:
+		n.present, n.isText, n.number, n.text = true, false, value, ""
+	case string:
+		n.present, n.isText, n.number, n.text = true, true, 0, value
+	case nil:
+		// A null carries no number, but it was sent: the field is present and
+		// carries the zero.
+		n.present, n.isText, n.number, n.text = true, false, 0, ""
+	default:
+		return fmt.Errorf("must be a number")
+	}
+	return nil
+}
+
+// MarshalJSON writes the number as it came.
+func (n NumberFlag) MarshalJSON() ([]byte, error) {
+	if n.isText {
+		return json.Marshal(n.text)
+	}
+	return json.Marshal(n.number)
+}
+
+// Value returns the number the field carries.
+func (n NumberFlag) Value() any {
+	if n.isText {
+		return n.text
+	}
+	return n.number
+}
+
+// NumberOrString marks the type as carrying a number or the string a query
+// string carries for one, so the schema derives the union of the two.
+func (NumberFlag) NumberOrString() {}
+
+// NumberFlagValue reads a number field of a request row: the number it
+// carries, or the number its string parses to.
+//
+// A string that does not parse is no number at all: the parse error is
+// ignored, and the value it would have had — a range error's ±Inf — is kept.
+func NumberFlagValue(flag NumberFlag) float64 {
+	if !flag.present {
+		return 0
+	}
+	if flag.isText {
+		number, _ := strconv.ParseFloat(strings.TrimSpace(flag.text), 64)
+		return number
+	}
+	return flag.number
 }
 
 // TextList is a request field that carries a list of texts — or the ONE
@@ -657,6 +729,38 @@ type WorkflowTestNodeRequest struct {
 	Payload  AnyValue `json:"payload,omitempty"`
 }
 
+// AgentRefRequest is the request row of the operations that name ONE agent:
+// the agent's ref.
+//
+// The ref is the family's own text: it is required, and it is not trimmed —
+// the agent's name is the name it was given.
+type AgentRefRequest struct {
+	Ref string `json:"ref,omitempty"`
+}
+
+// AgentPageRequest is the request row of the operations that read one agent's
+// page: the agent's ref, the page size, and the cursor to continue from.
+type AgentPageRequest struct {
+	Ref    string `json:"ref,omitempty"`
+	Limit  Limit  `json:"limit,omitempty"`
+	Cursor string `json:"cursor,omitempty"`
+}
+
+// AgentListRequest is the agent_list request row: the page size and the
+// cursor to continue from.
+type AgentListRequest struct {
+	Limit  Limit  `json:"limit,omitempty"`
+	Cursor string `json:"cursor,omitempty"`
+}
+
+// AgentGraveyardRequest is the agent_graveyard request row: how old a
+// retirement must be to be reported.
+//
+// The age is a number — or the string a query string carries for one.
+type AgentGraveyardRequest struct {
+	OlderThanDays NumberFlag `json:"older_than_days,omitempty"`
+}
+
 // RequestRow binds one operation to its request row.
 type RequestRow struct {
 	// Operation is the operation's name.
@@ -731,6 +835,16 @@ var RequestRows = []RequestRow{
 	{Operation: WorkboardSweep, Row: WorkboardSweepRequest{}},
 	{Operation: WorkboardWatch, Row: WorkboardWatchRequest{}},
 	{Operation: WorkboardDispatch, Row: WorkboardDispatchRequest{}},
+	// The roster's read half: the operations that name one agent, the ones
+	// that read one agent's page, the listing, and the graveyard's age.
+	{Operation: AgentActivity, Row: AgentPageRequest{}},
+	{Operation: AgentEscalations, Row: AgentPageRequest{}},
+	{Operation: AgentRepairStatus, Row: AgentPageRequest{}},
+	{Operation: AgentImpact, Row: AgentRefRequest{}},
+	{Operation: AgentTombstone, Row: AgentRefRequest{}},
+	{Operation: AgentPermissions, Row: AgentRefRequest{}},
+	{Operation: AgentList, Row: AgentListRequest{}},
+	{Operation: AgentGraveyard, Row: AgentGraveyardRequest{}},
 }
 
 // Args returns the operation arguments a request row describes.

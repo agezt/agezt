@@ -67,7 +67,7 @@ type SetRetiredService struct{ ports SetRetiredPorts }
 func NewSetRetired(ports SetRetiredPorts) *SetRetiredService { return &SetRetiredService{ports: ports} }
 
 func (s *SetRetiredService) setRetired(in SetRetiredRequest, retired bool) (agentapi.Profile, string, error) {
-	ref, err := RefPageRequest{Ref: in.Ref}.ref()
+	ref, err := rawRefOf(in.Ref)
 	if err != nil {
 		return agentapi.Profile{}, "", err
 	}
@@ -83,7 +83,7 @@ func (s *SetRetiredService) Retire(_ context.Context, in SetRetiredRequest) (Ret
 	// affected.
 	var impact []string
 	var summary *ImpactOutput
-	if ref, err := (RefPageRequest{Ref: in.Ref}).ref(); err == nil {
+	if ref, err := rawRefOf(in.Ref); err == nil {
 		if p, ok := s.ports.Get(ref); ok {
 			out := s.ports.Impact(p)
 			impact, summary = out.StandingOrders, &out
@@ -120,7 +120,7 @@ func (s *SetRetiredService) Retire(_ context.Context, in SetRetiredRequest) (Ret
 }
 
 func (s *SetRetiredService) Revive(_ context.Context, in SetRetiredRequest) (ReviveOutput, error) {
-	if ref, err := (RefPageRequest{Ref: in.Ref}).ref(); err == nil {
+	if ref, err := rawRefOf(in.Ref); err == nil {
 		if p, ok := s.ports.Get(ref); ok {
 			if err := ValidateHierarchyRefs(p, s.ports.Get); err != nil {
 				return ReviveOutput{}, err

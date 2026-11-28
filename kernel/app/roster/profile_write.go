@@ -186,7 +186,7 @@ func (s *ProfileWriteService) Add(_ context.Context, in AddRequest) (ProfileWrit
 }
 
 func (s *ProfileWriteService) Edit(_ context.Context, in EditRequest) (ProfileWriteOutput, error) {
-	ref, err := RefPageRequest{Ref: in.Ref}.ref()
+	ref, err := rawRefOf(in.Ref)
 	if err != nil {
 		return ProfileWriteOutput{}, err
 	}

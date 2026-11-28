@@ -274,6 +274,39 @@ func TestTheLimitKnowsWhetherItCame(t *testing.T) {
 	}
 }
 
+// TestTheNumberFlagReadsANumberOrTheStringThatCarriesIt says a number field
+// carries a number — or the STRING a query string carries for one — and that a
+// string that does not parse is no number at all.
+func TestTheNumberFlagReadsANumberOrTheStringThatCarriesIt(t *testing.T) {
+	var days NumberFlag
+	if err := json.Unmarshal([]byte(`3`), &days); err != nil {
+		t.Fatal(err)
+	}
+	if got := NumberFlagValue(days); got != 3 {
+		t.Errorf("the number reads as %v", got)
+	}
+	var text NumberFlag
+	if err := json.Unmarshal([]byte(`" 4.5 "`), &text); err != nil {
+		t.Fatal(err)
+	}
+	if got := NumberFlagValue(text); got != 4.5 {
+		t.Errorf("the string reads as %v", got)
+	}
+	var soon NumberFlag
+	if err := json.Unmarshal([]byte(`"soon"`), &soon); err != nil {
+		t.Fatal(err)
+	}
+	if got := NumberFlagValue(soon); got != 0 {
+		t.Errorf("a string that does not parse reads as %v", got)
+	}
+	if got := NumberFlagValue(NumberFlag{}); got != 0 {
+		t.Errorf("an absent number reads as %v", got)
+	}
+	if err := json.Unmarshal([]byte(`true`), &days); err == nil {
+		t.Error("a boolean must not read as a number")
+	}
+}
+
 // TestTheTextListReadsAListOrTheOneStringThatCarriesIt says a list field
 // carries a list of texts — or the ONE comma-separated string a caller sends
 // instead — and that the members a list cannot use are dropped, not refused.

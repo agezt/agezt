@@ -54,7 +54,7 @@ func NewSetEnabled(set func(string, bool) (agentapi.Profile, error), pausedStand
 }
 
 func (s *SetEnabledService) SetEnabled(_ context.Context, in SetEnabledRequest) (SetEnabledOutput, error) {
-	ref, err := RefPageRequest{Ref: in.Ref}.ref()
+	ref, err := rawRefOf(in.Ref)
 	if err != nil {
 		return SetEnabledOutput{}, err
 	}

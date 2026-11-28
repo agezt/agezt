@@ -219,7 +219,7 @@ func (s *ResolveService) apply(p agentapi.Profile, resolution, summary string, i
 }
 
 func (s *ResolveService) Resolve(_ context.Context, in ResolveRequest) (ResolveOutput, error) {
-	ref, err := RefPageRequest{Ref: in.Ref}.ref()
+	ref, err := rawRefOf(in.Ref)
 	if err != nil {
 		return ResolveOutput{}, err
 	}

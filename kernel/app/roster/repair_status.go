@@ -258,8 +258,8 @@ func NewRepairStatus(get func(string) (agentapi.Profile, bool), journal func(fun
 	return &RepairStatusService{get: get, journal: journal, cooldown: cooldown, now: now}
 }
 
-func (s *RepairStatusService) RepairStatus(_ context.Context, in RepairStatusRequest) (RepairStatusOutput, error) {
-	ref, err := in.ref()
+func (s *RepairStatusService) RepairStatus(_ context.Context, in opapi.AgentPageRequest) (RepairStatusOutput, error) {
+	ref, err := refOf(in.Ref)
 	if err != nil {
 		return RepairStatusOutput{}, err
 	}
@@ -267,10 +267,7 @@ func (s *RepairStatusService) RepairStatus(_ context.Context, in RepairStatusReq
 	if !ok {
 		return RepairStatusOutput{}, errors.New("unknown agent: " + ref)
 	}
-	limit, err := in.limit(20, 100)
-	if err != nil {
-		return RepairStatusOutput{}, err
-	}
+	limit := pageLimit(in.Limit, 20, 100)
 	cooldown := s.cooldown()
 	var rows []RepairRow
 	latestByFingerprint := map[string]RepairRow{}
@@ -326,7 +323,7 @@ func (s *RepairStatusService) RepairStatus(_ context.Context, in RepairStatusReq
 	// action describe the agent's current state from the full row list, so the
 	// page is filtered into its own slice rather than over the full list.
 	history := rows
-	if cursorSeq, cursorOK := in.cursor(); cursorOK {
+	if cursorSeq, cursorOK := pageCursor(in.Cursor); cursorOK {
 		history = make([]RepairRow, 0, len(rows))
 		for _, r := range rows {
 			if r.Seq >= cursorSeq {
@@ -366,7 +363,7 @@ func RepairStatusOperations(provider func(context.Context) *RepairStatusService)
 	if provider == nil {
 		return nil, errors.New("roster repair status provider required")
 	}
-	op, err := app.NewOperation(opapi.Spec{Name: opapi.AgentRepairStatus, ReadOnly: true, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{"type":"string"},"limit":{"type":"number"},"cursor":{"type":"string"}}}`)}, func(ctx context.Context, in RepairStatusRequest) (RepairStatusOutput, error) {
+	op, err := app.NewOperation(opapi.Spec{Name: opapi.AgentRepairStatus, ReadOnly: true, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true}, func(ctx context.Context, in opapi.AgentPageRequest) (RepairStatusOutput, error) {
 		return provider(ctx).RepairStatus(ctx, in)
 	})
 	if err != nil {

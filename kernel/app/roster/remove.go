@@ -136,7 +136,7 @@ type RemoveService struct{ ports RemovePorts }
 func NewRemove(ports RemovePorts) *RemoveService { return &RemoveService{ports: ports} }
 
 func (s *RemoveService) Remove(_ context.Context, in RemoveRequest) (RemoveOutput, error) {
-	ref, err := RefPageRequest{Ref: in.Ref}.ref()
+	ref, err := rawRefOf(in.Ref)
 	if err != nil {
 		return RemoveOutput{}, err
 	}

@@ -6,10 +6,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"sort"
 	"strconv"
-	"strings"
 
 	"github.com/agezt/agezt/kernel/app"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
@@ -17,20 +15,8 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 )
 
-// RefPageRequest keeps every argument raw so the legacy order holds: ref is
-// validated and resolved before limit, and cursor is read leniently.
-type RefPageRequest struct {
-	Ref    json.RawMessage `json:"ref,omitempty"`
-	Limit  json.RawMessage `json:"limit,omitempty"`
-	Cursor json.RawMessage `json:"cursor,omitempty"`
-}
-
-// ActivityRequest and RepairStatusRequest share the per-agent page arguments.
-type (
-	ActivityRequest     = RefPageRequest
-	RepairStatusRequest = RefPageRequest
-)
-
+// rawValue reads a raw request field as it came: the value it carries, and
+// whether the field was sent at all.
 func rawValue(raw json.RawMessage) (any, bool) {
 	if len(raw) == 0 {
 		return nil, false
@@ -38,49 +24,6 @@ func rawValue(raw json.RawMessage) (any, bool) {
 	var v any
 	_ = json.Unmarshal(raw, &v)
 	return v, true
-}
-
-func (r RefPageRequest) ref() (string, error) {
-	v, present := rawValue(r.Ref)
-	ref, ok := v.(string)
-	if present && !ok {
-		return "", fmt.Errorf("args.ref must be a string")
-	}
-	if strings.TrimSpace(ref) == "" {
-		return "", fmt.Errorf("args.ref required")
-	}
-	return ref, nil
-}
-
-func (r RefPageRequest) limit(def, max int) (int, error) {
-	limit := def
-	if v, present := rawValue(r.Limit); present {
-		f, ok := v.(float64)
-		if !ok {
-			return 0, fmt.Errorf("args.limit must be a number")
-		}
-		if f > 0 {
-			limit = int(f)
-		}
-	}
-	if limit > max {
-		limit = max
-	}
-	return limit, nil
-}
-
-func (r RefPageRequest) cursor() (int64, bool) {
-	v, _ := rawValue(r.Cursor)
-	raw, _ := v.(string)
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return 0, false
-	}
-	seq, err := strconv.ParseInt(raw, 10, 64)
-	if err != nil || seq <= 0 {
-		return 0, false
-	}
-	return seq, true
 }
 
 type ActivityItem struct {
@@ -110,8 +53,8 @@ func NewActivity(get func(string) (agentapi.Profile, bool), journal func(func(*e
 	return &ActivityService{get: get, journal: journal}
 }
 
-func (s *ActivityService) Activity(_ context.Context, in ActivityRequest) (ActivityOutput, error) {
-	ref, err := in.ref()
+func (s *ActivityService) Activity(_ context.Context, in opapi.AgentPageRequest) (ActivityOutput, error) {
+	ref, err := refOf(in.Ref)
 	if err != nil {
 		return ActivityOutput{}, err
 	}
@@ -120,10 +63,7 @@ func (s *ActivityService) Activity(_ context.Context, in ActivityRequest) (Activ
 		return ActivityOutput{}, errors.New("unknown agent: " + ref)
 	}
 	slug := p.Slug
-	limit, err := in.limit(50, 500)
-	if err != nil {
-		return ActivityOutput{}, err
-	}
+	limit := pageLimit(in.Limit, 50, 500)
 
 	// One pass: task.received carries the agent slug, so its correlation ids
 	// scope the council consults and delegations that happened during the runs.
@@ -152,7 +92,7 @@ func (s *ActivityService) Activity(_ context.Context, in ActivityRequest) (Activ
 
 	// The cursor is the "<seq>" boundary of the previous page; the list is
 	// sorted DESC, so strictly older means strictly smaller seq.
-	if cursorSeq, cursorOK := in.cursor(); cursorOK {
+	if cursorSeq, cursorOK := pageCursor(in.Cursor); cursorOK {
 		filtered := items[:0]
 		for _, it := range items {
 			if it.Seq >= cursorSeq {
@@ -174,7 +114,7 @@ func ActivityOperations(provider func(context.Context) *ActivityService) ([]app.
 	if provider == nil {
 		return nil, errors.New("roster activity provider required")
 	}
-	op, err := app.NewOperation(opapi.Spec{Name: opapi.AgentActivity, ReadOnly: true, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{"type":"string"},"limit":{"type":"number"},"cursor":{"type":"string"}}}`)}, func(ctx context.Context, in ActivityRequest) (ActivityOutput, error) {
+	op, err := app.NewOperation(opapi.Spec{Name: opapi.AgentActivity, ReadOnly: true, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true}, func(ctx context.Context, in opapi.AgentPageRequest) (ActivityOutput, error) {
 		return provider(ctx).Activity(ctx, in)
 	})
 	if err != nil {

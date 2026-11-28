@@ -49,9 +49,11 @@ func escalationFixture(b fakeEscalationBoard, events []*event.Event, boardErr er
 
 func escalationRun(t *testing.T, s *EscalationService, raw string) (EscalationsOutput, error) {
 	t.Helper()
-	var in EscalationRequest
+	var in opapi.AgentPageRequest
 	if err := json.Unmarshal([]byte(raw), &in); err != nil {
-		t.Fatal(raw, err)
+		// A mistyped field is refused by the door before the service sees
+		// the body; here it is the decoder that refuses it.
+		return EscalationsOutput{}, err
 	}
 	return s.Escalations(context.Background(), in)
 }
@@ -133,23 +135,31 @@ func TestRosterEscalationsArgumentOrderAndCursor(t *testing.T) {
 		help = append(help, board.Message{ID: "m" + strconv.Itoa(1000+i), To: "a", Help: true, TSMS: int64(i / 2)})
 	}
 	s, boards, reads := escalationFixture(fakeEscalationBoard{help: help}, nil, nil)
-	for raw, want := range map[string]string{`{}`: "args.ref required", `{"ref":1}`: "args.ref must be a string", `{"ref":"ghost","limit":"x"}`: "unknown agent: ghost", `{"ref":"a","limit":"x","cursor":5}`: "args.limit must be a number"} {
+	for raw, want := range map[string]string{
+		`{}`: "args.ref required", `{"ref":"  "}`: "args.ref required", `{"ref":null}`: "args.ref required",
+		`{"ref":"ghost"}`: "unknown agent: ghost",
+	} {
 		if _, err := escalationRun(t, s, raw); err == nil || err.Error() != want {
 			t.Fatal(raw, err)
+		}
+	}
+	// A mistyped field never reaches the service: the door refuses it in the
+	// daemon, and the decoder refuses it here.
+	for _, raw := range []string{`{"ref":1}`, `{"ref":"a","limit":"x"}`, `{"ref":"a","cursor":5}`} {
+		if _, err := escalationRun(t, s, raw); err == nil {
+			t.Fatal(raw, "a mistyped field was accepted")
 		}
 	}
 	if *boards != 0 || *reads != 0 {
 		t.Fatal("board/journal before argument admission")
 	}
-	if _, err := escalationRun(t, s, `{"ref":"a","cursor":5}`); err == nil || err.Error() != "args.cursor must be a string" || *boards != 1 || *reads != 0 {
-		t.Fatal("cursor type error after board open", err, *boards, *reads)
-	}
-	if _, err := escalationRun(t, s, `{"ref":"a","cursor":null}`); err == nil || err.Error() != "args.cursor must be a string" {
+	// A null cursor is no cursor: the page starts at the beginning.
+	if _, err := escalationRun(t, s, `{"ref":"a","cursor":null}`); err != nil {
 		t.Fatal("null cursor", err)
 	}
 	failing, _, failReads := escalationFixture(fakeEscalationBoard{}, nil, errors.New("board offline"))
-	if _, err := escalationRun(t, failing, `{"ref":"a","cursor":5}`); err == nil || err.Error() != "board offline" || *failReads != 0 {
-		t.Fatal("board error precedes cursor error", err)
+	if _, err := escalationRun(t, failing, `{"ref":"a"}`); err == nil || err.Error() != "board offline" || *failReads != 0 {
+		t.Fatal("board error precedes the page", err)
 	}
 	for raw, want := range map[string]int{`{"ref":"a"}`: 20, `{"ref":"a","limit":100}`: 100, `{"ref":"a","limit":120}`: 100, `{"ref":"a","limit":1}`: 1, `{"ref":"a","limit":0.5}`: 130} {
 		out, err := escalationRun(t, s, raw)
@@ -194,7 +204,7 @@ func TestRosterEscalationsOperationSpecAndAdmission(t *testing.T) {
 		t.Fatal(ops, err)
 	}
 	spec := ops[0].Spec()
-	if spec.Name != "agent_escalations" || !spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.Input != reflect.TypeFor[EscalationRequest]() || spec.Output != reflect.TypeFor[EscalationsOutput]() {
+	if spec.Name != "agent_escalations" || !spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.Input != reflect.TypeFor[opapi.AgentPageRequest]() || spec.Output != reflect.TypeFor[EscalationsOutput]() {
 		t.Fatal(spec)
 	}
 	for _, principal := range []opapi.Principal{{Kind: opapi.Tenant, Tenant: "acme"}, {Kind: opapi.Agent}} {

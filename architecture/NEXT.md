@@ -1,5 +1,85 @@
 # NEXT — handoff for the next coding agent
 
+## Current checkpoint — W5.38 the roster family's read half has one request row per operation, 2026-11-28
+
+The W0–W5 objective remains open. W5.8–W5.15 gave the **browser**, the
+**registry** and the **SDKs** their request vocabulary; W5.11–W5.19 gave
+**every surface** that reads a request body its contract, its door and the
+boot-time check that holds the two together; W5.20 put a **gate** behind that
+sentence so it cannot decay; W5.21 closed W5.1's open end on the browser's
+**response** side; W5.22–W5.28 gave the daemon's own rows one home, one family
+at a time; W5.29–W5.32 gave the console's own answers one home each; W5.33
+checked the console's arguments against the registry, W5.34 gave the console's
+ten typed calls their rows, W5.35 finished the **workflow** family, W5.36 the
+**board** family and W5.37 the **workboard** family. **This slice gives the
+ROSTER family's read half the same home** — the board of agents, whose
+nineteen operations declared their shape twice across fifteen files, and whose
+readers carried the family's rules in hand-written helpers.
+
+### What was on the tree
+
+- **The roster declared its request shape twice** — a JSON Schema literal in
+  the app layer and a request struct beside it, spread over **fifteen** files,
+  with every field read **raw** by hand-written readers (`rawValue`, `ref()`,
+  `limit()`, `cursor()`, `days()`, `escalationCursor()`).
+- **The read half's eight operations now bind through four contract rows** —
+  the ones that name one agent, the ones that read one agent's page, the
+  listing, and the graveyard's age — and the app layer keeps no copy of them.
+  The contract's row table grows from **49** to **57**.
+- **The rules stayed in the family, and they are the family's own**: a ref is
+  required and is **not** trimmed; a page size that was not sent, or that is
+  zero, is the family's default; a fraction truncates to **no rows at all**
+  here — the roster's rule, which differs from the board's and the workboard's
+  — and the caps are 500 and 100.
+- **The graveyard's age is a number — or the string a query string carries for
+  one.** The row says so, the schema package derives the union from a
+  structural marker, and the reading stays lenient: a string that does not
+  parse is no age at all.
+- **The daemon's behaviour did not change** — the door already refused the
+  mistyped bodies with the same words, so the app-level type readings were
+  unreachable anyway. The published document did not move either.
+
+### What the measurement said
+
+- Request rows held by the contract: **49 → 57**.
+- Roster operations with a row: **0 → 8** (of 19 — the read half); roster row
+  types living in the contract: **0 → 4**.
+- Hand-written input schemas in the roster family: **19 → 11**; hand-written
+  request structs: **14 → 10**.
+- Hand-written input schemas in the app layer: **136 → 128**.
+- The daemon's behaviour: **unchanged**.
+
+### The evidence
+
+`architecture/358-w538-the-roster-familys-read-half-has-one-request-row-per-operation-evidence.md`
+— the two declarations, the four rows, the family's rules, the measurement, the
+five reverted mutations, and what remains open.
+
+### What the next slice should do
+
+**The roster's write half — and then the families that still write their own
+schemas.** The rule is in place; the rows are the remaining work.
+
+- **The roster's write half still writes its own schemas** — eleven
+  operations, eleven literals and ten request structs. Their shapes are the
+  ones the read half did not have: **objects** (`profile`, `cascade`,
+  `noise_policy`, `config_overrides`, `task`), **strict lists of texts**
+  (`tool_allow`, `tool_deny`, `task_model_chain`) and a **flag that is a
+  boolean or the string a query carries for one** (`enabled`).
+- **The app layer still carries 128 hand-written input schemas.** The biggest
+  families left are the roster's write half (**11**), the **edict** (11), the
+  **runs** (8), the **memory** (7), the **okr** (7), the **channels** (6), the
+  **journal** (6), the **steer** (6), the **tenants** (6), the **audit** (5),
+  the **tools** (5), the **approvals** (4), the **system** (4), and thirty more
+  families of one to three.
+- **Those families read their fields loosely** — `any` and `json.RawMessage`
+  fields with hand-written readers that tolerate what the door would refuse.
+- **The catalogue's `Args` and the request row are still two lists.**
+- **The console's ten native routes are not in the catalogue's route table.**
+- **The console's route policy answers a wrong verb in plain text**
+  ("method not allowed"), not with the envelope — a second refusal shape on the
+  wire.
+
 ## Current checkpoint — W5.37 the workboard family has one request row per operation, 2026-11-28
 
 The W0–W5 objective remains open. W5.8–W5.15 gave the **browser**, the

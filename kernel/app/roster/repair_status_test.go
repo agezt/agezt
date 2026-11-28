@@ -39,9 +39,11 @@ func repairFixture(p core.Profile, events []*event.Event, now time.Time) (*Repai
 
 func repairRun(t *testing.T, s *RepairStatusService, raw string) (RepairStatusOutput, error) {
 	t.Helper()
-	var in RepairStatusRequest
+	var in opapi.AgentPageRequest
 	if err := json.Unmarshal([]byte(raw), &in); err != nil {
-		t.Fatal(raw, err)
+		// A mistyped field is refused by the door before the service sees
+		// the body; here it is the decoder that refuses it.
+		return RepairStatusOutput{}, err
 	}
 	return s.RepairStatus(context.Background(), in)
 }
@@ -93,7 +95,7 @@ func TestRosterRepairStatusRowsInflightAndPaging(t *testing.T) {
 	if !reflect.DeepEqual(page.Latest, out.Latest) || *page.NextEligibleMS != *out.NextEligibleMS || !reflect.DeepEqual(page.NextAction, out.NextAction) || !reflect.DeepEqual(page.Inflight, out.Inflight) {
 		t.Fatal("current state moved with the cursor", page.Latest, page.NextAction)
 	}
-	for raw, want := range map[string][]int64{`{"ref":"a","cursor":" 4 "}`: {3, 1}, `{"ref":"a","cursor":"0"}`: {7, 4, 3, 1}, `{"ref":"a","cursor":4}`: {7, 4, 3, 1}, `{"ref":"a","limit":2}`: {7, 4}, `{"ref":"a","limit":0.5}`: {7, 4, 3, 1}} {
+	for raw, want := range map[string][]int64{`{"ref":"a","cursor":" 4 "}`: {3, 1}, `{"ref":"a","cursor":"0"}`: {7, 4, 3, 1}, `{"ref":"a","limit":2}`: {7, 4}, `{"ref":"a","limit":0.5}`: {7, 4, 3, 1}} {
 		got, err := repairRun(t, s, raw)
 		if err != nil || !reflect.DeepEqual(seqs(got.History), want) {
 			t.Fatal(raw, seqs(got.History), err)
@@ -121,9 +123,16 @@ func TestRosterRepairStatusArgumentsAndLimits(t *testing.T) {
 		events = append(events, repairEvent(i, map[string]any{"agent": "a", "phase": "completed"}))
 	}
 	s, reads := repairFixture(core.Profile{Slug: "a", Enabled: true}, events, time.Now())
-	for raw, want := range map[string]string{`{}`: "args.ref required", `{"ref":5}`: "args.ref must be a string", `{"ref":"ghost","limit":"x"}`: "unknown agent: ghost", `{"ref":"a","limit":"x"}`: "args.limit must be a number"} {
+	for raw, want := range map[string]string{`{}`: "args.ref required", `{"ref":null}`: "args.ref required", `{"ref":"ghost"}`: "unknown agent: ghost"} {
 		if _, err := repairRun(t, s, raw); err == nil || err.Error() != want {
 			t.Fatal(raw, err)
+		}
+	}
+	// A mistyped field never reaches the service: the door refuses it in the
+	// daemon, and the decoder refuses it here.
+	for _, raw := range []string{`{"ref":5}`, `{"ref":"ghost","limit":"x"}`, `{"ref":"a","limit":"x"}`} {
+		if _, err := repairRun(t, s, raw); err == nil {
+			t.Fatal(raw, "a mistyped field was accepted")
 		}
 	}
 	if *reads != 0 {
@@ -202,7 +211,7 @@ func TestRosterRepairStatusOperationSpecAndAdmission(t *testing.T) {
 		t.Fatal(ops, err)
 	}
 	spec := ops[0].Spec()
-	if spec.Name != "agent_repair_status" || !spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.Input != reflect.TypeFor[RepairStatusRequest]() || spec.Output != reflect.TypeFor[RepairStatusOutput]() {
+	if spec.Name != "agent_repair_status" || !spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.Input != reflect.TypeFor[opapi.AgentPageRequest]() || spec.Output != reflect.TypeFor[RepairStatusOutput]() {
 		t.Fatal(spec)
 	}
 	for _, principal := range []opapi.Principal{{Kind: opapi.Tenant, Tenant: "acme"}, {Kind: opapi.Agent}} {

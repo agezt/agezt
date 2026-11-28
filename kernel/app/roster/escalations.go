@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"sort"
 	"strconv"
 	"strings"
@@ -25,16 +24,9 @@ type EscalationBoard interface {
 	Replies(id string) []boardapi.Message
 }
 
-type EscalationRequest = RefPageRequest
-
-// escalationCursor is strict: a present non-string cursor is an error, and a
-// string decodes as "<ts_unix_ms>:<message_id>" or is ignored.
-func escalationCursor(raw json.RawMessage) (int64, string, error) {
-	v, present := rawValue(raw)
-	cursor, ok := v.(string)
-	if present && !ok {
-		return 0, "", fmt.Errorf("args.cursor must be a string")
-	}
+// escalationCursor is strict: a string decodes as
+// "<ts_unix_ms>:<message_id>" or is ignored.
+func escalationCursor(cursor string) (int64, string, error) {
 	if cursor == "" {
 		return 0, "", nil
 	}
@@ -94,8 +86,8 @@ func NewEscalations(get func(string) (agentapi.Profile, bool), board func() (Esc
 	return &EscalationService{get: get, board: board, journal: journal}
 }
 
-func (s *EscalationService) Escalations(_ context.Context, in EscalationRequest) (EscalationsOutput, error) {
-	ref, err := in.ref()
+func (s *EscalationService) Escalations(_ context.Context, in opapi.AgentPageRequest) (EscalationsOutput, error) {
+	ref, err := refOf(in.Ref)
 	if err != nil {
 		return EscalationsOutput{}, err
 	}
@@ -103,10 +95,7 @@ func (s *EscalationService) Escalations(_ context.Context, in EscalationRequest)
 	if !ok {
 		return EscalationsOutput{}, errors.New("unknown agent: " + ref)
 	}
-	limit, err := in.limit(20, 100)
-	if err != nil {
-		return EscalationsOutput{}, err
-	}
+	limit := pageLimit(in.Limit, 20, 100)
 	st, err := s.board()
 	if err != nil {
 		return EscalationsOutput{}, err
@@ -277,7 +266,7 @@ func EscalationOperations(provider func(context.Context) *EscalationService) ([]
 	if provider == nil {
 		return nil, errors.New("roster escalations provider required")
 	}
-	op, err := app.NewOperation(opapi.Spec{Name: opapi.AgentEscalations, ReadOnly: true, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{"type":"string"},"limit":{"type":"number"},"cursor":{"type":"string"}}}`)}, func(ctx context.Context, in EscalationRequest) (EscalationsOutput, error) {
+	op, err := app.NewOperation(opapi.Spec{Name: opapi.AgentEscalations, ReadOnly: true, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true}, func(ctx context.Context, in opapi.AgentPageRequest) (EscalationsOutput, error) {
 		return provider(ctx).Escalations(ctx, in)
 	})
 	if err != nil {

@@ -59,6 +59,16 @@ type jsonObject interface{ JSONObject() }
 // it rides in a wrapper — and the wrapper still derives the number itself.
 type jsonNumber interface{ JSONNumber() }
 
+// numberOrString is the marker a request field carries when it holds a
+// number — or the STRING a query string carries for one.
+//
+// Both shapes are what the daemon understands, so the union it derives names
+// both.
+type numberOrString interface{ NumberOrString() }
+
+// numberOrStringTypes is the union a number-or-text field derives.
+var numberOrStringTypes = []string{"number", "string"}
+
 // textList is the marker a request field carries when it holds a list of
 // texts — or the ONE comma-separated string a caller sends instead of a list.
 //
@@ -88,6 +98,9 @@ func typeNode(t reflect.Type, allowUnknown bool, visiting map[reflect.Type]bool)
 	}
 	if t.Implements(reflect.TypeFor[textList]()) {
 		return map[string]any{"type": textListTypes}, nil
+	}
+	if t.Implements(reflect.TypeFor[numberOrString]()) {
+		return map[string]any{"type": numberOrStringTypes}, nil
 	}
 	marshaler, unmarshaler := reflect.TypeFor[json.Marshaler](), reflect.TypeFor[json.Unmarshaler]()
 	if t.Implements(marshaler) || t.Implements(unmarshaler) || reflect.PointerTo(t).Implements(marshaler) || reflect.PointerTo(t).Implements(unmarshaler) {
