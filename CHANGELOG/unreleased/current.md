@@ -837,6 +837,30 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The edict family has one request row per operation.** The **edict** family
+  — the policy reads, the policy writes, the overlay and the decision log —
+  declared its request shape **twice**: a JSON Schema literal in the app layer
+  and a request struct beside it, spread over **four** files, with every field
+  read **raw** by hand-written readers (`rawValue`, `checkTenant`,
+  `optionalString`, `requiredString`, `lenientInt64`, `scope`). Those rows now
+  live in the contract, the app layer keeps no copy of them, and the contract's
+  row table grows from **68** to **79** — all **eleven** of the edict's
+  operations now have a row, the overlay's two sharing one because they are the
+  same read. The contract needed **no new vocabulary** for them: a **boolean**
+  for the denied flag, a **text** for the tenant, the tool, the capability, the
+  rule, the name, the level and the mode, and a **`Limit`** for the page and
+  the window — the convention the workboard already set, and a limit knows
+  **whether it was sent at all**, so *no page was asked for* and *a page of
+  zero* stay different answers. The family's rules stayed in the family: a page
+  is **twenty** rows, never fewer than one, never more than a thousand; a
+  window is truncated toward zero; a capability is required and is **not**
+  trimmed; a blank rule never reaches the engine. The daemon's behaviour did
+  not change — the door already refused the mistyped and the null bodies with
+  the same words and the same types, so the app-level type readings were
+  unreachable anyway. The published document did **not** move: the edict's
+  routes are the daemon's own, and the derived schemas say exactly what the
+  old literals said.
+
 - **The roster family's write half has one request row per operation.** The
   roster's **write half** — the capability patch, the profile writes, the
   removal, the repair, the resolve, the enable, the retirement, the task update

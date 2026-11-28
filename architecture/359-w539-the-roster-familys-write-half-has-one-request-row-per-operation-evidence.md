@@ -247,6 +247,15 @@ mutation was reverted and the tree is back to green).
 
 ## 6. What remains open
 
+- **The edict family still writes its own schemas** — eleven operations,
+  eleven literals and nine request structs. Their rows are the next slice's
+  work.
+
+  **Done in W5.40 for the edict family** — see
+  [360](360-w540-the-edict-family-has-one-request-row-per-operation-evidence.md);
+  the contract needed no new vocabulary for it (a boolean, a text and a
+  `Limit` were enough), and all **eleven** of the edict's operations now have
+  a row — the overlay's two sharing one.
 - **The app layer still carries 117 hand-written input schemas.** The biggest
   families left are the **edict** (11), the **runs** (8), the **memory** (7),
   the **okr** (7), the **channels** (6), the **journal** (6), the **steer** (6),

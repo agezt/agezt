@@ -40,6 +40,16 @@ func decode[T any](t *testing.T, raw string) T {
 	return v
 }
 
+// decodeError reads a request row the way the door reads it: a mistyped field
+// is refused before the service runs.
+func decodeError[T any](t *testing.T, raw string) {
+	t.Helper()
+	var v T
+	if err := json.Unmarshal([]byte(raw), &v); err == nil {
+		t.Fatal(raw, "a mistyped field was accepted")
+	}
+}
+
 func engine() *fakeEngine {
 	return &fakeEngine{
 		levels: map[core.Capability]core.TrustLevel{"shell.exec": core.TrustLevel(0), "net.fetch": core.TrustLevel(4)},
@@ -53,7 +63,7 @@ func engine() *fakeEngine {
 
 func TestShow(t *testing.T) {
 	e := engine()
-	out, err := New(e).Show(context.Background(), TenantRequest{})
+	out, err := New(e).Show(context.Background(), opapi.EdictTenantRequest{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,14 +79,14 @@ func TestShow(t *testing.T) {
 	if string(raw) != `{"name":"zz-runtime","substring":"rm -rf","applies_to":null}` {
 		t.Fatal("no applies_to means every capability (null)", string(raw))
 	}
-	empty, _ := New(&fakeEngine{}).Show(context.Background(), TenantRequest{})
+	empty, _ := New(&fakeEngine{}).Show(context.Background(), opapi.EdictTenantRequest{})
 	if raw, _ := json.Marshal(empty); string(raw) != `{"ask_policy":"`+core.AskPolicy(0).String()+`","levels":{},"hard_deny":[]}` {
 		t.Fatal(string(raw))
 	}
 }
 
 func TestDenyList(t *testing.T) {
-	out, err := New(engine()).DenyList(context.Background(), TenantRequest{})
+	out, err := New(engine()).DenyList(context.Background(), opapi.EdictTenantRequest{})
 	if err != nil || len(out.Rules) != 2 || out.Rules[0].Name != "aa-builtin" {
 		t.Fatalf("%+v %v", out, err)
 	}
@@ -89,23 +99,31 @@ func TestDenyList(t *testing.T) {
 	if string(raw) != `{"name":"zz-runtime","substring":"rm -rf","applies_to":null,"removable":`+map[bool]string{true: "true", false: "false"}[core.IsRuntimeRule("zz-runtime")]+`}` {
 		t.Fatal(string(raw))
 	}
-	empty, _ := New(&fakeEngine{}).DenyList(context.Background(), TenantRequest{})
+	empty, _ := New(&fakeEngine{}).DenyList(context.Background(), opapi.EdictTenantRequest{})
 	if raw, _ := json.Marshal(empty); string(raw) != `{"rules":[]}` {
 		t.Fatal(string(raw))
 	}
 }
 
+// TestTenantStrict says the routing tenant is strict: a tenant that is not a
+// string is refused at the door, before the service runs. The row itself
+// refuses the mistyped ones too.
 func TestTenantStrict(t *testing.T) {
 	ctx := context.Background()
+	ops, err := Operations(func(context.Context) *Service { return New(engine()) })
+	if err != nil || len(ops) != 3 {
+		t.Fatal(ops, err)
+	}
+	door := ops[0].Spec().InputSchema
 	for _, raw := range []string{`{"tenant":3}`, `{"tenant":null}`, `{"tenant":["a"]}`} {
-		if _, err := New(engine()).Show(ctx, decode[TenantRequest](t, raw)); err == nil || err.Error() != "args.tenant must be a string" {
-			t.Fatal(raw, err)
-		}
-		if _, err := New(engine()).DenyList(ctx, decode[TenantRequest](t, raw)); err == nil || err.Error() != "args.tenant must be a string" {
-			t.Fatal(raw, err)
+		if err := schema.ValidateJSON(door, json.RawMessage(raw)); err == nil {
+			t.Fatal(raw, "the door admitted a tenant that is not a string")
 		}
 	}
-	if _, err := New(engine()).Show(ctx, decode[TenantRequest](t, `{"tenant":" acme "}`)); err != nil {
+	for _, raw := range []string{`{"tenant":3}`, `{"tenant":["a"]}`} {
+		decodeError[opapi.EdictTenantRequest](t, raw)
+	}
+	if _, err := New(engine()).Show(ctx, decode[opapi.EdictTenantRequest](t, `{"tenant":" acme "}`)); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -113,28 +131,30 @@ func TestTenantStrict(t *testing.T) {
 func TestTest(t *testing.T) {
 	ctx := context.Background()
 	for raw, want := range map[string]string{
-		`{}`:                                     "args.capability required",
-		`{"capability":""}`:                      "args.capability required",
-		`{"capability":3}`:                       "args.capability required",
-		`{"capability":null,"tenant":3}`:         "args.capability required",
-		`{"capability":"shell.exec","tenant":3}`: "args.tenant must be a string",
+		`{}`:                  "args.capability required",
+		`{"capability":""}`:   "args.capability required",
+		`{"capability":null}`: "args.capability required",
 	} {
 		e := engine()
-		if _, err := New(e).Test(ctx, decode[TestRequest](t, raw)); err == nil || err.Error() != want || e.decided != nil {
+		if _, err := New(e).Test(ctx, decode[opapi.EdictTestRequest](t, raw)); err == nil || err.Error() != want || e.decided != nil {
 			t.Fatal(raw, err, e.decided)
 		}
 	}
+	// A mistyped capability, input or tenant is refused by the row itself.
+	for _, raw := range []string{`{"capability":3}`, `{"capability":null,"tenant":3}`, `{"capability":"shell.exec","tenant":3}`, `{"capability":" shell.exec","input":42}`} {
+		decodeError[opapi.EdictTestRequest](t, raw)
+	}
 	e := engine()
 	e.outcome = core.Outcome{Decision: "deny", Capability: "shell.exec", Level: core.TrustLevel(0), Reason: "hard deny", HardDenied: true, HardDenyRule: "aa-builtin", WouldAsk: true, RequiresApproval: true}
-	out, err := New(e).Test(ctx, decode[TestRequest](t, `{"capability":" shell.exec","input":42}`))
+	out, err := New(e).Test(ctx, decode[opapi.EdictTestRequest](t, `{"capability":" shell.exec"}`))
 	if err != nil || out != (TestOutput{Decision: "deny", Capability: "shell.exec", Level: core.TrustLevel(0).String(), Reason: "hard deny", HardDenied: true, HardDenyRule: "aa-builtin", WouldAsk: true, RequiresApproval: true}) {
 		t.Fatalf("%+v %v", out, err)
 	}
 	if !reflect.DeepEqual(e.decided, []string{" shell.exec|"}) {
-		t.Fatal("the capability passes untrimmed and a non-string input is an empty probe", e.decided)
+		t.Fatal("the capability passes untrimmed and an absent input is an empty probe", e.decided)
 	}
 	e.outcome = core.Outcome{Decision: "allow", Capability: "net.fetch", WouldAsk: true}
-	out, err = New(e).Test(ctx, decode[TestRequest](t, `{"capability":"net.fetch","input":"https://x"}`))
+	out, err = New(e).Test(ctx, decode[opapi.EdictTestRequest](t, `{"capability":"net.fetch","input":"https://x"}`))
 	if err != nil || e.decided[1] != "net.fetch|https://x" || !out.WouldAsk || out.RequiresApproval || out.HardDenied || out.HardDenyRule != "" {
 		t.Fatal("would-ask and requires-approval are reported separately", out, e.decided, err)
 	}
@@ -149,9 +169,9 @@ func TestOperations(t *testing.T) {
 		t.Fatal(ops, err)
 	}
 	s := New(engine())
-	show, _ := s.Show(context.Background(), TenantRequest{})
-	list, _ := s.DenyList(context.Background(), TenantRequest{})
-	probe, _ := s.Test(context.Background(), decode[TestRequest](t, `{"capability":"x"}`))
+	show, _ := s.Show(context.Background(), opapi.EdictTenantRequest{})
+	list, _ := s.DenyList(context.Background(), opapi.EdictTenantRequest{})
+	probe, _ := s.Test(context.Background(), decode[opapi.EdictTestRequest](t, `{"capability":"x"}`))
 	for i, w := range []struct {
 		name string
 		out  any

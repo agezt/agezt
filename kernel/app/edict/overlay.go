@@ -34,9 +34,7 @@ func NewOverlay(journal OverlayJournal, save SaveSnapshot, publish Publish) *Ove
 	return &Overlay{journal: journal, save: save, publish: publish}
 }
 
-// OverlayRequest takes no arguments; the tenant only routes.
-type OverlayRequest struct{}
-
+// OverlayDenyRow lists a rule; a nil applies_to means every capability.
 type OverlayDenyRow struct {
 	Name      string   `json:"name"`
 	Substring string   `json:"substring"`
@@ -78,7 +76,7 @@ func (o *Overlay) changes() ([]core.PolicyChange, error) {
 
 // Show reports the net overlay: levels, deny rules in fold order, the mode
 // override ("" when none) and how many changes were folded.
-func (o *Overlay) Show(context.Context, OverlayRequest) (OverlayOutput, error) {
+func (o *Overlay) Show(context.Context, opapi.EdictOverlayRequest) (OverlayOutput, error) {
 	changes, err := o.changes()
 	if err != nil {
 		return OverlayOutput{}, err
@@ -105,7 +103,7 @@ func (o *Overlay) Show(context.Context, OverlayRequest) (OverlayOutput, error) {
 // current head, then journals its content hash as policy.compacted so a boot
 // trusts only the snapshot the journal vouches for. The journal itself is
 // untouched.
-func (o *Overlay) Compact(context.Context, OverlayRequest) (CompactOutput, error) {
+func (o *Overlay) Compact(context.Context, opapi.EdictOverlayRequest) (CompactOutput, error) {
 	changes, err := o.changes()
 	if err != nil {
 		return CompactOutput{}, err
@@ -127,16 +125,15 @@ func OverlayOperations(provider func(context.Context) *Overlay) ([]app.Operation
 	if provider == nil {
 		return nil, errors.New("edict overlay provider required")
 	}
-	input := json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"tenant":{"type":"string"}}}`)
 	var ops []app.Operation
 	for _, b := range []func() error{
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.EdictOverlay, InputSchema: input}, func(ctx context.Context, in OverlayRequest) (OverlayOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.EdictOverlay}, func(ctx context.Context, in opapi.EdictOverlayRequest) (OverlayOutput, error) {
 				return provider(ctx).Show(ctx, in)
 			})
 		},
 		func() error {
-			return bindAs(&ops, opapi.Spec{Name: opapi.EdictCompact, InputSchema: input}, opapi.PrimaryOnly, func(ctx context.Context, in OverlayRequest) (CompactOutput, error) {
+			return bindAs(&ops, opapi.Spec{Name: opapi.EdictCompact}, opapi.PrimaryOnly, func(ctx context.Context, in opapi.EdictOverlayRequest) (CompactOutput, error) {
 				return provider(ctx).Compact(ctx, in)
 			})
 		},

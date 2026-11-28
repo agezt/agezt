@@ -70,54 +70,59 @@ func TestDenyAdd(t *testing.T) {
 	ctx := context.Background()
 	shellCap := string(core.AllCapabilities()[0])
 	for raw, want := range map[string]string{
-		`{"rule":3}`:                   "args.rule must be a string",
-		`{"rule":null}`:                "args.rule must be a string",
-		`{"rule":"a;b"}`:               "args.rule must specify exactly one deny rule (no ';' separators)",
-		`{"rule":"a;b","tenant":3}`:    "args.rule must specify exactly one deny rule (no ';' separators)",
-		`{"rule":"rm -rf","tenant":3}`: "args.tenant must be a string",
+		`{"rule":null}`:  "args.rule must specify exactly one deny rule (no ';' separators)",
+		`{"rule":"a;b"}`: "args.rule must specify exactly one deny rule (no ';' separators)",
 	} {
 		e, rec := &fakeWriteEngine{}, &recorder{}
-		if _, err := NewWrites(e, rec.publish).DenyAdd(ctx, decode[DenyAddRequest](t, raw)); err == nil || err.Error() != want || e.calls != nil || rec.specs != nil {
+		if _, err := NewWrites(e, rec.publish).DenyAdd(ctx, decode[opapi.EdictDenyAddRequest](t, raw)); err == nil || err.Error() != want || e.calls != nil || rec.specs != nil {
 			t.Fatal(raw, err, e.calls)
 		}
+	}
+	// A mistyped rule or tenant is refused by the row itself.
+	for _, raw := range []string{`{"rule":3}`, `{"rule":"a;b","tenant":3}`, `{"rule":"rm -rf","tenant":3}`} {
+		decodeError[opapi.EdictDenyAddRequest](t, raw)
 	}
 	for _, raw := range []string{`{}`, `{"rule":"  "}`} {
 		_, parseErr := core.ParseDenyRules(strings.TrimSpace(""))
 		e := &fakeWriteEngine{}
-		_, err := NewWrites(e, (&recorder{}).publish).DenyAdd(ctx, decode[DenyAddRequest](t, raw))
+		_, err := NewWrites(e, (&recorder{}).publish).DenyAdd(ctx, decode[opapi.EdictDenyAddRequest](t, raw))
 		if parseErr == nil && err == nil || e.calls != nil {
 			t.Fatal("a blank rule never reaches the engine", raw, err, e.calls)
 		}
 	}
 	e, rec := &fakeWriteEngine{rules: []core.HardDenyRule{{Name: "builtin"}}}, &recorder{}
-	out, err := NewWrites(e, rec.publish).DenyAdd(ctx, decode[DenyAddRequest](t, `{"rule":"`+shellCap+`:curl evil"}`))
+	out, err := NewWrites(e, rec.publish).DenyAdd(ctx, decode[opapi.EdictDenyAddRequest](t, `{"rule":"`+shellCap+`:curl evil"}`))
 	if err != nil || out.Name != "runtime[1]" || out.Substring != "curl evil" || !reflect.DeepEqual(out.AppliesTo, []string{shellCap}) || out.Count != 2 {
 		t.Fatalf("%+v %v", out, err)
 	}
 	if got := rec.payload(t, 0); got != `{"action":"deny.add","applies_to":["`+shellCap+`"],"count":2,"name":"runtime[1]","substring":"curl evil"}` {
 		t.Fatal(got)
 	}
-	global, _ := NewWrites(&fakeWriteEngine{}, (&recorder{}).publish).DenyAdd(ctx, decode[DenyAddRequest](t, `{"rule":"https://exfil.example"}`))
+	global, _ := NewWrites(&fakeWriteEngine{}, (&recorder{}).publish).DenyAdd(ctx, decode[opapi.EdictDenyAddRequest](t, `{"rule":"https://exfil.example"}`))
 	if raw, _ := json.Marshal(global); string(raw) != `{"name":"runtime[1]","substring":"https://exfil.example","applies_to":[],"count":1}` {
 		t.Fatal("a global rule reports an empty applies_to list", string(raw))
 	}
 	boom := errors.New("empty substring")
 	rec = &recorder{}
-	if _, err := NewWrites(&fakeWriteEngine{addErr: boom}, rec.publish).DenyAdd(ctx, decode[DenyAddRequest](t, `{"rule":"x"}`)); !errors.Is(err, boom) || rec.specs != nil {
+	if _, err := NewWrites(&fakeWriteEngine{addErr: boom}, rec.publish).DenyAdd(ctx, decode[opapi.EdictDenyAddRequest](t, `{"rule":"x"}`)); !errors.Is(err, boom) || rec.specs != nil {
 		t.Fatal("a refused rule journals nothing", err)
 	}
 }
 
 func TestDenyRemove(t *testing.T) {
 	ctx := context.Background()
-	for raw, want := range map[string]string{`{}`: "args.name required", `{"name":" "}`: "args.name required", `{"name":3}`: "args.name must be a string", `{"name":"x","tenant":3}`: "args.tenant must be a string"} {
+	for raw, want := range map[string]string{`{}`: "args.name required", `{"name":" "}`: "args.name required"} {
 		e := &fakeWriteEngine{}
-		if _, err := NewWrites(e, (&recorder{}).publish).DenyRemove(ctx, decode[DenyRemoveRequest](t, raw)); err == nil || err.Error() != want || e.calls != nil {
+		if _, err := NewWrites(e, (&recorder{}).publish).DenyRemove(ctx, decode[opapi.EdictDenyRemoveRequest](t, raw)); err == nil || err.Error() != want || e.calls != nil {
 			t.Fatal(raw, err)
 		}
 	}
+	// A mistyped name or tenant is refused by the row itself.
+	for _, raw := range []string{`{"name":3}`, `{"name":"x","tenant":3}`} {
+		decodeError[opapi.EdictDenyRemoveRequest](t, raw)
+	}
 	e, rec := &fakeWriteEngine{rules: []core.HardDenyRule{{Name: "a"}}, removed: true}, &recorder{}
-	out, err := NewWrites(e, rec.publish).DenyRemove(ctx, decode[DenyRemoveRequest](t, `{"name":" runtime[1] "}`))
+	out, err := NewWrites(e, rec.publish).DenyRemove(ctx, decode[opapi.EdictDenyRemoveRequest](t, `{"name":" runtime[1] "}`))
 	if err != nil || out != (DenyRemoveOutput{Removed: true, Count: 1}) || e.calls[0] != "rm: runtime[1] " {
 		t.Fatal(out, err, e.calls)
 	}
@@ -125,11 +130,11 @@ func TestDenyRemove(t *testing.T) {
 		t.Fatal(got)
 	}
 	rec = &recorder{}
-	if out, _ := NewWrites(&fakeWriteEngine{}, rec.publish).DenyRemove(ctx, decode[DenyRemoveRequest](t, `{"name":"ghost"}`)); out != (DenyRemoveOutput{}) || rec.specs != nil {
+	if out, _ := NewWrites(&fakeWriteEngine{}, rec.publish).DenyRemove(ctx, decode[opapi.EdictDenyRemoveRequest](t, `{"name":"ghost"}`)); out != (DenyRemoveOutput{}) || rec.specs != nil {
 		t.Fatal("nothing removed, nothing journaled", out, rec.specs)
 	}
 	boom := errors.New("cannot remove the boot-time floor")
-	if _, err := NewWrites(&fakeWriteEngine{removeErr: boom}, rec.publish).DenyRemove(ctx, decode[DenyRemoveRequest](t, `{"name":"builtin"}`)); !errors.Is(err, boom) || rec.specs != nil {
+	if _, err := NewWrites(&fakeWriteEngine{removeErr: boom}, rec.publish).DenyRemove(ctx, decode[opapi.EdictDenyRemoveRequest](t, `{"name":"builtin"}`)); !errors.Is(err, boom) || rec.specs != nil {
 		t.Fatal(err)
 	}
 }
@@ -139,22 +144,26 @@ func TestSetLevel(t *testing.T) {
 	known := string(core.AllCapabilities()[0])
 	level := core.TrustLevel(2).String()
 	for raw, want := range map[string]string{
-		`{}`:                              "args.capability required",
-		`{"capability":3}`:                "args.capability must be a string",
-		`{"capability":"nope","level":3}`: "unknown capability nope (see `edict show` for the governed set)",
-		`{"capability":"` + known + `","level":3}`:                          "args.level must be a string",
-		`{"capability":"` + known + `","level":"` + level + `","tenant":3}`: "args.tenant must be a string",
+		`{}`:                "args.capability required",
+		`{"capability":""}`: "args.capability required",
 	} {
 		e := &fakeWriteEngine{}
-		if _, err := NewWrites(e, (&recorder{}).publish).SetLevel(ctx, decode[SetLevelRequest](t, raw)); err == nil || err.Error() != want || e.calls != nil {
+		if _, err := NewWrites(e, (&recorder{}).publish).SetLevel(ctx, decode[opapi.EdictSetLevelRequest](t, raw)); err == nil || err.Error() != want || e.calls != nil {
 			t.Fatal(raw, err)
 		}
 	}
-	if _, err := NewWrites(&fakeWriteEngine{}, (&recorder{}).publish).SetLevel(ctx, decode[SetLevelRequest](t, `{"capability":"`+known+`","level":"bogus"}`)); err == nil {
+	// A mistyped capability, level or tenant is refused by the row itself.
+	for _, raw := range []string{`{"capability":3}`, `{"capability":"nope","level":3}`, `{"capability":"` + known + `","level":3}`, `{"capability":"` + known + `","level":"` + level + `","tenant":3}`} {
+		decodeError[opapi.EdictSetLevelRequest](t, raw)
+	}
+	if _, err := NewWrites(&fakeWriteEngine{}, (&recorder{}).publish).SetLevel(ctx, decode[opapi.EdictSetLevelRequest](t, `{"capability":"nope"}`)); err == nil || err.Error() != "unknown capability nope (see `edict show` for the governed set)" {
+		t.Fatal("an unknown capability is refused", err)
+	}
+	if _, err := NewWrites(&fakeWriteEngine{}, (&recorder{}).publish).SetLevel(ctx, decode[opapi.EdictSetLevelRequest](t, `{"capability":"`+known+`","level":"bogus"}`)); err == nil {
 		t.Fatal("an unparseable level is refused")
 	}
 	e, rec := &fakeWriteEngine{}, &recorder{}
-	out, err := NewWrites(e, rec.publish).SetLevel(ctx, decode[SetLevelRequest](t, `{"capability":"`+known+`","level":"`+level+`"}`))
+	out, err := NewWrites(e, rec.publish).SetLevel(ctx, decode[opapi.EdictSetLevelRequest](t, `{"capability":"`+known+`","level":"`+level+`"}`))
 	if err != nil || out != (SetLevelOutput{Capability: known, From: "unset", To: level}) || e.calls[0] != "level:"+known+"="+level {
 		t.Fatal(out, err, e.calls)
 	}
@@ -162,7 +171,7 @@ func TestSetLevel(t *testing.T) {
 		t.Fatal(got)
 	}
 	prev := &fakeWriteEngine{levels: map[core.Capability]core.TrustLevel{core.Capability(known): core.TrustLevel(4)}}
-	if out, _ := NewWrites(prev, (&recorder{}).publish).SetLevel(ctx, decode[SetLevelRequest](t, `{"capability":"`+known+`","level":"`+level+`"}`)); out.From != core.TrustLevel(4).String() {
+	if out, _ := NewWrites(prev, (&recorder{}).publish).SetLevel(ctx, decode[opapi.EdictSetLevelRequest](t, `{"capability":"`+known+`","level":"`+level+`"}`)); out.From != core.TrustLevel(4).String() {
 		t.Fatal(out)
 	}
 }
@@ -170,17 +179,15 @@ func TestSetLevel(t *testing.T) {
 func TestSetMode(t *testing.T) {
 	ctx := context.Background()
 	mode := core.AskPolicy(1).String()
-	for raw, want := range map[string]string{`{"mode":3}`: "args.mode must be a string", `{"mode":"` + mode + `","tenant":3}`: "args.tenant must be a string"} {
-		e := &fakeWriteEngine{}
-		if _, err := NewWrites(e, (&recorder{}).publish).SetMode(ctx, decode[SetModeRequest](t, raw)); err == nil || err.Error() != want || e.calls != nil {
-			t.Fatal(raw, err)
-		}
+	// A mistyped mode or tenant is refused by the row itself.
+	for _, raw := range []string{`{"mode":3}`, `{"mode":"` + mode + `","tenant":3}`} {
+		decodeError[opapi.EdictSetModeRequest](t, raw)
 	}
-	if _, err := NewWrites(&fakeWriteEngine{}, (&recorder{}).publish).SetMode(ctx, decode[SetModeRequest](t, `{"mode":"bogus"}`)); err == nil {
+	if _, err := NewWrites(&fakeWriteEngine{}, (&recorder{}).publish).SetMode(ctx, decode[opapi.EdictSetModeRequest](t, `{"mode":"bogus"}`)); err == nil {
 		t.Fatal("an unknown mode is refused")
 	}
 	e, rec := &fakeWriteEngine{policy: core.AskPolicy(0)}, &recorder{}
-	out, err := NewWrites(e, rec.publish).SetMode(ctx, decode[SetModeRequest](t, `{"mode":"`+mode+`"}`))
+	out, err := NewWrites(e, rec.publish).SetMode(ctx, decode[opapi.EdictSetModeRequest](t, `{"mode":"`+mode+`"}`))
 	if err != nil || out != (SetModeOutput{From: core.AskPolicy(0).String(), To: mode}) || e.calls[0] != "mode:"+mode {
 		t.Fatal(out, err, e.calls)
 	}
