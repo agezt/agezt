@@ -9,6 +9,7 @@ package opapi
 // arguments from it — so the row's field names are the only spelling of them.
 
 import (
+	"encoding/json"
 	"reflect"
 	"testing"
 
@@ -39,7 +40,15 @@ func TestTheRequestRowsAreBoundToTheirOperations(t *testing.T) {
 			continue
 		}
 		if shape.NumField() == 0 {
-			t.Errorf("the %s request row names no field", binding.Operation)
+			// A row that names no field says "this operation takes no
+			// arguments" — and the catalogue must agree: an operation the
+			// console forwards arguments to has a row that names them.
+			for _, route := range ConsoleRoutes() {
+				if route.Op == binding.Operation && len(route.Args) > 0 {
+					t.Errorf("the %s request row names no field, but the %s route forwards %v",
+						binding.Operation, route.Path, route.Args)
+				}
+			}
 		}
 		row, ok := requestRowOf(binding.Operation)
 		if !ok {
@@ -115,4 +124,138 @@ func TestRequiredTextRefusesABlankField(t *testing.T) {
 	if err != nil || value != " owned " {
 		t.Errorf("a named field passes through: %q %v", value, err)
 	}
+}
+
+// TestBoolFlagValueAcceptsTheStringsAQueryCanCarry says a flag reads as a
+// boolean, or as the string a query string carries for one — and that a typo
+// is refused rather than read as false.
+func TestBoolFlagValueAcceptsTheStringsAQueryCanCarry(t *testing.T) {
+	for _, in := range []any{true, "true", "TRUE", " yes ", "1"} {
+		flag := boolFlagOf(t, in)
+		value, err := BoolFlagValue(flag, "with_runs")
+		if err != nil || !value {
+			t.Errorf("BoolFlagValue(%#v) = (%v, %v), want (true, nil)", in, value, err)
+		}
+	}
+	for _, in := range []any{false, "false", "FALSE", " no ", "0"} {
+		flag := boolFlagOf(t, in)
+		value, err := BoolFlagValue(flag, "with_runs")
+		if err != nil || value {
+			t.Errorf("BoolFlagValue(%#v) = (%v, %v), want (false, nil)", in, value, err)
+		}
+	}
+}
+
+// TestBoolFlagValueDistinguishesAbsentFromFalse says a flag that was not sent
+// reads as false without being refused.
+func TestBoolFlagValueDistinguishesAbsentFromFalse(t *testing.T) {
+	value, err := BoolFlagValue(BoolFlag{}, "with_runs")
+	if err != nil || value {
+		t.Errorf("an absent flag = (%v, %v), want (false, nil)", value, err)
+	}
+}
+
+// TestBoolFlagValueRejectsATypoRatherThanReadingItAsFalse says a typo is
+// refused: silently treating "ture" as false is how a flag stops working
+// without anyone noticing.
+func TestBoolFlagValueRejectsATypoRatherThanReadingItAsFalse(t *testing.T) {
+	for _, in := range []any{"ture", "", 1.0, []any{true}} {
+		flag := boolFlagOf(t, in)
+		if _, err := BoolFlagValue(flag, "with_runs"); err == nil {
+			t.Errorf("BoolFlagValue(%#v) accepted a bad value", in)
+		}
+	}
+}
+
+// TestBoolFlagOrFalseReadsTheLenientWay says the lenient reading is the one
+// the "enabled" flag has always had: true, "true" and "1" are on, anything
+// else is off.
+func TestBoolFlagOrFalseReadsTheLenientWay(t *testing.T) {
+	for _, in := range []any{true, "true", "TRUE", "1"} {
+		if !BoolFlagOrFalse(boolFlagOf(t, in)) {
+			t.Errorf("BoolFlagOrFalse(%#v) must read as true", in)
+		}
+	}
+	for _, in := range []any{false, "false", "0", "ture", 1.0} {
+		if BoolFlagOrFalse(boolFlagOf(t, in)) {
+			t.Errorf("BoolFlagOrFalse(%#v) must read as false", in)
+		}
+	}
+	if BoolFlagOrFalse(BoolFlag{}) {
+		t.Error("an absent flag must read as false")
+	}
+}
+
+// TestTheFlagRidesTheWireAsItsBoolean says the flag's wrapper names its
+// type, but the wire carries the boolean.
+func TestTheFlagRidesTheWireAsItsBoolean(t *testing.T) {
+	args := Args(WorkflowListRequest{WithRuns: boolFlagOf(t, "yes")})
+	if args["with_runs"] != true {
+		t.Errorf("the flag rides the wire as %v, want true", args["with_runs"])
+	}
+	encoded, err := json.Marshal(WorkflowListRequest{WithRuns: boolFlagOf(t, "yes")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(encoded) != `{"with_runs":true}` {
+		t.Errorf("the row encodes as %s, want the boolean", encoded)
+	}
+}
+
+// TestLimitValueTellsAbsentFromZero says a limit that was not asked for is
+// not the same answer as a limit of zero.
+func TestLimitValueTellsAbsentFromZero(t *testing.T) {
+	if got := LimitValue(Limit{}, 25); got != 25 {
+		t.Errorf("an absent limit reads as %d, want the fallback 25", got)
+	}
+	var zero Limit
+	if err := json.Unmarshal([]byte(`0`), &zero); err != nil {
+		t.Fatal(err)
+	}
+	if got := LimitValue(zero, 25); got != 0 {
+		t.Errorf("a limit of zero reads as %d, want 0", got)
+	}
+	var asked Limit
+	if err := json.Unmarshal([]byte(`1.9`), &asked); err != nil {
+		t.Fatal(err)
+	}
+	if got := LimitValue(asked, 25); got != 1 {
+		t.Errorf("a limit of 1.9 reads as %d, want 1", got)
+	}
+}
+
+// TestTheObjectIsTheObjectItCarries says an object field carries its map and
+// nothing else.
+func TestTheObjectIsTheObjectItCarries(t *testing.T) {
+	var object Object
+	if err := json.Unmarshal([]byte(`{"nodes":[{"id":"start"}]}`), &object); err != nil {
+		t.Fatal(err)
+	}
+	if len(object.Map()) != 1 {
+		t.Errorf("the object carries %v", object.Map())
+	}
+	encoded, err := json.Marshal(object)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(encoded) != `{"nodes":[{"id":"start"}]}` {
+		t.Errorf("the object encodes as %s", encoded)
+	}
+	if err := json.Unmarshal([]byte(`null`), &object); err == nil {
+		t.Error("a null must not read as an object")
+	}
+}
+
+// boolFlagOf reads a flag from the JSON value it arrives as.
+func boolFlagOf(t *testing.T, value any) BoolFlag {
+	t.Helper()
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var flag BoolFlag
+	if err := json.Unmarshal(encoded, &flag); err != nil {
+		t.Fatalf("the flag %s does not decode: %v", encoded, err)
+	}
+	return flag
 }

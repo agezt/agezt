@@ -32,7 +32,7 @@ func (s *Server) applyRollbackCheckpoint(ctx context.Context, cp rollbackCheckpo
 		callCtx, cancel := context.WithTimeout(ctx, rollbackApplyTimeout)
 		defer cancel()
 		return s.client.Call(callCtx, opapi.WorkflowRestore, opapi.Args(opapi.WorkflowRestoreRequest{
-			Workflow: cp.Before, Reason: reason,
+			Workflow: opapi.ObjectOf(cp.Before), Reason: reason,
 		}))
 	case rollbackCheckpointKindConfig:
 		if rollbackable, ok := cp.Before["rollbackable"].(bool); ok && !rollbackable {

@@ -837,6 +837,35 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The workflow family has one request row per operation, and the shared
+  schema is retired.** The family's thirteen operations shared **two**
+  hand-written declarations — one fourteen-field JSON Schema literal and one
+  fourteen-field struct — so **every** operation declared **every** field:
+  `workflow_list` published a `secret`, a `node` and a `payload`, and the
+  eleven operations that shared the schema declared **154** fields between them
+  while the family's real vocabulary is **25**. Nothing said so, because the
+  shape was one shape. The eleven missing rows now live in the contract
+  (`kernel/contract/opapi/requests.go`), bound to their operations in one
+  table, and the app layer binds each operation through its own row — the
+  shared struct and the shared literal are **gone**. The rows also carry the
+  **reading**, not just the shape: a `BoolFlag` says a boolean *or the string a
+  query string carries for one* (the schema derives the same union the old
+  literal had) and keeps both readings the family always had — the strict one
+  that refuses a typo and the lenient one that reads an unknown spelling as
+  off; an `Object` says "a JSON object" and **not** "an object or null"; a
+  `Limit` knows whether it was sent at all, so "no limit asked" and "zero" stay
+  different answers. The schema package learned three structural markers for
+  this — a method is enough, so it needs no import from the contracts. The
+  published document narrowed on purpose: each operation now publishes **its
+  own** body, and the family's declared request fields went from **170** to
+  **25**. The daemon's behaviour did not change — the door refuses the same
+  mistyped bodies in the same words, before the graph is read. Measured:
+  request rows held by the contract **10 → 21**; workflow operations with a row
+  **2 → 13**; hand-written input schemas in the family **1 → 0**; the family's
+  shared request struct **1 → 0**; request fields the family declares **170 →
+  25**. **Five** reverted mutations prove it.
+
+
 - **The console's ten operations take their request row from the contract, and
   the schema is derived from that row.** The ten operations the console calls
   had their request shape written **twice** — as a JSON Schema literal in the

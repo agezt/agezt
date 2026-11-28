@@ -3542,25 +3542,20 @@ export interface WorkflowDraftResponse {
 
 /** WorkflowDraftRequest */
 export interface WorkflowDraftRequest {
-  async?: boolean;
-  data?: Record<string, any>;
   description?: string;
-  enabled?: boolean | string;
-  instruction?: string;
-  limit?: number;
   name?: string;
-  node?: string;
-  payload?: Record<string, any> | any[] | string | number | boolean;
-  reason?: string;
-  ref?: string;
-  secret?: string;
-  with_runs?: boolean | string;
-  workflow?: Record<string, any>;
 }
 
 /** WorkflowSetEnabledResponse */
 export interface WorkflowSetEnabledResponse {
   workflow: WorkflowListResponseWorkflowsItem;
+}
+
+/** WorkflowRefineRequest */
+export interface WorkflowRefineRequest {
+  instruction?: string;
+  ref?: string;
+  workflow?: Record<string, any>;
 }
 
 /** WorkflowRunResponse */
@@ -3571,6 +3566,13 @@ export interface WorkflowRunResponse {
   executed?: string[];
   outputs?: Record<string, any>;
   workflow?: string;
+}
+
+/** WorkflowRunRequest */
+export interface WorkflowRunRequest {
+  async?: boolean;
+  payload?: Record<string, any> | any[] | string | number | boolean;
+  ref?: string;
 }
 
 /** WorkflowRunsResponseRunsItemNodeEventsItem */
@@ -3620,6 +3622,11 @@ export interface WorkflowSaveResponse {
   workflow: WorkflowDraftResponseWorkflow;
 }
 
+/** WorkflowSaveRequest */
+export interface WorkflowSaveRequest {
+  workflow?: Record<string, any>;
+}
+
 /** WorkflowShowResponse */
 export interface WorkflowShowResponse {
   workflow: WorkflowDraftResponseWorkflow;
@@ -3647,6 +3654,14 @@ export interface WorkflowTestNodeResponse {
   correlation_id: string;
   output: any;
   port: string;
+}
+
+/** WorkflowTestNodeRequest */
+export interface WorkflowTestNodeRequest {
+  data?: Record<string, any>;
+  node?: string;
+  payload?: Record<string, any> | any[] | string | number | boolean;
+  workflow?: Record<string, any>;
 }
 
 /** WorldListResponseEdgesItem */
@@ -4204,14 +4219,8 @@ export type WorkflowRefineResponseWorkflow = WorkflowDraftResponseWorkflow;
 /** WorkflowRefineResponse is the same shape as WorkflowDraftResponse. */
 export type WorkflowRefineResponse = WorkflowDraftResponse;
 
-/** WorkflowRefineRequest is the same shape as WorkflowDraftRequest. */
-export type WorkflowRefineRequest = WorkflowDraftRequest;
-
 /** WorkflowRemoveResponse is the same shape as McpRemoveResponse. */
 export type WorkflowRemoveResponse = McpRemoveResponse;
-
-/** WorkflowRunRequest is the same shape as WorkflowDraftRequest. */
-export type WorkflowRunRequest = WorkflowDraftRequest;
 
 /** WorkflowSaveResponseWorkflowEdgesItem is the same shape as WorkflowDraftResponseWorkflowEdgesItem. */
 export type WorkflowSaveResponseWorkflowEdgesItem = WorkflowDraftResponseWorkflowEdgesItem;
@@ -4224,9 +4233,6 @@ export type WorkflowSaveResponseWorkflowNodesItem = WorkflowDraftResponseWorkflo
 
 /** WorkflowSaveResponseWorkflow is the same shape as WorkflowDraftResponseWorkflow. */
 export type WorkflowSaveResponseWorkflow = WorkflowDraftResponseWorkflow;
-
-/** WorkflowSaveRequest is the same shape as WorkflowDraftRequest. */
-export type WorkflowSaveRequest = WorkflowDraftRequest;
 
 /** WorkflowShowResponseWorkflowEdgesItem is the same shape as WorkflowDraftResponseWorkflowEdgesItem. */
 export type WorkflowShowResponseWorkflowEdgesItem = WorkflowDraftResponseWorkflowEdgesItem;
@@ -4251,9 +4257,6 @@ export type WorkflowTemplatesResponseTemplatesItemWorkflowNodesItem = WorkflowDr
 
 /** WorkflowTemplatesResponseTemplatesItemWorkflow is the same shape as WorkflowDraftResponseWorkflow. */
 export type WorkflowTemplatesResponseTemplatesItemWorkflow = WorkflowDraftResponseWorkflow;
-
-/** WorkflowTestNodeRequest is the same shape as WorkflowDraftRequest. */
-export type WorkflowTestNodeRequest = WorkflowDraftRequest;
 
 /** WorldForgetResponse is the same shape as MemoryForgetResponse. */
 export type WorldForgetResponse = MemoryForgetResponse;
