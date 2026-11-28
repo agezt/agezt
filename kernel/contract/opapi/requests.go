@@ -1031,6 +1031,74 @@ type AgentWakeRequest struct {
 	ParentIncidentID string `json:"parent_incident_id,omitempty"`
 }
 
+// EdictTenantRequest is the request row of the policy reads that take no
+// argument but the routing tenant.
+type EdictTenantRequest struct {
+	Tenant string `json:"tenant,omitempty"`
+}
+
+// EdictTestRequest is the edict_test request row: the capability to probe,
+// the input to probe it with, and the routing tenant.
+type EdictTestRequest struct {
+	Capability string `json:"capability,omitempty"`
+	Input      string `json:"input,omitempty"`
+	Tenant     string `json:"tenant,omitempty"`
+}
+
+// EdictDenyAddRequest is the edict_deny_add request row: the rule to add, and
+// the routing tenant.
+type EdictDenyAddRequest struct {
+	Rule   string `json:"rule,omitempty"`
+	Tenant string `json:"tenant,omitempty"`
+}
+
+// EdictDenyRemoveRequest is the edict_deny_rm request row: the rule's name,
+// and the routing tenant.
+type EdictDenyRemoveRequest struct {
+	Name   string `json:"name,omitempty"`
+	Tenant string `json:"tenant,omitempty"`
+}
+
+// EdictSetLevelRequest is the edict_set_level request row: the capability,
+// the trust level it gets, and the routing tenant.
+type EdictSetLevelRequest struct {
+	Capability string `json:"capability,omitempty"`
+	Level      string `json:"level,omitempty"`
+	Tenant     string `json:"tenant,omitempty"`
+}
+
+// EdictSetModeRequest is the edict_set_mode request row: the ask mode, and
+// the routing tenant.
+type EdictSetModeRequest struct {
+	Mode   string `json:"mode,omitempty"`
+	Tenant string `json:"tenant,omitempty"`
+}
+
+// EdictOverlayRequest is the request row of the overlay's two operations: the
+// routing tenant and nothing else.
+type EdictOverlayRequest struct {
+	Tenant string `json:"tenant,omitempty"`
+}
+
+// EdictDecisionLogRequest is the edict_log request row: the denied flag, the
+// tool and capability filters, the page, the window and the cursor.
+type EdictDecisionLogRequest struct {
+	Denied     bool   `json:"denied,omitempty"`
+	Tool       string `json:"tool,omitempty"`
+	Capability string `json:"capability,omitempty"`
+	Limit      Limit  `json:"limit,omitempty"`
+	SinceMS    Limit  `json:"since_ms,omitempty"`
+	Cursor     string `json:"cursor,omitempty"`
+}
+
+// EdictDecisionStatsRequest is the edict_stats request row: the window, and
+// the tool and capability filters.
+type EdictDecisionStatsRequest struct {
+	SinceMS    Limit  `json:"since_ms,omitempty"`
+	Tool       string `json:"tool,omitempty"`
+	Capability string `json:"capability,omitempty"`
+}
+
 // RequestRow binds one operation to its request row.
 type RequestRow struct {
 	// Operation is the operation's name.
@@ -1129,6 +1197,20 @@ var RequestRows = []RequestRow{
 	{Operation: AgentRevive, Row: AgentSetRetiredRequest{}},
 	{Operation: AgentTaskUpdate, Row: AgentTaskUpdateRequest{}},
 	{Operation: AgentWake, Row: AgentWakeRequest{}},
+	// The edict family: the policy engine's own reads and writes. The
+	// overlay's two operations share a row, because the tenant is all they
+	// take.
+	{Operation: EdictShow, Row: EdictTenantRequest{}},
+	{Operation: EdictDenyList, Row: EdictTenantRequest{}},
+	{Operation: EdictTest, Row: EdictTestRequest{}},
+	{Operation: EdictDenyAdd, Row: EdictDenyAddRequest{}},
+	{Operation: EdictDenyRemove, Row: EdictDenyRemoveRequest{}},
+	{Operation: EdictSetLevel, Row: EdictSetLevelRequest{}},
+	{Operation: EdictSetMode, Row: EdictSetModeRequest{}},
+	{Operation: EdictOverlay, Row: EdictOverlayRequest{}},
+	{Operation: EdictCompact, Row: EdictOverlayRequest{}},
+	{Operation: EdictLog, Row: EdictDecisionLogRequest{}},
+	{Operation: EdictStats, Row: EdictDecisionStatsRequest{}},
 }
 
 // Args returns the operation arguments a request row describes.

@@ -30,21 +30,6 @@ func NewDecisions(journal journalview.Reader, now func() time.Time) *Decisions {
 	return &Decisions{journal: journal, now: now}
 }
 
-type DecisionLogRequest struct {
-	Denied     json.RawMessage `json:"denied,omitempty"`
-	Tool       json.RawMessage `json:"tool,omitempty"`
-	Capability json.RawMessage `json:"capability,omitempty"`
-	Limit      json.RawMessage `json:"limit,omitempty"`
-	SinceMS    json.RawMessage `json:"since_ms,omitempty"`
-	Cursor     json.RawMessage `json:"cursor,omitempty"`
-}
-
-type DecisionStatsRequest struct {
-	SinceMS    json.RawMessage `json:"since_ms,omitempty"`
-	Tool       json.RawMessage `json:"tool,omitempty"`
-	Capability json.RawMessage `json:"capability,omitempty"`
-}
-
 type DecisionRow struct {
 	Actor         string `json:"actor"`
 	CorrelationID string `json:"correlation_id"`
@@ -91,62 +76,31 @@ func decodeDecision(payload json.RawMessage) decision {
 	return d
 }
 
-// lenientInt64 reads a JSON number truncated toward zero; anything else is 0.
-func lenientInt64(raw json.RawMessage) int64 {
-	n, _ := rawValue(raw).(float64)
-	return int64(n)
-}
-
 func (d *Decisions) cutoff(since int64) int64 {
 	if since > 0 {
 		return d.now().UnixMilli() - since
 	}
 	return 0
 }
-
-// scope reads the strict tool and capability filters, in that order.
-func scope(tool, capability json.RawMessage) (string, string, error) {
-	t, err := optionalString(tool, "tool")
-	if err != nil {
-		return "", "", err
-	}
-	c, err := optionalString(capability, "capability")
-	if err != nil {
-		return "", "", err
-	}
-	return t, c, nil
-}
-
 func (s decision) matches(tool, capability string) bool {
 	return (tool == "" || s.Tool == tool) && (capability == "" || s.Capability == capability)
 }
 
 // Log lists policy decisions newest first: a strict denied flag, then the
-// strict tool and capability filters, then the lenient page.
-func (d *Decisions) Log(_ context.Context, in DecisionLogRequest) (DecisionsOutput, error) {
-	var deniedOnly bool
-	if len(in.Denied) != 0 {
-		b, ok := rawValue(in.Denied).(bool)
-		if !ok {
-			return DecisionsOutput{}, errors.New("args.denied must be a boolean")
-		}
-		deniedOnly = b
-	}
-	tool, capability, err := scope(in.Tool, in.Capability)
-	if err != nil {
-		return DecisionsOutput{}, err
-	}
+// tool and capability filters, then the lenient page.
+func (d *Decisions) Log(_ context.Context, in opapi.EdictDecisionLogRequest) (DecisionsOutput, error) {
+	tool, capability := in.Tool, in.Capability
 	limit := defaultDecisionLimit
-	if v, ok := rawValue(in.Limit).(float64); ok {
-		limit = int(v)
+	if in.Limit.Present() {
+		limit = int(in.Limit.Number())
 	}
-	page := journalview.Input{Limit: min(max(limit, 1), maxDecisionLimit), CutoffMS: d.cutoff(lenientInt64(in.SinceMS)), Cursor: rawValue(in.Cursor)}
+	page := journalview.Input{Limit: min(max(limit, 1), maxDecisionLimit), CutoffMS: d.cutoff(int64(in.SinceMS.Number())), Cursor: in.Cursor}
 	out, err := journalview.ProjectValues(d.journal, page, func(e *event.Event) (DecisionRow, bool) {
 		if e.Kind != event.KindPolicyDecision {
 			return DecisionRow{}, false
 		}
 		p := decodeDecision(e.Payload)
-		if deniedOnly && p.Allow || !p.matches(tool, capability) {
+		if in.Denied && p.Allow || !p.matches(tool, capability) {
 			return DecisionRow{}, false
 		}
 		return DecisionRow{Actor: e.Actor, CorrelationID: e.CorrelationID, Tool: p.Tool, Capability: p.Capability, Allow: p.Allow, Reason: p.Reason, HardDenied: p.HardDenied, TSUnixMS: e.TSUnixMS, Seq: e.Seq}, true
@@ -159,12 +113,9 @@ func (d *Decisions) Log(_ context.Context, in DecisionLogRequest) (DecisionsOutp
 
 // Stats aggregates the decisions in the window: totals, the denial rate and the
 // denials by capability ("unknown" when none was recorded).
-func (d *Decisions) Stats(_ context.Context, in DecisionStatsRequest) (DecisionStatsOutput, error) {
-	since := lenientInt64(in.SinceMS)
-	tool, capability, err := scope(in.Tool, in.Capability)
-	if err != nil {
-		return DecisionStatsOutput{}, err
-	}
+func (d *Decisions) Stats(_ context.Context, in opapi.EdictDecisionStatsRequest) (DecisionStatsOutput, error) {
+	since := int64(in.SinceMS.Number())
+	tool, capability := in.Tool, in.Capability
 	cutoff := d.cutoff(since)
 	out := DecisionStatsOutput{DeniedByCapability: map[string]int{}, WindowMS: since}
 	if err := d.journal.Range(func(e *event.Event) error {
@@ -208,12 +159,12 @@ func DecisionOperations(provider func(context.Context) *Decisions) ([]app.Operat
 	var ops []app.Operation
 	for _, b := range []func() error{
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.EdictLog, ReadOnly: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"denied":{"type":"boolean"},"tool":{"type":"string"},"capability":{"type":"string"},"limit":{"type":"number"},"since_ms":{"type":"number"},"cursor":{"type":"string"}}}`)}, func(ctx context.Context, in DecisionLogRequest) (DecisionsOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.EdictLog, ReadOnly: true}, func(ctx context.Context, in opapi.EdictDecisionLogRequest) (DecisionsOutput, error) {
 				return provider(ctx).Log(ctx, in)
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.EdictStats, ReadOnly: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"since_ms":{"type":"number"},"tool":{"type":"string"},"capability":{"type":"string"}}}`)}, func(ctx context.Context, in DecisionStatsRequest) (DecisionStatsOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.EdictStats, ReadOnly: true}, func(ctx context.Context, in opapi.EdictDecisionStatsRequest) (DecisionStatsOutput, error) {
 				return provider(ctx).Stats(ctx, in)
 			})
 		},

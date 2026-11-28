@@ -4,9 +4,7 @@ package edict
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"reflect"
 	"sort"
 
@@ -22,18 +20,6 @@ type Engine interface {
 	HardDenyRules() []core.HardDenyRule
 	AskPolicy() core.AskPolicy
 	Decide(core.Capability, string) core.Outcome
-}
-
-// TenantRequest carries only the routing tenant, which every edict command
-// validates as a strict optional string.
-type TenantRequest struct {
-	Tenant json.RawMessage `json:"tenant,omitempty"`
-}
-
-type TestRequest struct {
-	Capability json.RawMessage `json:"capability,omitempty"`
-	Input      json.RawMessage `json:"input,omitempty"`
-	Tenant     json.RawMessage `json:"tenant,omitempty"`
 }
 
 // HardDenyRow lists a rule; a nil applies_to means every capability.
@@ -69,26 +55,6 @@ type TestOutput struct {
 	RequiresApproval bool   `json:"requires_approval"`
 }
 
-func rawValue(raw json.RawMessage) any {
-	var v any
-	if len(raw) != 0 {
-		_ = json.Unmarshal(raw, &v)
-	}
-	return v
-}
-
-// checkTenant enforces the strict string form of the routing tenant; routing
-// itself already followed the trimmed value.
-func checkTenant(raw json.RawMessage) error {
-	if len(raw) == 0 {
-		return nil
-	}
-	if _, ok := rawValue(raw).(string); !ok {
-		return fmt.Errorf("args.tenant must be a string")
-	}
-	return nil
-}
-
 // sortedRules returns the rules ordered by name.
 func sortedRules(rules []core.HardDenyRule) []core.HardDenyRule {
 	sort.Slice(rules, func(i, j int) bool { return rules[i].Name < rules[j].Name })
@@ -110,10 +76,7 @@ func New(engine Engine) *Service { return &Service{engine: engine} }
 
 // Show reports the ask policy, every capability's trust level and the
 // hard-deny rules sorted by name.
-func (s *Service) Show(_ context.Context, in TenantRequest) (ShowOutput, error) {
-	if err := checkTenant(in.Tenant); err != nil {
-		return ShowOutput{}, err
-	}
+func (s *Service) Show(_ context.Context, _ opapi.EdictTenantRequest) (ShowOutput, error) {
 	out := ShowOutput{AskPolicy: s.engine.AskPolicy().String(), Levels: map[string]string{}, HardDeny: []HardDenyRow{}}
 	for c, level := range s.engine.Levels() {
 		out.Levels[string(c)] = level.String()
@@ -126,10 +89,7 @@ func (s *Service) Show(_ context.Context, in TenantRequest) (ShowOutput, error) 
 
 // DenyList lists the hard-deny rules by name, marking those added at runtime as
 // removable.
-func (s *Service) DenyList(_ context.Context, in TenantRequest) (DenyListOutput, error) {
-	if err := checkTenant(in.Tenant); err != nil {
-		return DenyListOutput{}, err
-	}
+func (s *Service) DenyList(_ context.Context, _ opapi.EdictTenantRequest) (DenyListOutput, error) {
 	out := DenyListOutput{Rules: []DenyRuleRow{}}
 	for _, r := range sortedRules(s.engine.HardDenyRules()) {
 		out.Rules = append(out.Rules, DenyRuleRow{HardDenyRow: hardDenyRow(r), Removable: core.IsRuntimeRule(r.Name)})
@@ -139,16 +99,11 @@ func (s *Service) DenyList(_ context.Context, in TenantRequest) (DenyListOutput,
 
 // Test dry-runs one policy decision in the vocabulary the runtime journals. The
 // capability is required; an empty input is a valid probe.
-func (s *Service) Test(_ context.Context, in TestRequest) (TestOutput, error) {
-	capability, _ := rawValue(in.Capability).(string)
-	if capability == "" {
+func (s *Service) Test(_ context.Context, in opapi.EdictTestRequest) (TestOutput, error) {
+	if in.Capability == "" {
 		return TestOutput{}, errors.New("args.capability required")
 	}
-	input, _ := rawValue(in.Input).(string)
-	if err := checkTenant(in.Tenant); err != nil {
-		return TestOutput{}, err
-	}
-	o := s.engine.Decide(core.Capability(capability), input)
+	o := s.engine.Decide(core.Capability(in.Capability), in.Input)
 	return TestOutput{Decision: string(o.Decision), Capability: string(o.Capability), Level: o.Level.String(), Reason: o.Reason, HardDenied: o.HardDenied, HardDenyRule: o.HardDenyRule, WouldAsk: o.WouldAsk, RequiresApproval: o.RequiresApproval}, nil
 }
 
@@ -178,21 +133,20 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 	if provider == nil {
 		return nil, errors.New("edict provider required")
 	}
-	tenantSchema := json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"tenant":{"type":"string"}}}`)
 	var ops []app.Operation
 	for _, b := range []func() error{
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.EdictShow, ReadOnly: true, InputSchema: tenantSchema}, func(ctx context.Context, in TenantRequest) (ShowOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.EdictShow, ReadOnly: true}, func(ctx context.Context, in opapi.EdictTenantRequest) (ShowOutput, error) {
 				return provider(ctx).Show(ctx, in)
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.EdictDenyList, ReadOnly: true, InputSchema: tenantSchema}, func(ctx context.Context, in TenantRequest) (DenyListOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.EdictDenyList, ReadOnly: true}, func(ctx context.Context, in opapi.EdictTenantRequest) (DenyListOutput, error) {
 				return provider(ctx).DenyList(ctx, in)
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.EdictTest, ReadOnly: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"capability":{"type":"string"},"input":{"type":"string"},"tenant":{"type":"string"}}}`)}, func(ctx context.Context, in TestRequest) (TestOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.EdictTest, ReadOnly: true}, func(ctx context.Context, in opapi.EdictTestRequest) (TestOutput, error) {
 				return provider(ctx).Test(ctx, in)
 			})
 		},

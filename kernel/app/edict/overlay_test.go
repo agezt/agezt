@@ -40,7 +40,7 @@ func policyJournal() overlayJournal {
 }
 
 func TestOverlayShow(t *testing.T) {
-	out, err := NewOverlay(policyJournal(), nil, nil).Show(context.Background(), OverlayRequest{})
+	out, err := NewOverlay(policyJournal(), nil, nil).Show(context.Background(), opapi.EdictOverlayRequest{})
 	var changes []core.PolicyChange
 	for _, e := range policyJournal().events {
 		var ch core.PolicyChange
@@ -64,17 +64,17 @@ func TestOverlayShow(t *testing.T) {
 	if !reflect.DeepEqual(out.DenyRules, []OverlayDenyRow{{Name: "runtime[2]", Substring: "exfil", AppliesTo: []string{}}, {Name: "runtime[3]", Substring: "/srv", AppliesTo: []string{"file.delete", "file.write"}}}) {
 		t.Fatal("the removed rule is gone and the survivor keeps its scope", out.DenyRules)
 	}
-	empty, _ := NewOverlay(overlayJournal{}, nil, nil).Show(context.Background(), OverlayRequest{})
+	empty, _ := NewOverlay(overlayJournal{}, nil, nil).Show(context.Background(), opapi.EdictOverlayRequest{})
 	if raw, _ := json.Marshal(empty); string(raw) != `{"levels":{},"deny_rules":[],"mode":"","empty":true,"changes_folded":0}` {
 		t.Fatal(string(raw))
 	}
 	global := overlayJournal{fakeJournal: fakeJournal{events: []*event.Event{{Kind: event.KindPolicyChanged, Payload: json.RawMessage(`{"action":"deny.add","name":"runtime[1]","substring":"x"}`)}}}}
-	g, _ := NewOverlay(global, nil, nil).Show(context.Background(), OverlayRequest{})
+	g, _ := NewOverlay(global, nil, nil).Show(context.Background(), opapi.EdictOverlayRequest{})
 	if raw, _ := json.Marshal(g.DenyRules); string(raw) != `[{"name":"runtime[1]","substring":"x","applies_to":[]}]` {
 		t.Fatal("a global rule reports an empty applies_to list", string(raw))
 	}
 	boom := errors.New("journal unreadable")
-	if _, err := NewOverlay(overlayJournal{fakeJournal: fakeJournal{err: boom}}, nil, nil).Show(context.Background(), OverlayRequest{}); !errors.Is(err, boom) {
+	if _, err := NewOverlay(overlayJournal{fakeJournal: fakeJournal{err: boom}}, nil, nil).Show(context.Background(), opapi.EdictOverlayRequest{}); !errors.Is(err, boom) {
 		t.Fatal(err)
 	}
 }
@@ -83,7 +83,7 @@ func TestOverlayCompact(t *testing.T) {
 	var saved []*core.OverlaySnapshot
 	rec := &recorder{}
 	o := NewOverlay(policyJournal(), func(s *core.OverlaySnapshot) error { saved = append(saved, s); return nil }, rec.publish)
-	out, err := o.Compact(context.Background(), OverlayRequest{})
+	out, err := o.Compact(context.Background(), opapi.EdictOverlayRequest{})
 	if err != nil || len(saved) != 1 || saved[0].ThroughSeq != 10 || out != (CompactOutput{Folded: 7, Compacted: len(saved[0].Changes), ThroughSeq: 10}) || out.Compacted == 0 {
 		t.Fatalf("%+v %v %v", out, err, saved)
 	}
@@ -105,13 +105,13 @@ func TestOverlayCompact(t *testing.T) {
 	}
 	boom := errors.New("disk full")
 	rec = &recorder{}
-	if _, err := NewOverlay(policyJournal(), func(*core.OverlaySnapshot) error { return boom }, rec.publish).Compact(context.Background(), OverlayRequest{}); !errors.Is(err, boom) || rec.specs != nil {
+	if _, err := NewOverlay(policyJournal(), func(*core.OverlaySnapshot) error { return boom }, rec.publish).Compact(context.Background(), opapi.EdictOverlayRequest{}); !errors.Is(err, boom) || rec.specs != nil {
 		t.Fatal("a failed snapshot journals nothing", err)
 	}
-	if _, err := NewOverlay(overlayJournal{fakeJournal: fakeJournal{err: boom}}, func(*core.OverlaySnapshot) error { t.Fatal("no snapshot after a read error"); return nil }, rec.publish).Compact(context.Background(), OverlayRequest{}); !errors.Is(err, boom) {
+	if _, err := NewOverlay(overlayJournal{fakeJournal: fakeJournal{err: boom}}, func(*core.OverlaySnapshot) error { t.Fatal("no snapshot after a read error"); return nil }, rec.publish).Compact(context.Background(), opapi.EdictOverlayRequest{}); !errors.Is(err, boom) {
 		t.Fatal(err)
 	}
-	empty, _ := NewOverlay(overlayJournal{head: 3}, func(*core.OverlaySnapshot) error { return nil }, (&recorder{}).publish).Compact(context.Background(), OverlayRequest{})
+	empty, _ := NewOverlay(overlayJournal{head: 3}, func(*core.OverlaySnapshot) error { return nil }, (&recorder{}).publish).Compact(context.Background(), opapi.EdictOverlayRequest{})
 	if empty != (CompactOutput{ThroughSeq: 3, Empty: true}) {
 		t.Fatal(empty)
 	}
@@ -126,8 +126,8 @@ func TestOverlayOperations(t *testing.T) {
 	if err != nil || len(ops) != 2 {
 		t.Fatal(ops, err)
 	}
-	show, _ := o.Show(context.Background(), OverlayRequest{})
-	compact, _ := o.Compact(context.Background(), OverlayRequest{})
+	show, _ := o.Show(context.Background(), opapi.EdictOverlayRequest{})
+	compact, _ := o.Compact(context.Background(), opapi.EdictOverlayRequest{})
 	for i, w := range []struct {
 		name  string
 		authz opapi.Authz

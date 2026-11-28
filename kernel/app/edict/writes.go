@@ -4,7 +4,6 @@ package edict
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -31,27 +30,6 @@ type WriteEngine interface {
 // undo the change.
 type Publish func(event.Spec)
 
-type DenyAddRequest struct {
-	Rule   json.RawMessage `json:"rule,omitempty"`
-	Tenant json.RawMessage `json:"tenant,omitempty"`
-}
-
-type DenyRemoveRequest struct {
-	Name   json.RawMessage `json:"name,omitempty"`
-	Tenant json.RawMessage `json:"tenant,omitempty"`
-}
-
-type SetLevelRequest struct {
-	Capability json.RawMessage `json:"capability,omitempty"`
-	Level      json.RawMessage `json:"level,omitempty"`
-	Tenant     json.RawMessage `json:"tenant,omitempty"`
-}
-
-type SetModeRequest struct {
-	Mode   json.RawMessage `json:"mode,omitempty"`
-	Tenant json.RawMessage `json:"tenant,omitempty"`
-}
-
 type DenyAddOutput struct {
 	Name      string   `json:"name"`
 	Substring string   `json:"substring"`
@@ -75,28 +53,12 @@ type SetModeOutput struct {
 	To   string `json:"to"`
 }
 
-// optionalString is a strict string: absent is empty, present must be a string.
-func optionalString(raw json.RawMessage, key string) (string, error) {
-	if len(raw) == 0 {
-		return "", nil
-	}
-	s, ok := rawValue(raw).(string)
-	if !ok {
-		return "", fmt.Errorf("args.%s must be a string", key)
-	}
-	return s, nil
-}
-
-// requiredString rejects a blank value but returns it untrimmed.
-func requiredString(raw json.RawMessage, key string) (string, error) {
-	s, err := optionalString(raw, key)
-	if err != nil {
-		return "", err
-	}
-	if strings.TrimSpace(s) == "" {
+// requiredText rejects a blank value but returns it untrimmed.
+func requiredText(text, key string) (string, error) {
+	if strings.TrimSpace(text) == "" {
 		return "", fmt.Errorf("args.%s required", key)
 	}
-	return s, nil
+	return text, nil
 }
 
 // Writes changes the routed kernel's policy and journals each change as
@@ -116,20 +78,13 @@ func (w *Writes) changed(payload map[string]any) {
 
 // DenyAdd adds exactly one runtime hard-deny rule, written in the boot-time
 // deny syntax.
-func (w *Writes) DenyAdd(_ context.Context, in DenyAddRequest) (DenyAddOutput, error) {
-	spec, err := optionalString(in.Rule, "rule")
-	if err != nil {
-		return DenyAddOutput{}, err
-	}
-	parsed, err := core.ParseDenyRules(spec)
+func (w *Writes) DenyAdd(_ context.Context, in opapi.EdictDenyAddRequest) (DenyAddOutput, error) {
+	parsed, err := core.ParseDenyRules(in.Rule)
 	if err != nil {
 		return DenyAddOutput{}, err
 	}
 	if len(parsed) != 1 {
 		return DenyAddOutput{}, errors.New("args.rule must specify exactly one deny rule (no ';' separators)")
-	}
-	if err := checkTenant(in.Tenant); err != nil {
-		return DenyAddOutput{}, err
 	}
 	added, err := w.engine.AddHardDeny(parsed[0])
 	if err != nil {
@@ -145,12 +100,9 @@ func (w *Writes) DenyAdd(_ context.Context, in DenyAddRequest) (DenyAddOutput, e
 
 // DenyRemove removes one runtime rule; the boot-time floor refuses removal.
 // Only an actual removal is journaled.
-func (w *Writes) DenyRemove(_ context.Context, in DenyRemoveRequest) (DenyRemoveOutput, error) {
-	name, err := requiredString(in.Name, "name")
+func (w *Writes) DenyRemove(_ context.Context, in opapi.EdictDenyRemoveRequest) (DenyRemoveOutput, error) {
+	name, err := requiredText(in.Name, "name")
 	if err != nil {
-		return DenyRemoveOutput{}, err
-	}
-	if err := checkTenant(in.Tenant); err != nil {
 		return DenyRemoveOutput{}, err
 	}
 	removed, err := w.engine.RemoveHardDeny(name)
@@ -165,8 +117,8 @@ func (w *Writes) DenyRemove(_ context.Context, in DenyRemoveRequest) (DenyRemove
 }
 
 // SetLevel sets one governed capability's trust level.
-func (w *Writes) SetLevel(_ context.Context, in SetLevelRequest) (SetLevelOutput, error) {
-	name, err := requiredString(in.Capability, "capability")
+func (w *Writes) SetLevel(_ context.Context, in opapi.EdictSetLevelRequest) (SetLevelOutput, error) {
+	name, err := requiredText(in.Capability, "capability")
 	if err != nil {
 		return SetLevelOutput{}, err
 	}
@@ -174,15 +126,8 @@ func (w *Writes) SetLevel(_ context.Context, in SetLevelRequest) (SetLevelOutput
 	if !slices.Contains(core.AllCapabilities(), capability) {
 		return SetLevelOutput{}, errors.New("unknown capability " + name + " (see `edict show` for the governed set)")
 	}
-	levelName, err := optionalString(in.Level, "level")
+	level, err := core.ParseTrustLevel(in.Level)
 	if err != nil {
-		return SetLevelOutput{}, err
-	}
-	level, err := core.ParseTrustLevel(levelName)
-	if err != nil {
-		return SetLevelOutput{}, err
-	}
-	if err := checkTenant(in.Tenant); err != nil {
 		return SetLevelOutput{}, err
 	}
 	out := SetLevelOutput{Capability: name, From: "unset", To: level.String()}
@@ -195,16 +140,9 @@ func (w *Writes) SetLevel(_ context.Context, in SetLevelRequest) (SetLevelOutput
 }
 
 // SetMode sets the ask policy.
-func (w *Writes) SetMode(_ context.Context, in SetModeRequest) (SetModeOutput, error) {
-	modeName, err := optionalString(in.Mode, "mode")
+func (w *Writes) SetMode(_ context.Context, in opapi.EdictSetModeRequest) (SetModeOutput, error) {
+	mode, err := core.ParseAskPolicy(in.Mode)
 	if err != nil {
-		return SetModeOutput{}, err
-	}
-	mode, err := core.ParseAskPolicy(modeName)
-	if err != nil {
-		return SetModeOutput{}, err
-	}
-	if err := checkTenant(in.Tenant); err != nil {
 		return SetModeOutput{}, err
 	}
 	out := SetModeOutput{From: w.engine.AskPolicy().String(), To: mode.String()}
@@ -223,22 +161,22 @@ func WriteOperations(provider func(context.Context) *Writes) ([]app.Operation, e
 	var ops []app.Operation
 	for _, b := range []func() error{
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.EdictDenyAdd, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"rule":{"type":"string"},"tenant":{"type":"string"}}}`)}, func(ctx context.Context, in DenyAddRequest) (DenyAddOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.EdictDenyAdd}, func(ctx context.Context, in opapi.EdictDenyAddRequest) (DenyAddOutput, error) {
 				return provider(ctx).DenyAdd(ctx, in)
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.EdictDenyRemove, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"name":{"type":"string"},"tenant":{"type":"string"}}}`)}, func(ctx context.Context, in DenyRemoveRequest) (DenyRemoveOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.EdictDenyRemove}, func(ctx context.Context, in opapi.EdictDenyRemoveRequest) (DenyRemoveOutput, error) {
 				return provider(ctx).DenyRemove(ctx, in)
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.EdictSetLevel, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"capability":{"type":"string"},"level":{"type":"string"},"tenant":{"type":"string"}}}`)}, func(ctx context.Context, in SetLevelRequest) (SetLevelOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.EdictSetLevel}, func(ctx context.Context, in opapi.EdictSetLevelRequest) (SetLevelOutput, error) {
 				return provider(ctx).SetLevel(ctx, in)
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.EdictSetMode, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"mode":{"type":"string"},"tenant":{"type":"string"}}}`)}, func(ctx context.Context, in SetModeRequest) (SetModeOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.EdictSetMode}, func(ctx context.Context, in opapi.EdictSetModeRequest) (SetModeOutput, error) {
 				return provider(ctx).SetMode(ctx, in)
 			})
 		},
