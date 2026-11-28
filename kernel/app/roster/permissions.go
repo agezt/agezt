@@ -4,7 +4,6 @@ package roster
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"reflect"
 	"sort"
@@ -38,19 +37,6 @@ type PermissionService struct{ ports PermissionPorts }
 
 func NewPermissions(ports PermissionPorts) *PermissionService {
 	return &PermissionService{ports: ports}
-}
-
-type CapabilitiesRequest struct {
-	Ref             json.RawMessage `json:"ref,omitempty"`
-	TrustCeiling    json.RawMessage `json:"trust_ceiling,omitempty"`
-	ToolAllow       json.RawMessage `json:"tool_allow,omitempty"`
-	ToolDeny        json.RawMessage `json:"tool_deny,omitempty"`
-	NoisePolicy     json.RawMessage `json:"noise_policy,omitempty"`
-	ConfigOverrides json.RawMessage `json:"config_overrides,omitempty"`
-	MemoryScope     json.RawMessage `json:"memory_scope,omitempty"`
-	Workdir         json.RawMessage `json:"workdir,omitempty"`
-	MaxCostMc       json.RawMessage `json:"max_cost_mc,omitempty"`
-	MaxDailyMc      json.RawMessage `json:"max_daily_mc,omitempty"`
 }
 
 // PermissionRow is one registered tool as the agent sees it. hard_denied is
@@ -172,8 +158,8 @@ func (s *PermissionService) Permissions(_ context.Context, in opapi.AgentRefRequ
 
 // Capabilities patches only the fields the caller sent. The patch is validated
 // against the live roster's hierarchy before the journaled update.
-func (s *PermissionService) Capabilities(_ context.Context, in CapabilitiesRequest) (CapabilitiesOutput, error) {
-	ref, err := rawRefOf(in.Ref)
+func (s *PermissionService) Capabilities(_ context.Context, in opapi.AgentCapabilitiesRequest) (CapabilitiesOutput, error) {
+	ref, err := refOf(in.Ref)
 	if err != nil {
 		return CapabilitiesOutput{}, err
 	}
@@ -238,38 +224,63 @@ type capabilityPatch struct {
 	maxDailyMc      *int64
 }
 
-// decodeField decodes one present field into a fresh value. JSON null decodes
-// to the zero value and still counts as sent.
-func decodeField[T any](raw json.RawMessage, dst **T, touched *bool) error {
-	if len(raw) == 0 {
-		return nil
-	}
-	var v T
-	if err := json.Unmarshal(raw, &v); err != nil {
-		return err
-	}
-	*dst = &v
-	*touched = true
-	return nil
-}
-
-func decodeCapabilityPatch(in CapabilitiesRequest) (capabilityPatch, bool, error) {
+// decodeCapabilityPatch reads the capability fields the operator patched.
+//
+// A field that was not sent is left alone; a field that was sent is patched —
+// even when it was sent empty, and even when it was sent as null.
+func decodeCapabilityPatch(in opapi.AgentCapabilitiesRequest) (capabilityPatch, bool, error) {
 	var patch capabilityPatch
 	touched := false
-	for _, decode := range []func() error{
-		func() error { return decodeField(in.TrustCeiling, &patch.trustCeiling, &touched) },
-		func() error { return decodeField(in.ToolAllow, &patch.toolAllow, &touched) },
-		func() error { return decodeField(in.ToolDeny, &patch.toolDeny, &touched) },
-		func() error { return decodeField(in.NoisePolicy, &patch.noisePolicy, &touched) },
-		func() error { return decodeField(in.ConfigOverrides, &patch.configOverrides, &touched) },
-		func() error { return decodeField(in.MemoryScope, &patch.memoryScope, &touched) },
-		func() error { return decodeField(in.Workdir, &patch.workdir, &touched) },
-		func() error { return decodeField(in.MaxCostMc, &patch.maxCostMc, &touched) },
-		func() error { return decodeField(in.MaxDailyMc, &patch.maxDailyMc, &touched) },
-	} {
-		if err := decode(); err != nil {
+	if in.TrustCeiling.Present() {
+		value := in.TrustCeiling.String()
+		patch.trustCeiling = &value
+		touched = true
+	}
+	if in.ToolAllow.Present() {
+		value := in.ToolAllow.Members()
+		patch.toolAllow = &value
+		touched = true
+	}
+	if in.ToolDeny.Present() {
+		value := in.ToolDeny.Members()
+		patch.toolDeny = &value
+		touched = true
+	}
+	if in.NoisePolicy.Present() {
+		value, err := decodeNoisePolicy(in.NoisePolicy.Map())
+		if err != nil {
 			return capabilityPatch{}, false, err
 		}
+		patch.noisePolicy = &value
+		touched = true
+	}
+	if in.ConfigOverrides.Present() {
+		value, err := decodeStringMap(in.ConfigOverrides.Map())
+		if err != nil {
+			return capabilityPatch{}, false, err
+		}
+		patch.configOverrides = &value
+		touched = true
+	}
+	if in.MemoryScope.Present() {
+		value := in.MemoryScope.String()
+		patch.memoryScope = &value
+		touched = true
+	}
+	if in.Workdir.Present() {
+		value := in.Workdir.String()
+		patch.workdir = &value
+		touched = true
+	}
+	if in.MaxCostMc.Present() {
+		value := in.MaxCostMc.Number()
+		patch.maxCostMc = &value
+		touched = true
+	}
+	if in.MaxDailyMc.Present() {
+		value := in.MaxDailyMc.Number()
+		patch.maxDailyMc = &value
+		touched = true
 	}
 	return patch, touched, nil
 }
@@ -715,7 +726,7 @@ func PermissionOperations(provider func(context.Context) *PermissionService) ([]
 	if err != nil {
 		return nil, err
 	}
-	write, err := app.NewOperation(opapi.Spec{Name: opapi.AgentCapabilities, OutputSchema: writeOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{"type":"string"},"trust_ceiling":{"type":"string"},"tool_allow":{"type":"array","items":{"type":"string"}},"tool_deny":{"type":"array","items":{"type":"string"}},"noise_policy":{"type":"object"},"config_overrides":{"type":"object"},"memory_scope":{"type":"string"},"workdir":{"type":"string"},"max_cost_mc":{"type":"integer"},"max_daily_mc":{"type":"integer"}}}`)}, func(ctx context.Context, in CapabilitiesRequest) (CapabilitiesOutput, error) {
+	write, err := app.NewOperation(opapi.Spec{Name: opapi.AgentCapabilities, OutputSchema: writeOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true}, func(ctx context.Context, in opapi.AgentCapabilitiesRequest) (CapabilitiesOutput, error) {
 		return provider(ctx).Capabilities(ctx, in)
 	})
 	if err != nil {

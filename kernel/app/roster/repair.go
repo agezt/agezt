@@ -4,25 +4,15 @@ package roster
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"reflect"
+	"strings"
 
 	"github.com/agezt/agezt/kernel/app"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/platform/schema"
 )
-
-// RepairRequest keeps every argument raw: ref is a strict string, while reason
-// and the incident ids are read leniently (anything but a string is empty).
-type RepairRequest struct {
-	Ref              json.RawMessage `json:"ref,omitempty"`
-	Reason           json.RawMessage `json:"reason,omitempty"`
-	IncidentID       json.RawMessage `json:"incident_id,omitempty"`
-	RootIncidentID   json.RawMessage `json:"root_incident_id,omitempty"`
-	ParentIncidentID json.RawMessage `json:"parent_incident_id,omitempty"`
-}
 
 // RepairOutput acknowledges an accepted repair; the outcome is journaled under
 // its correlation.
@@ -41,13 +31,13 @@ func NewRepair(get func(string) (agentapi.Profile, bool), newCorrelation func() 
 	return &RepairService{get: get, newCorrelation: newCorrelation, publish: publish, launch: launch}
 }
 
-func (s *RepairService) Repair(_ context.Context, in RepairRequest) (RepairOutput, error) {
+func (s *RepairService) Repair(_ context.Context, in opapi.AgentRepairRequest) (RepairOutput, error) {
 	p, err := directTarget(s.get, in.Ref, "repaired")
 	if err != nil {
 		return RepairOutput{}, err
 	}
 	corr := s.newCorrelation()
-	reason := lenientString(in.Reason)
+	reason := strings.TrimSpace(in.Reason)
 	lineage := incidentLineage(in.IncidentID, in.RootIncidentID, in.ParentIncidentID)
 	s.publish("agent.repair", corr, map[string]any{
 		"phase":              "requested",
@@ -69,7 +59,7 @@ func RepairOperations(provider func(context.Context) *RepairService) ([]app.Oper
 	if err != nil {
 		return nil, err
 	}
-	op, err := app.NewOperation(opapi.Spec{Name: opapi.AgentRepair, OutputSchema: output, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{"type":"string"},"reason":{"type":"string"},"incident_id":{"type":"string"},"root_incident_id":{"type":"string"},"parent_incident_id":{"type":"string"}}}`)}, func(ctx context.Context, in RepairRequest) (RepairOutput, error) {
+	op, err := app.NewOperation(opapi.Spec{Name: opapi.AgentRepair, OutputSchema: output, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true}, func(ctx context.Context, in opapi.AgentRepairRequest) (RepairOutput, error) {
 		return provider(ctx).Repair(ctx, in)
 	})
 	if err != nil {

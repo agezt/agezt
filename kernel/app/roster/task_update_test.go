@@ -42,7 +42,7 @@ func taskUpdateFixture(t *testing.T, tasks ...core.AgentTask) (*TaskUpdateServic
 
 func taskUpdateRun(t *testing.T, s *TaskUpdateService, raw string) (TaskUpdateOutput, error) {
 	t.Helper()
-	var in TaskUpdateRequest
+	var in opapi.AgentTaskUpdateRequest
 	if err := json.Unmarshal([]byte(raw), &in); err != nil {
 		t.Fatal(raw, err)
 	}
@@ -53,20 +53,9 @@ func TestRosterTaskUpdateRejectsBeforeWriting(t *testing.T) {
 	for raw, want := range map[string]string{
 		`{}`:                        "args.ref required",
 		`{"ref":" ","op":"bogus"}`:  "args.ref required",
-		`{"ref":3}`:                 "args.ref must be a string",
-		`{"ref":null}`:              "args.ref must be a string",
-		`{"ref":"ops","op":1}`:      "args.op must be a string",
-		`{"ref":"ops","op":null}`:   "args.op must be a string",
+		`{"ref":null}`:              "args.ref required",
 		`{"ref":"ops","op":"move"}`: "args.op must be add, update, or remove",
-		`{"ref":"ops","id":"a","task":["title"]}`:                      "args.task: json: cannot unmarshal array into Go value of type agentapi.AgentTask",
-		`{"ref":"ops","op":"move","task":"x"}`:                         "args.op must be add, update, or remove",
-		`{"ref":"ops","task":"x","title":3}`:                           "args.task: json: cannot unmarshal string into Go value of type agentapi.AgentTask",
 		`{"ref":"ops","task":{"created_ms":"x"}}`:                      "args.task: json: cannot unmarshal string into Go struct field AgentTask.created_ms of type int64",
-		`{"ref":"ops","id":4,"title":3}`:                               "args.id must be a string",
-		`{"ref":"ops","title":3}`:                                      "args.title must be a string",
-		`{"ref":"ops","description":null}`:                             "args.description must be a string",
-		`{"ref":"ops","scope":[]}`:                                     "args.scope must be a string",
-		`{"ref":"ops","status":{}}`:                                    "args.status must be a string",
 		`{"ref":"ops","op":"add"}`:                                     "args.title required",
 		`{"ref":"ops","op":"add","title":"  ","scope":"x"}`:            "args.title required",
 		`{"ref":"ops","op":"ADD","task":{"title":"t"},"title":" "}`:    "args.title required",
@@ -83,6 +72,19 @@ func TestRosterTaskUpdateRejectsBeforeWriting(t *testing.T) {
 			t.Fatal(raw, err, calls.refs)
 		}
 	}
+	// A ref, an op, a flat field or a task that is not what the row says never
+	// reaches the service: the row reads its own fields.
+	for _, raw := range []string{
+		`{"ref":3}`, `{"ref":"ops","op":1}`, `{"ref":"ops","id":"a","task":["title"]}`,
+		`{"ref":"ops","op":"move","task":"x"}`, `{"ref":"ops","task":"x","title":3}`,
+		`{"ref":"ops","id":4,"title":3}`, `{"ref":"ops","title":3}`, `{"ref":"ops","scope":[]}`,
+		`{"ref":"ops","status":{}}`, `{"ref":"ops","id":"a","task":null}`,
+	} {
+		var in opapi.AgentTaskUpdateRequest
+		if err := json.Unmarshal([]byte(raw), &in); err == nil {
+			t.Fatal(raw)
+		}
+	}
 	// Validation only covers provided fields; flat values trim for the check.
 	accepted := []string{}
 	for _, scope := range []string{"cycle", "total", ""} {
@@ -90,7 +92,7 @@ func TestRosterTaskUpdateRejectsBeforeWriting(t *testing.T) {
 			accepted = append(accepted, `{"ref":"ops","id":"a","scope":"`+scope+`","status":"`+status+`"}`, `{"ref":"ops","id":"a","task":{"scope":"`+scope+`","status":"`+status+`"}}`)
 		}
 	}
-	for _, raw := range append(accepted, `{"ref":"ops","op":"remove","id":"a","title":""}`, `{"ref":"ops","id":"a","scope":" cycle ","status":" done "}`, `{"ref":"ops","id":"a","task":{"scope":"","status":""}}`, `{"ref":"ops","id":"a","task":null}`) {
+	for _, raw := range append(accepted, `{"ref":"ops","op":"remove","id":"a","title":""}`, `{"ref":"ops","id":"a","scope":" cycle ","status":" done "}`, `{"ref":"ops","id":"a","task":{"scope":"","status":""}}`) {
 		s, _, calls := taskUpdateFixture(t)
 		if _, err := taskUpdateRun(t, s, raw); err == nil || err.Error() != "unknown agent task: a" || len(calls.refs) != 1 {
 			t.Fatal(raw, err, calls.refs)
@@ -105,6 +107,8 @@ func TestRosterTaskUpdateErrorsAfterTheProfileWrite(t *testing.T) {
 		`{"ref":"ops","op":"delete","id":"  "}`:             "args.id required",
 		`{"ref":"ops","op":" Remove ","task":{"id":" x "}}`: "unknown agent task:  x ",
 		`{"ref":"ops","id":"x","status":"done"}`:            "unknown agent task: x",
+		`{"ref":"ops","op":null}`:                           "args.id required",
+		`{"ref":"ops","description":null}`:                  "args.id required",
 	} {
 		s, st, calls := taskUpdateFixture(t)
 		before, _ := st.Get("ops")
@@ -200,7 +204,7 @@ func TestRosterTaskUpdateOperationIsAudited(t *testing.T) {
 		t.Fatal(ops, err)
 	}
 	spec := ops[0].Spec()
-	if spec.Name != "agent_task_update" || spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.Input != reflect.TypeFor[TaskUpdateRequest]() || spec.Output != reflect.TypeFor[TaskUpdateOutput]() {
+	if spec.Name != "agent_task_update" || spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.Input != reflect.TypeFor[opapi.AgentTaskUpdateRequest]() || spec.Output != reflect.TypeFor[TaskUpdateOutput]() {
 		t.Fatal(spec)
 	}
 	profile := `{"id":"i","slug":"s","enabled":true,"created_ms":0,"updated_ms":0,"kind":"custom","managed":false}`

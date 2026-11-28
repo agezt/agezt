@@ -7,19 +7,13 @@ import (
 	"encoding/json"
 	"errors"
 	"reflect"
+	"strings"
 
 	"github.com/agezt/agezt/kernel/app"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/platform/schema"
 )
-
-// SetRetiredRequest keeps every argument raw: ref is a strict string and the
-// reason is read leniently.
-type SetRetiredRequest struct {
-	Ref    json.RawMessage `json:"ref,omitempty"`
-	Reason json.RawMessage `json:"reason,omitempty"`
-}
 
 // RetireImpactSummary is the teardown preview taken before the retirement,
 // extended with what the retirement paused.
@@ -66,24 +60,24 @@ type SetRetiredService struct{ ports SetRetiredPorts }
 
 func NewSetRetired(ports SetRetiredPorts) *SetRetiredService { return &SetRetiredService{ports: ports} }
 
-func (s *SetRetiredService) setRetired(in SetRetiredRequest, retired bool) (agentapi.Profile, string, error) {
-	ref, err := rawRefOf(in.Ref)
+func (s *SetRetiredService) setRetired(in opapi.AgentSetRetiredRequest, retired bool) (agentapi.Profile, string, error) {
+	ref, err := refOf(in.Ref)
 	if err != nil {
 		return agentapi.Profile{}, "", err
 	}
-	p, err := s.ports.SetRetired(ref, retired, lenientString(in.Reason))
+	p, err := s.ports.SetRetired(ref, retired, strings.TrimSpace(in.Reason))
 	if errors.Is(err, agentapi.ErrNotFound) {
 		return agentapi.Profile{}, ref, errors.New("unknown agent: " + ref)
 	}
 	return p, ref, err
 }
 
-func (s *SetRetiredService) Retire(_ context.Context, in SetRetiredRequest) (RetireOutput, error) {
+func (s *SetRetiredService) Retire(_ context.Context, in opapi.AgentSetRetiredRequest) (RetireOutput, error) {
 	// Compute the impact BEFORE the state change so a retire reports what it
 	// affected.
 	var impact []string
 	var summary *ImpactOutput
-	if ref, err := rawRefOf(in.Ref); err == nil {
+	if ref, err := refOf(in.Ref); err == nil {
 		if p, ok := s.ports.Get(ref); ok {
 			out := s.ports.Impact(p)
 			impact, summary = out.StandingOrders, &out
@@ -119,8 +113,8 @@ func (s *SetRetiredService) Retire(_ context.Context, in SetRetiredRequest) (Ret
 	return out, nil
 }
 
-func (s *SetRetiredService) Revive(_ context.Context, in SetRetiredRequest) (ReviveOutput, error) {
-	if ref, err := rawRefOf(in.Ref); err == nil {
+func (s *SetRetiredService) Revive(_ context.Context, in opapi.AgentSetRetiredRequest) (ReviveOutput, error) {
+	if ref, err := refOf(in.Ref); err == nil {
 		if p, ok := s.ports.Get(ref); ok {
 			if err := ValidateHierarchyRefs(p, s.ports.Get); err != nil {
 				return ReviveOutput{}, err
@@ -176,13 +170,13 @@ func SetRetiredOperations(provider func(context.Context) *SetRetiredService) ([]
 	if err != nil {
 		return nil, err
 	}
-	retire, err := app.NewOperation(opapi.Spec{Name: opapi.AgentRetire, OutputSchema: retireOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{"type":"string"},"reason":{"type":"string"}}}`)}, func(ctx context.Context, in SetRetiredRequest) (RetireOutput, error) {
+	retire, err := app.NewOperation(opapi.Spec{Name: opapi.AgentRetire, OutputSchema: retireOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true}, func(ctx context.Context, in opapi.AgentSetRetiredRequest) (RetireOutput, error) {
 		return provider(ctx).Retire(ctx, in)
 	})
 	if err != nil {
 		return nil, err
 	}
-	revive, err := app.NewOperation(opapi.Spec{Name: opapi.AgentRevive, OutputSchema: reviveOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{"type":"string"},"reason":{"type":"string"}}}`)}, func(ctx context.Context, in SetRetiredRequest) (ReviveOutput, error) {
+	revive, err := app.NewOperation(opapi.Spec{Name: opapi.AgentRevive, OutputSchema: reviveOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true}, func(ctx context.Context, in opapi.AgentSetRetiredRequest) (ReviveOutput, error) {
 		return provider(ctx).Revive(ctx, in)
 	})
 	if err != nil {

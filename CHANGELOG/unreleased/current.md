@@ -837,6 +837,34 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The roster family's write half has one request row per operation.** The
+  roster's **write half** — the capability patch, the profile writes, the
+  removal, the repair, the resolve, the enable, the retirement, the task update
+  and the wake — declared its request shape **twice**: a JSON Schema literal in
+  the app layer and a request struct beside it, and every field was read **raw**
+  by hand-written readers that tolerated whatever arrived. Those rows now live in
+  the contract, the app layer keeps no copy of them, and the contract's row
+  table grows from **57** to **68** — every one of the roster's **nineteen**
+  operations now has a row. The contract grew the missing vocabulary for them:
+  a **text that knows whether it was sent** (a field that was not sent and a
+  field that was sent empty are different answers — one says *leave it alone*,
+  the other says *clear it*), a **strict list of texts** (a list, and nothing
+  else — not the `TextList`, which also accepts the one comma-separated string
+  a caller sends instead), an **integer that knows whether it was sent**, and an
+  **object that knows whether it was sent**. The schema package learned
+  **three** more structural markers for them — a method is enough, so it needs
+  no import from the contracts — and the object's numbers are read as they were
+  written, so a count that does not fit in a float still reads as itself. The
+  family's rules stayed in the family: a patch touches only the fields that
+  were sent, the task update reads **presence** rather than value, and the
+  enabled flag keeps its lenient spelling. The daemon's behaviour did not
+  change: the door already refused the mistyped bodies with the same words, so
+  the app-level type readings were unreachable anyway. The published document
+  moved in **shape** only — the roster's eight write-half endpoints now carry
+  the derived form the read half already had, and a semantic comparison of the
+  whole document finds **zero** changed paths; the generated client and the
+  browser's generated types are byte-identical.
+
 - **The roster family's read half has one request row per operation.** The
   roster — the board of agents — declared its request shape **twice**: a JSON
   Schema literal in the app layer and a request struct beside it, spread over

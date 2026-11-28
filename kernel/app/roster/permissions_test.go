@@ -90,26 +90,34 @@ func permRequest(t *testing.T, raw string) opapi.AgentRefRequest {
 	return in
 }
 
-func capRequest(t *testing.T, raw string) CapabilitiesRequest {
+func capRequest(t *testing.T, raw string) opapi.AgentCapabilitiesRequest {
 	t.Helper()
-	var in CapabilitiesRequest
+	var in opapi.AgentCapabilitiesRequest
 	if err := json.Unmarshal([]byte(raw), &in); err != nil {
 		t.Fatal(err)
 	}
 	return in
 }
 
+// capDecodeError reads the capability row the way the door reads it: the row
+// reads its own fields, so a mistyped one is refused before the service runs.
+func capDecodeError(raw string) error {
+	var in opapi.AgentCapabilitiesRequest
+	return json.Unmarshal([]byte(raw), &in)
+}
+
 func TestPermissionsRef(t *testing.T) {
 	ctx := context.Background()
-	for raw, want := range map[string]string{`{}`: "args.ref required", `{"ref":""}`: "args.ref required", `{"ref":"  "}`: "args.ref required", `{"ref":3}`: "args.ref must be a string", `{"ref":null}`: "args.ref must be a string"} {
+	// The write half reads the ref from the contract's row too: a blank one is
+	// refused, and a mistyped one never reaches the service.
+	for raw, want := range map[string]string{`{}`: "args.ref required", `{"ref":""}`: "args.ref required", `{"ref":"  "}`: "args.ref required", `{"ref":null}`: "args.ref required"} {
 		f := newPermFixture()
-		withField := strings.Replace(raw, "}", `,"workdir":3}`, 1)
-		if raw == `{}` {
-			withField = `{"workdir":3}`
+		if _, err := f.service().Capabilities(ctx, capRequest(t, raw)); err == nil || err.Error() != want || f.gets != 0 {
+			t.Fatal("capabilities checks the ref first", raw, err)
 		}
-		if _, err := f.service().Capabilities(ctx, capRequest(t, withField)); err == nil || err.Error() != want || f.gets != 0 {
-			t.Fatal("capabilities checks the ref first", withField, err)
-		}
+	}
+	if err := capDecodeError(`{"ref":3}`); err == nil {
+		t.Fatal("a mistyped ref never reaches the service")
 	}
 	// The read half reads the same ref from the contract's row: a blank one is
 	// refused, and a mistyped one never reaches the service.
@@ -345,7 +353,12 @@ func TestCapabilities(t *testing.T) {
 	if _, err := f.service().Capabilities(ctx, capRequest(t, `{"ref":"ghost","workdir":"x"}`)); err == nil || err.Error() != "unknown agent: ghost" || f.updates != 0 {
 		t.Fatal(err)
 	}
-	if _, err := f.service().Capabilities(ctx, capRequest(t, `{"ref":"ghost","workdir":3}`)); err == nil || err.Error() != "unknown agent: ghost" {
+	// The agent is looked up before the patch is read: a body the row cannot
+	// read never reaches the service at all.
+	if err := capDecodeError(`{"ref":"ghost","workdir":3}`); err == nil {
+		t.Fatal("a mistyped field never reaches the service")
+	}
+	if _, err := f.service().Capabilities(ctx, capRequest(t, `{"ref":"ghost","config_overrides":{"A":1}}`)); err == nil || err.Error() != "unknown agent: ghost" {
 		t.Fatal("the agent is looked up before the patch decodes", err)
 	}
 	for _, raw := range []string{`{"ref":"a"}`, `{"ref":"a","unrelated":1}`} {
@@ -353,12 +366,17 @@ func TestCapabilities(t *testing.T) {
 			t.Fatal(raw, err)
 		}
 	}
-	for _, field := range []string{`"trust_ceiling":3`, `"tool_allow":"x"`, `"tool_deny":[1]`, `"noise_policy":"loud"`, `"config_overrides":{"A":1}`, `"memory_scope":false`, `"workdir":{}`, `"max_cost_mc":"many"`, `"max_daily_mc":1.5`} {
-		if _, err := f.service().Capabilities(ctx, capRequest(t, `{"ref":"a",`+field+`}`)); err == nil || !strings.HasPrefix(err.Error(), "json: cannot unmarshal") || f.updates != 0 {
-			t.Fatal(field, err)
+	// A mistyped field is refused by the row itself, before the service runs.
+	for _, field := range []string{`"trust_ceiling":3`, `"tool_allow":"x"`, `"tool_deny":[1]`, `"noise_policy":"loud"`, `"memory_scope":false`, `"workdir":{}`, `"max_cost_mc":"many"`, `"max_daily_mc":1.5`} {
+		if err := capDecodeError(`{"ref":"a",` + field + `}`); err == nil {
+			t.Fatal(field)
 		}
 	}
-	if _, err := f.service().Capabilities(ctx, capRequest(t, `{"ref":"a","trust_ceiling":"L1","max_cost_mc":"many"}`)); err == nil || f.updates != 0 {
+	// A map whose own shape is wrong is refused by the patch, not by the row.
+	if _, err := f.service().Capabilities(ctx, capRequest(t, `{"ref":"a","config_overrides":{"A":1}}`)); err == nil || !strings.HasPrefix(err.Error(), "json: cannot unmarshal") || f.updates != 0 {
+		t.Fatal("config_overrides", err)
+	}
+	if _, err := f.service().Capabilities(ctx, capRequest(t, `{"ref":"a","trust_ceiling":"L1","config_overrides":{"A":1}}`)); err == nil || f.updates != 0 {
 		t.Fatal("one bad field rejects the whole patch", err)
 	}
 	f.profiles["orphan"] = core.Profile{Slug: "orphan", OwnerAgent: "gone"}

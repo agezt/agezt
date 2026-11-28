@@ -4,7 +4,6 @@ package roster
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -15,13 +14,6 @@ import (
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/platform/schema"
 )
-
-// RemoveRequest keeps every argument raw: ref is a strict string and the
-// cascade is an optional object of lenient flags.
-type RemoveRequest struct {
-	Ref     json.RawMessage `json:"ref,omitempty"`
-	Cascade json.RawMessage `json:"cascade,omitempty"`
-}
 
 // RemoveCascade selects what a removal cleans up besides the profile.
 type RemoveCascade struct {
@@ -47,15 +39,12 @@ func boolish(v any) bool {
 	}
 }
 
-// ParseRemoveCascade reads the cascade flags; anything but an object selects
-// nothing. authored_shared_memory and workdir are accepted aliases.
-func ParseRemoveCascade(raw json.RawMessage) RemoveCascade {
+// ParseRemoveCascade reads the cascade flags a request row carried;
+// anything but an object selects nothing. authored_shared_memory and workdir
+// are accepted aliases.
+func ParseRemoveCascade(cascade opapi.Object) RemoveCascade {
 	var c RemoveCascade
-	v, _ := rawValue(raw)
-	m, ok := v.(map[string]any)
-	if !ok {
-		return c
-	}
+	m := cascade.Map()
 	c.Standing = boolish(m["standing"])
 	c.Schedules = boolish(m["schedules"])
 	c.Memory = boolish(m["memory"])
@@ -135,8 +124,8 @@ type RemoveService struct{ ports RemovePorts }
 
 func NewRemove(ports RemovePorts) *RemoveService { return &RemoveService{ports: ports} }
 
-func (s *RemoveService) Remove(_ context.Context, in RemoveRequest) (RemoveOutput, error) {
-	ref, err := rawRefOf(in.Ref)
+func (s *RemoveService) Remove(_ context.Context, in opapi.AgentRemoveRequest) (RemoveOutput, error) {
+	ref, err := refOf(in.Ref)
 	if err != nil {
 		return RemoveOutput{}, err
 	}
@@ -253,7 +242,7 @@ func RemoveOperations(provider func(context.Context) *RemoveService) ([]app.Oper
 	if err != nil {
 		return nil, err
 	}
-	op, err := app.NewOperation(opapi.Spec{Name: opapi.AgentRemove, OutputSchema: output, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{"type":"string"},"cascade":{"type":"object"}}}`)}, func(ctx context.Context, in RemoveRequest) (RemoveOutput, error) {
+	op, err := app.NewOperation(opapi.Spec{Name: opapi.AgentRemove, OutputSchema: output, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true}, func(ctx context.Context, in opapi.AgentRemoveRequest) (RemoveOutput, error) {
 		return provider(ctx).Remove(ctx, in)
 	})
 	if err != nil {

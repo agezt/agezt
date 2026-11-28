@@ -79,7 +79,7 @@ func resolveFixture(o resolveFixtureOpts) (*ResolveService, *resolveCalls) {
 
 func resolveRun(t *testing.T, s *ResolveService, raw string) (ResolveOutput, error) {
 	t.Helper()
-	var in ResolveRequest
+	var in opapi.AgentResolveRequest
 	if err := json.Unmarshal([]byte(raw), &in); err != nil {
 		t.Fatal(raw, err)
 	}
@@ -89,11 +89,9 @@ func resolveRun(t *testing.T, s *ResolveService, raw string) (ResolveOutput, err
 func TestRosterResolveRejectsBeforeJournaling(t *testing.T) {
 	for raw, want := range map[string]string{
 		`{}`:                                      "args.ref required",
-		`{"ref":3,"resolution":"paused"}`:         "args.ref must be a string",
 		`{"ref":"ghost","resolution":"bogus"}`:    "unknown agent: ghost",
 		`{"ref":"ops"}`:                           "args.resolution must be paused, retired, delegated, or force_chain",
 		`{"ref":"ops","resolution":"PAUSED"}`:     "args.resolution must be paused, retired, delegated, or force_chain",
-		`{"ref":"ops","resolution":7}`:            "args.resolution must be paused, retired, delegated, or force_chain",
 		`{"ref":"ops","resolution":"forcechain"}`: "args.resolution must be paused, retired, delegated, or force_chain",
 	} {
 		s, calls := resolveFixture(resolveFixtureOpts{})
@@ -106,18 +104,26 @@ func TestRosterResolveRejectsBeforeJournaling(t *testing.T) {
 			}
 		}
 	}
+	// A ref, a resolution or an incident id that is not a text never reaches
+	// the service: the row reads its own fields.
+	for _, raw := range []string{`{"ref":3,"resolution":"paused"}`, `{"ref":"ops","resolution":7}`, `{"ref":"ops","resolution":"paused","parent_incident_id":7}`} {
+		var in opapi.AgentResolveRequest
+		if err := json.Unmarshal([]byte(raw), &in); err == nil {
+			t.Fatal(raw)
+		}
+	}
 }
 
 func TestRosterResolvePauseAndRetire(t *testing.T) {
 	s, calls := resolveFixture(resolveFixtureOpts{})
-	out, err := resolveRun(t, s, `{"ref":"OPS","resolution":" paused ","summary":"  s  ","incident_id":" i ","root_incident_id":"r","parent_incident_id":7}`)
+	out, err := resolveRun(t, s, `{"ref":"OPS","resolution":" paused ","summary":"  s  ","incident_id":" i ","root_incident_id":"r","parent_incident_id":" p "}`)
 	if err != nil || out != (ResolveOutput{Applied: true, Agent: "ops", Resolution: "paused", CorrelationID: "corr-1"}) {
 		t.Fatal(out, err)
 	}
 	if !reflect.DeepEqual(calls.steps, []string{"get:OPS", "corr", "publish:agent.resolve:corr-1:requested", "pause:ops", "publish:agent.resolve:corr-1:completed"}) {
 		t.Fatal(calls.steps)
 	}
-	base := map[string]any{"agent": "ops", "resolution": "paused", "resolution_summary": "s", "incident_id": "i", "root_incident_id": "r", "parent_incident_id": ""}
+	base := map[string]any{"agent": "ops", "resolution": "paused", "resolution_summary": "s", "incident_id": "i", "root_incident_id": "r", "parent_incident_id": "p"}
 	with := func(phase string, extra map[string]any) map[string]any {
 		m := map[string]any{"phase": phase}
 		for k, v := range base {
@@ -159,7 +165,6 @@ func TestRosterResolvePauseAndRetire(t *testing.T) {
 func TestRosterResolveDelegation(t *testing.T) {
 	for raw, want := range map[string]string{
 		`{"ref":"ops","resolution":"delegated"}`:                        "delegated resolution requires delegate_to",
-		`{"ref":"ops","resolution":"delegated","delegate_to":3}`:        "delegated resolution requires delegate_to",
 		`{"ref":"ops","resolution":"delegated","delegate_to":" OPS "}`:  "delegated resolution points back to the root agent ops",
 		`{"ref":"ops","resolution":"delegated","delegate_to":"lead"}`:   "delegated resolution points back to the current owner Lead",
 		`{"ref":"solo","resolution":"delegated","delegate_to":"owner"}`: "delegated resolution points back to the current owner Owner",
@@ -199,24 +204,31 @@ func TestRosterResolveDelegation(t *testing.T) {
 
 func TestRosterResolveForceChain(t *testing.T) {
 	for raw, want := range map[string]string{
-		`{"ref":"ops","resolution":"force_chain","task_model_chain":["m"]}`:                      "force_chain resolution requires task_type and task_model_chain",
-		`{"ref":"ops","resolution":"force_chain","task_type":"code"}`:                            "force_chain resolution requires task_type and task_model_chain",
-		`{"ref":"ops","resolution":"force_chain","task_type":"code","task_model_chain":[1," "]}`: "force_chain resolution requires task_type and task_model_chain",
-		`{"ref":"ops","resolution":"force_chain","task_type":"code","task_model_chain":"m"}`:     "force_chain resolution requires task_type and task_model_chain",
+		`{"ref":"ops","resolution":"force_chain","task_model_chain":["m"]}`:                    "force_chain resolution requires task_type and task_model_chain",
+		`{"ref":"ops","resolution":"force_chain","task_type":"code"}`:                          "force_chain resolution requires task_type and task_model_chain",
+		`{"ref":"ops","resolution":"force_chain","task_type":"code","task_model_chain":[" "]}`: "force_chain resolution requires task_type and task_model_chain",
 	} {
 		s, calls := resolveFixture(resolveFixtureOpts{})
 		if _, err := resolveRun(t, s, raw); err == nil || err.Error() != want || calls.lineages != nil || calls.chains != nil {
 			t.Fatal(raw, err, calls.steps)
 		}
 	}
+	// A delegate or a chain that is not what the row says never reaches the
+	// service: the row reads its own fields.
+	for _, raw := range []string{`{"ref":"ops","resolution":"delegated","delegate_to":3}`, `{"ref":"ops","resolution":"force_chain","task_type":"code","task_model_chain":[1," "]}`, `{"ref":"ops","resolution":"force_chain","task_type":"code","task_model_chain":[" gpt-5 ", 4, "b"]}`} {
+		var in opapi.AgentResolveRequest
+		if err := json.Unmarshal([]byte(raw), &in); err == nil {
+			t.Fatal(raw)
+		}
+	}
 	// A non-empty array is always journaled, even when no model survives.
 	s, calls := resolveFixture(resolveFixtureOpts{})
-	resolveRun(t, s, `{"ref":"ops","resolution":"force_chain","task_type":" code ","task_model_chain":[1," "]}`)
+	resolveRun(t, s, `{"ref":"ops","resolution":"force_chain","task_type":" code ","task_model_chain":[" "]}`)
 	if got, ok := calls.published[0]["routing_task_model_chain"].([]string); !ok || got == nil || len(got) != 0 || calls.published[0]["routing_task_type"] != "code" {
 		t.Fatal("requested chain", calls.published[0])
 	}
 	for raw, want := range map[string]any{
-		`"m"`: nil, `[]`: nil, `[" m "]`: []string{"m"},
+		`[]`: nil, `[" m "]`: []string{"m"},
 	} {
 		s, calls = resolveFixture(resolveFixtureOpts{})
 		resolveRun(t, s, `{"ref":"ops","resolution":"paused","task_model_chain":`+raw+`}`)
@@ -236,7 +248,7 @@ func TestRosterResolveForceChain(t *testing.T) {
 	}
 
 	s, calls = resolveFixture(resolveFixtureOpts{exhausted: []string{"gpt-5"}, gen: 2, applied: RoutingChainResult{Previous: []string{"old"}}})
-	out, err := resolveRun(t, s, `{"ref":"ops","resolution":"force_chain","task_type":"code","task_model_chain":[" gpt-5 ", 4, "b"],"summary":"why"}`)
+	out, err := resolveRun(t, s, `{"ref":"ops","resolution":"force_chain","task_type":"code","task_model_chain":[" gpt-5 ", "b"],"summary":"why"}`)
 	if err != nil || out.Resolution != "force_chain" || !reflect.DeepEqual(calls.chains, [][]string{{"gpt-5", "b"}}) {
 		t.Fatal(out, err, calls.chains)
 	}
@@ -280,7 +292,7 @@ func TestRosterResolveOperationIsAudited(t *testing.T) {
 		t.Fatal(ops, err)
 	}
 	spec := ops[0].Spec()
-	if spec.Name != "agent_resolve" || spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.Input != reflect.TypeFor[ResolveRequest]() || spec.Output != reflect.TypeFor[ResolveOutput]() {
+	if spec.Name != "agent_resolve" || spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.Input != reflect.TypeFor[opapi.AgentResolveRequest]() || spec.Output != reflect.TypeFor[ResolveOutput]() {
 		t.Fatal(spec)
 	}
 	if schema.ValidateJSON(spec.OutputSchema, json.RawMessage(`{"applied":true,"agent":"a","resolution":"paused","correlation_id":"c"}`)) != nil || schema.ValidateJSON(spec.OutputSchema, json.RawMessage(`{"applied":true,"agent":"a","correlation_id":"c"}`)) == nil {

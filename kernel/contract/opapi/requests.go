@@ -141,27 +141,188 @@ func (v AnyValue) MarshalJSON() ([]byte, error) {
 // Value returns the value the field carries.
 func (v AnyValue) Value() any { return v.value }
 
+// Text is a request field that carries a text — and knows whether it was sent
+// at all.
+//
+// A field that was not sent and a field that was sent as an empty text are
+// different answers: one says "leave it alone", the other says "clear it".
+// A plain string cannot tell them apart, so the row carries the difference.
+type Text struct {
+	present bool
+	value   string
+}
+
+// UnmarshalJSON reads the text as it came.
+func (t *Text) UnmarshalJSON(data []byte) error {
+	var decoded any
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	switch value := decoded.(type) {
+	case string:
+		t.present, t.value = true, value
+	case nil:
+		// A null carries no text, but it was sent: the field is present and
+		// carries the empty text.
+		t.present, t.value = true, ""
+	default:
+		return fmt.Errorf("must be a string")
+	}
+	return nil
+}
+
+// MarshalJSON writes the text as it came.
+func (t Text) MarshalJSON() ([]byte, error) { return json.Marshal(t.value) }
+
+// Value returns the text the field carries.
+func (t Text) Value() any { return t.value }
+
+// Present reports whether the field carried a text at all.
+func (t Text) Present() bool { return t.present }
+
+// String returns the text the field carries.
+func (t Text) String() string { return t.value }
+
+// JSONText marks the type as carrying a text, so the schema derives the text
+// itself.
+func (Text) JSONText() {}
+
+// TextArray is a request field that carries a list of texts — a list, and
+// nothing else — and knows whether it was sent at all.
+//
+// The members are texts: a member that is not a text is refused, the way the
+// door refuses it.
+type TextArray struct {
+	present bool
+	members []string
+}
+
+// UnmarshalJSON reads the list as it came.
+func (a *TextArray) UnmarshalJSON(data []byte) error {
+	var decoded any
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	switch value := decoded.(type) {
+	case []any:
+		members := make([]string, 0, len(value))
+		for _, member := range value {
+			text, ok := member.(string)
+			if !ok {
+				return fmt.Errorf("must be a list of texts")
+			}
+			members = append(members, text)
+		}
+		a.present, a.members = true, members
+	case nil:
+		// A null carries no list, but it was sent: the field is present and
+		// carries the empty list.
+		a.present, a.members = true, nil
+	default:
+		return fmt.Errorf("must be a list of texts")
+	}
+	return nil
+}
+
+// MarshalJSON writes the list as it came.
+func (a TextArray) MarshalJSON() ([]byte, error) { return json.Marshal(a.members) }
+
+// Value returns the list the field carries.
+func (a TextArray) Value() any { return a.members }
+
+// Present reports whether the field carried a list at all.
+func (a TextArray) Present() bool { return a.present }
+
+// Members returns the texts the list carries.
+func (a TextArray) Members() []string { return a.members }
+
+// TextArray marks the type as carrying a list of texts, so the schema derives
+// the list itself.
+func (TextArray) TextArray() {}
+
+// Integer is a request field that carries an integer — and knows whether it
+// was sent at all.
+//
+// A count that was not sent and a count of zero are different answers, the
+// same way they are for a limit.
+type Integer struct {
+	present bool
+	value   int64
+}
+
+// UnmarshalJSON reads the integer as it came.
+func (i *Integer) UnmarshalJSON(data []byte) error {
+	trimmed := bytes.TrimSpace(data)
+	if bytes.Equal(trimmed, []byte("null")) {
+		// A null carries no integer, but it was sent: the field is present and
+		// carries the zero.
+		i.present, i.value = true, 0
+		return nil
+	}
+	// The number is read as it was written, so a count that does not fit in a
+	// float still reads as itself. A string is not a number, even when it
+	// carries one.
+	if len(trimmed) == 0 || trimmed[0] == '"' {
+		return fmt.Errorf("must be an integer")
+	}
+	var number json.Number
+	if err := json.Unmarshal(trimmed, &number); err != nil {
+		return fmt.Errorf("must be an integer")
+	}
+	value, err := number.Int64()
+	if err != nil {
+		return fmt.Errorf("must be an integer")
+	}
+	i.present, i.value = true, value
+	return nil
+}
+
+// MarshalJSON writes the integer as it came.
+func (i Integer) MarshalJSON() ([]byte, error) { return json.Marshal(i.value) }
+
+// Value returns the integer the field carries.
+func (i Integer) Value() any { return i.value }
+
+// Present reports whether the field carried an integer at all.
+func (i Integer) Present() bool { return i.present }
+
+// Number returns the integer the field carries.
+func (i Integer) Number() int64 { return i.value }
+
+// JSONInteger marks the type as carrying an integer, so the schema derives
+// the integer itself.
+func (Integer) JSONInteger() {}
+
 // Object is a request field that carries a JSON object.
 //
 // The row says "an object" and not "an object or null": a missing object and a
 // null one are different answers, and the daemon reads the difference.
 type Object struct {
-	value map[string]any
+	present bool
+	value   map[string]any
 }
 
 // ObjectOf wraps a map as a field that carries a JSON object.
-func ObjectOf(value map[string]any) Object { return Object{value: value} }
+func ObjectOf(value map[string]any) Object {
+	return Object{present: true, value: value}
+}
 
 // UnmarshalJSON reads the object as it came.
 func (o *Object) UnmarshalJSON(data []byte) error {
 	if bytes.Equal(bytes.TrimSpace(data), []byte("null")) {
 		return fmt.Errorf("must be an object")
 	}
+	// The object's numbers are read as they were written: a number that does not
+	// fit in a float still reads as itself, because the row carries the object
+	// and the domain reads it back.
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber()
 	var decoded map[string]any
-	if err := json.Unmarshal(data, &decoded); err != nil {
+	if err := decoder.Decode(&decoded); err != nil {
 		return err
 	}
 	o.value = decoded
+	o.present = true
 	return nil
 }
 
@@ -173,6 +334,10 @@ func (o Object) Value() any { return o.value }
 
 // Map returns the object the field carries.
 func (o Object) Map() map[string]any { return o.value }
+
+// Present reports whether the field carried an object at all: an object that
+// was not sent and an empty one are different answers.
+func (o Object) Present() bool { return o.present }
 
 // JSONObject marks the type as carrying a JSON object, so the schema derives
 // the object itself.
@@ -761,6 +926,111 @@ type AgentGraveyardRequest struct {
 	OlderThanDays NumberFlag `json:"older_than_days,omitempty"`
 }
 
+// AgentCapabilitiesRequest is the agent_capabilities request row: the agent's
+// ref, and the capability fields the operator patches.
+//
+// Every patch field knows whether it was sent: a field that was not sent is
+// left alone, and a field that was sent is patched — even when it was sent
+// empty.
+type AgentCapabilitiesRequest struct {
+	Ref             string    `json:"ref,omitempty"`
+	TrustCeiling    Text      `json:"trust_ceiling,omitempty"`
+	ToolAllow       TextArray `json:"tool_allow,omitempty"`
+	ToolDeny        TextArray `json:"tool_deny,omitempty"`
+	NoisePolicy     Object    `json:"noise_policy,omitempty"`
+	ConfigOverrides Object    `json:"config_overrides,omitempty"`
+	MemoryScope     Text      `json:"memory_scope,omitempty"`
+	Workdir         Text      `json:"workdir,omitempty"`
+	MaxCostMc       Integer   `json:"max_cost_mc,omitempty"`
+	MaxDailyMc      Integer   `json:"max_daily_mc,omitempty"`
+}
+
+// AgentProfileAddRequest is the agent_add request row: the profile to create.
+type AgentProfileAddRequest struct {
+	Profile Object `json:"profile,omitempty"`
+}
+
+// AgentProfileEditRequest is the agent_edit request row: the agent's ref, and
+// the profile to write.
+type AgentProfileEditRequest struct {
+	Ref     string `json:"ref,omitempty"`
+	Profile Object `json:"profile,omitempty"`
+}
+
+// AgentRemoveRequest is the agent_remove request row: the agent's ref, and
+// what the removal cleans up besides the profile.
+type AgentRemoveRequest struct {
+	Ref     string `json:"ref,omitempty"`
+	Cascade Object `json:"cascade,omitempty"`
+}
+
+// AgentRepairRequest is the agent_repair request row: the agent's ref, why it
+// is repaired, and the incident chain it belongs to.
+type AgentRepairRequest struct {
+	Ref              string `json:"ref,omitempty"`
+	Reason           string `json:"reason,omitempty"`
+	IncidentID       string `json:"incident_id,omitempty"`
+	RootIncidentID   string `json:"root_incident_id,omitempty"`
+	ParentIncidentID string `json:"parent_incident_id,omitempty"`
+}
+
+// AgentResolveRequest is the agent_resolve request row: the agent's ref, the
+// resolution to apply, and the routing it carries.
+type AgentResolveRequest struct {
+	Ref              string    `json:"ref,omitempty"`
+	Resolution       string    `json:"resolution,omitempty"`
+	Summary          string    `json:"summary,omitempty"`
+	DelegateTo       string    `json:"delegate_to,omitempty"`
+	TaskType         string    `json:"task_type,omitempty"`
+	TaskModelChain   TextArray `json:"task_model_chain,omitempty"`
+	IncidentID       string    `json:"incident_id,omitempty"`
+	RootIncidentID   string    `json:"root_incident_id,omitempty"`
+	ParentIncidentID string    `json:"parent_incident_id,omitempty"`
+}
+
+// AgentSetEnabledRequest is the agent_set_enabled request row: the agent's
+// ref, and whether it is enabled.
+//
+// The flag is a boolean — or the string a query string carries for one.
+type AgentSetEnabledRequest struct {
+	Ref     string   `json:"ref,omitempty"`
+	Enabled BoolFlag `json:"enabled,omitempty"`
+}
+
+// AgentSetRetiredRequest is the request row of the roster's retirement
+// mutations — retire and revive: the agent's ref, and why.
+type AgentSetRetiredRequest struct {
+	Ref    string `json:"ref,omitempty"`
+	Reason string `json:"reason,omitempty"`
+}
+
+// AgentTaskUpdateRequest is the agent_task_update request row: the agent's
+// ref, the operation, the task it carries, and the task's own fields.
+//
+// The task's fields know whether they were sent: presence, not value, decides
+// which fields an update touches.
+type AgentTaskUpdateRequest struct {
+	Ref         string `json:"ref,omitempty"`
+	Op          string `json:"op,omitempty"`
+	Task        Object `json:"task,omitempty"`
+	ID          Text   `json:"id,omitempty"`
+	Title       Text   `json:"title,omitempty"`
+	Description Text   `json:"description,omitempty"`
+	Scope       Text   `json:"scope,omitempty"`
+	Status      Text   `json:"status,omitempty"`
+}
+
+// AgentWakeRequest is the agent_wake request row: the agent's ref, the
+// intent, why, and the incident chain it belongs to.
+type AgentWakeRequest struct {
+	Ref              string `json:"ref,omitempty"`
+	Intent           string `json:"intent,omitempty"`
+	Reason           string `json:"reason,omitempty"`
+	IncidentID       string `json:"incident_id,omitempty"`
+	RootIncidentID   string `json:"root_incident_id,omitempty"`
+	ParentIncidentID string `json:"parent_incident_id,omitempty"`
+}
+
 // RequestRow binds one operation to its request row.
 type RequestRow struct {
 	// Operation is the operation's name.
@@ -845,6 +1115,20 @@ var RequestRows = []RequestRow{
 	{Operation: AgentPermissions, Row: AgentRefRequest{}},
 	{Operation: AgentList, Row: AgentListRequest{}},
 	{Operation: AgentGraveyard, Row: AgentGraveyardRequest{}},
+	// The roster's write half: the capability patch, the profile writes, the
+	// removal, the repair, the resolve, the enable, the retirement, the task
+	// update and the wake.
+	{Operation: AgentCapabilities, Row: AgentCapabilitiesRequest{}},
+	{Operation: AgentAdd, Row: AgentProfileAddRequest{}},
+	{Operation: AgentEdit, Row: AgentProfileEditRequest{}},
+	{Operation: AgentRemove, Row: AgentRemoveRequest{}},
+	{Operation: AgentRepair, Row: AgentRepairRequest{}},
+	{Operation: AgentResolve, Row: AgentResolveRequest{}},
+	{Operation: AgentSetEnabled, Row: AgentSetEnabledRequest{}},
+	{Operation: AgentRetire, Row: AgentSetRetiredRequest{}},
+	{Operation: AgentRevive, Row: AgentSetRetiredRequest{}},
+	{Operation: AgentTaskUpdate, Row: AgentTaskUpdateRequest{}},
+	{Operation: AgentWake, Row: AgentWakeRequest{}},
 }
 
 // Args returns the operation arguments a request row describes.

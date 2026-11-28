@@ -134,15 +134,6 @@ func ValidateHierarchyRefs(p agentapi.Profile, get func(string) (agentapi.Profil
 	return nil
 }
 
-type AddRequest struct {
-	Profile json.RawMessage `json:"profile,omitempty"`
-}
-
-type EditRequest struct {
-	Ref     json.RawMessage `json:"ref,omitempty"`
-	Profile json.RawMessage `json:"profile,omitempty"`
-}
-
 type ProfileWriteOutput struct {
 	Profile ProfileOutput `json:"profile"`
 }
@@ -164,15 +155,19 @@ func profileWriteOutput(p agentapi.Profile) ProfileWriteOutput {
 	return ProfileWriteOutput{Profile: ProfileOutput{Profile: p, Kind: p.Kind(), Managed: !p.AllowsDirectCall()}}
 }
 
-func (s *ProfileWriteService) Add(_ context.Context, in AddRequest) (ProfileWriteOutput, error) {
-	if len(in.Profile) == 0 {
+func (s *ProfileWriteService) Add(_ context.Context, in opapi.AgentProfileAddRequest) (ProfileWriteOutput, error) {
+	if !in.Profile.Present() {
 		return ProfileWriteOutput{}, errors.New("args.profile required")
 	}
-	var p agentapi.Profile
-	if err := json.Unmarshal(in.Profile, &p); err != nil {
+	raw, err := profileRow(in.Profile)
+	if err != nil {
 		return ProfileWriteOutput{}, errors.New("args.profile: " + err.Error())
 	}
-	NormalizeProfileKind(in.Profile, &p)
+	var p agentapi.Profile
+	if err := json.Unmarshal(raw, &p); err != nil {
+		return ProfileWriteOutput{}, errors.New("args.profile: " + err.Error())
+	}
+	NormalizeProfileKind(raw, &p)
 	p.System = false // System is kernel-owned (set only by guardian seeding); never accept it from a client (M961)
 	if err := ValidateHierarchyRefs(p, s.get); err != nil {
 		return ProfileWriteOutput{}, err
@@ -185,28 +180,29 @@ func (s *ProfileWriteService) Add(_ context.Context, in AddRequest) (ProfileWrit
 	return profileWriteOutput(saved), nil
 }
 
-func (s *ProfileWriteService) Edit(_ context.Context, in EditRequest) (ProfileWriteOutput, error) {
-	ref, err := rawRefOf(in.Ref)
+func (s *ProfileWriteService) Edit(_ context.Context, in opapi.AgentProfileEditRequest) (ProfileWriteOutput, error) {
+	ref, err := refOf(in.Ref)
 	if err != nil {
 		return ProfileWriteOutput{}, err
 	}
-	if len(in.Profile) == 0 {
+	if !in.Profile.Present() {
 		return ProfileWriteOutput{}, errors.New("args.profile required")
 	}
 	// The top-level keys the caller sent decide which fields change, as opposed
 	// to zero values from omitted fields.
 	provided := map[string]bool{}
-	var keys map[string]json.RawMessage
-	if json.Unmarshal(in.Profile, &keys) == nil {
-		for k := range keys {
-			provided[k] = true
-		}
+	for k := range in.Profile.Map() {
+		provided[k] = true
 	}
-	var patch agentapi.Profile
-	if err := json.Unmarshal(in.Profile, &patch); err != nil {
+	raw, err := profileRow(in.Profile)
+	if err != nil {
 		return ProfileWriteOutput{}, errors.New("args.profile: " + err.Error())
 	}
-	NormalizeProfileKind(in.Profile, &patch)
+	var patch agentapi.Profile
+	if err := json.Unmarshal(raw, &patch); err != nil {
+		return ProfileWriteOutput{}, errors.New("args.profile: " + err.Error())
+	}
+	NormalizeProfileKind(raw, &patch)
 	// kind "subagent" sets DirectCallable=false; apply it like an explicit field.
 	if provided["kind"] && patch.DirectCallable != nil && !*patch.DirectCallable {
 		provided["direct_callable"] = true
@@ -244,13 +240,13 @@ func ProfileWriteOperations(provider func(context.Context) *ProfileWriteService)
 	if err != nil {
 		return nil, err
 	}
-	add, err := app.NewOperation(opapi.Spec{Name: opapi.AgentAdd, OutputSchema: output, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"profile":{"type":"object"}}}`)}, func(ctx context.Context, in AddRequest) (ProfileWriteOutput, error) {
+	add, err := app.NewOperation(opapi.Spec{Name: opapi.AgentAdd, OutputSchema: output, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true}, func(ctx context.Context, in opapi.AgentProfileAddRequest) (ProfileWriteOutput, error) {
 		return provider(ctx).Add(ctx, in)
 	})
 	if err != nil {
 		return nil, err
 	}
-	edit, err := app.NewOperation(opapi.Spec{Name: opapi.AgentEdit, OutputSchema: output, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{"type":"string"},"profile":{"type":"object"}}}`)}, func(ctx context.Context, in EditRequest) (ProfileWriteOutput, error) {
+	edit, err := app.NewOperation(opapi.Spec{Name: opapi.AgentEdit, OutputSchema: output, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true}, func(ctx context.Context, in opapi.AgentProfileEditRequest) (ProfileWriteOutput, error) {
 		return provider(ctx).Edit(ctx, in)
 	})
 	if err != nil {

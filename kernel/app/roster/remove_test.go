@@ -107,7 +107,7 @@ func removeFixture(o removeOpts) (*RemoveService, *removeCalls) {
 
 func removeRun(t *testing.T, s *RemoveService, raw string) (RemoveOutput, error) {
 	t.Helper()
-	var in RemoveRequest
+	var in opapi.AgentRemoveRequest
 	if err := json.Unmarshal([]byte(raw), &in); err != nil {
 		t.Fatal(raw, err)
 	}
@@ -116,22 +116,34 @@ func removeRun(t *testing.T, s *RemoveService, raw string) (RemoveOutput, error)
 
 func TestRosterParseRemoveCascade(t *testing.T) {
 	for raw, want := range map[string]RemoveCascade{
-		`null`: {}, `"all"`: {}, `[true]`: {}, `{}`: {},
+		`{}`: {},
 		`{"standing":true,"schedules":"YES","memory":" on ","authored_memory":"1","skills":"true","config":1,"workspace":"no","subagents":false}`: {Standing: true, Schedules: true, Memory: true, AuthoredMemory: true, Skills: true},
 		`{"authored_shared_memory":true,"workdir":"on","config":"On","subagents":"1"}`:                                                            {AuthoredMemory: true, Workspace: true, Config: true, Subagents: true},
 	} {
-		if got := ParseRemoveCascade(json.RawMessage(raw)); got != want {
+		var in opapi.AgentRemoveRequest
+		if err := json.Unmarshal([]byte(`{"cascade":`+raw+`}`), &in); err != nil {
+			t.Fatal(raw, err)
+		}
+		if got := ParseRemoveCascade(in.Cascade); got != want {
 			t.Fatalf("%s: %+v", raw, got)
 		}
 	}
-	if got := ParseRemoveCascade(nil); got != (RemoveCascade{}) {
+	// A cascade that is not an object never reaches the service: the row reads
+	// its own fields.
+	for _, raw := range []string{`null`, `"all"`, `[true]`} {
+		var in opapi.AgentRemoveRequest
+		if err := json.Unmarshal([]byte(`{"cascade":`+raw+`}`), &in); err == nil {
+			t.Fatal(raw)
+		}
+	}
+	if got := ParseRemoveCascade(opapi.Object{}); got != (RemoveCascade{}) {
 		t.Fatal(got)
 	}
 }
 
 func TestRosterRemoveRejections(t *testing.T) {
 	for raw, want := range map[string]string{
-		`{}`: "args.ref required", `{"ref":3}`: "args.ref must be a string",
+		`{}`: "args.ref required",
 		`{"ref":"guard","cascade":{"subagents":true}}`: "system agent guard cannot be removed; retire or pause it instead",
 		`{"ref":"lead"}`: "agent lead has 2 dependent sub-agent(s); set cascade.subagents=true to retire them before removal",
 		`{"ref":"lead","cascade":{"subagents":"no"}}`: "agent lead has 2 dependent sub-agent(s); set cascade.subagents=true to retire them before removal",
@@ -147,6 +159,12 @@ func TestRosterRemoveRejections(t *testing.T) {
 		}
 	}
 	s, calls := removeFixture(removeOpts{removed: true})
+	// A ref that is not a text never reaches the service: the row reads its
+	// own fields.
+	var mistyped opapi.AgentRemoveRequest
+	if err := json.Unmarshal([]byte(`{"ref":3}`), &mistyped); err == nil {
+		t.Fatal("a mistyped ref never reaches the service")
+	}
 	out, err := removeRun(t, s, `{"ref":"ghost","cascade":{"standing":true}}`)
 	raw, _ := json.Marshal(out)
 	if err != nil || string(raw) != `{"removed":false}` || len(calls.steps) != 1 {
@@ -242,7 +260,7 @@ func TestRosterRemoveOperationIsAudited(t *testing.T) {
 		t.Fatal(ops, err)
 	}
 	spec := ops[0].Spec()
-	if spec.Name != "agent_remove" || spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.Input != reflect.TypeFor[RemoveRequest]() || spec.Output != reflect.TypeFor[RemoveOutput]() {
+	if spec.Name != "agent_remove" || spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.Input != reflect.TypeFor[opapi.AgentRemoveRequest]() || spec.Output != reflect.TypeFor[RemoveOutput]() {
 		t.Fatal(spec)
 	}
 	if schema.ValidateJSON(spec.OutputSchema, json.RawMessage(`{"removed":false}`)) != nil || schema.ValidateJSON(spec.OutputSchema, json.RawMessage(`{"removed":true,"standing_removed":"x"}`)) == nil {

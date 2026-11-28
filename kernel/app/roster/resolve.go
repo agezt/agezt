@@ -4,7 +4,6 @@ package roster
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -16,20 +15,6 @@ import (
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/platform/schema"
 )
-
-// ResolveRequest keeps every argument raw: ref is a strict string; everything
-// else is read leniently (a non-string is empty, a non-array chain is absent).
-type ResolveRequest struct {
-	Ref              json.RawMessage `json:"ref,omitempty"`
-	Resolution       json.RawMessage `json:"resolution,omitempty"`
-	Summary          json.RawMessage `json:"summary,omitempty"`
-	DelegateTo       json.RawMessage `json:"delegate_to,omitempty"`
-	TaskType         json.RawMessage `json:"task_type,omitempty"`
-	TaskModelChain   json.RawMessage `json:"task_model_chain,omitempty"`
-	IncidentID       json.RawMessage `json:"incident_id,omitempty"`
-	RootIncidentID   json.RawMessage `json:"root_incident_id,omitempty"`
-	ParentIncidentID json.RawMessage `json:"parent_incident_id,omitempty"`
-}
 
 type ResolveOutput struct {
 	Applied       bool   `json:"applied"`
@@ -103,25 +88,16 @@ func (r appliedResolution) addTo(payload map[string]any) {
 	}
 }
 
-// rawChain is the task_model_chain argument when it is a JSON array.
-func rawChain(raw json.RawMessage) []any {
-	v, _ := rawValue(raw)
-	items, _ := v.([]any)
-	return items
-}
-
-// normalizeTaskModelChain keeps the trimmed, non-empty string models. A
+// normalizeTaskModelChain keeps the trimmed, non-empty model names. A
 // non-empty input always yields a non-nil slice.
-func normalizeTaskModelChain(raw []any) []string {
-	if len(raw) == 0 {
+func normalizeTaskModelChain(models []string) []string {
+	if len(models) == 0 {
 		return nil
 	}
-	out := make([]string, 0, len(raw))
-	for _, item := range raw {
-		if v, ok := item.(string); ok {
-			if v = strings.TrimSpace(v); v != "" {
-				out = append(out, v)
-			}
+	out := make([]string, 0, len(models))
+	for _, model := range models {
+		if model = strings.TrimSpace(model); model != "" {
+			out = append(out, model)
 		}
 	}
 	return out
@@ -165,7 +141,7 @@ func validateDelegateTarget(p agentapi.Profile, target string, get func(string) 
 	return nil
 }
 
-func (s *ResolveService) apply(p agentapi.Profile, resolution, summary string, in ResolveRequest, lineage IncidentLineage) (appliedResolution, error) {
+func (s *ResolveService) apply(p agentapi.Profile, resolution, summary string, in opapi.AgentResolveRequest, lineage IncidentLineage) (appliedResolution, error) {
 	switch resolution {
 	case "paused":
 		if p.Retired {
@@ -179,7 +155,7 @@ func (s *ResolveService) apply(p agentapi.Profile, resolution, summary string, i
 		}
 		return appliedResolution{}, s.ports.Retire(p.Slug, reason)
 	case "delegated":
-		target := lenientString(in.DelegateTo)
+		target := strings.TrimSpace(in.DelegateTo)
 		if err := validateDelegateTarget(p, target, s.ports.Get); err != nil {
 			return appliedResolution{}, err
 		}
@@ -193,8 +169,8 @@ func (s *ResolveService) apply(p agentapi.Profile, resolution, summary string, i
 		}
 		return appliedResolution{delegateTo: target, messageID: strings.TrimSpace(id)}, nil
 	case "force_chain":
-		taskType := lenientString(in.TaskType)
-		chain := normalizeTaskModelChain(rawChain(in.TaskModelChain))
+		taskType := strings.TrimSpace(in.TaskType)
+		chain := normalizeTaskModelChain(in.TaskModelChain.Members())
 		if taskType == "" || len(chain) == 0 {
 			return appliedResolution{}, fmt.Errorf("force_chain resolution requires task_type and task_model_chain")
 		}
@@ -218,8 +194,8 @@ func (s *ResolveService) apply(p agentapi.Profile, resolution, summary string, i
 	}
 }
 
-func (s *ResolveService) Resolve(_ context.Context, in ResolveRequest) (ResolveOutput, error) {
-	ref, err := rawRefOf(in.Ref)
+func (s *ResolveService) Resolve(_ context.Context, in opapi.AgentResolveRequest) (ResolveOutput, error) {
+	ref, err := refOf(in.Ref)
 	if err != nil {
 		return ResolveOutput{}, err
 	}
@@ -227,13 +203,13 @@ func (s *ResolveService) Resolve(_ context.Context, in ResolveRequest) (ResolveO
 	if !ok {
 		return ResolveOutput{}, errors.New("unknown agent: " + ref)
 	}
-	resolution := lenientString(in.Resolution)
+	resolution := strings.TrimSpace(in.Resolution)
 	switch resolution {
 	case "paused", "retired", "delegated", "force_chain":
 	default:
 		return ResolveOutput{}, errors.New("args.resolution must be paused, retired, delegated, or force_chain")
 	}
-	summary := lenientString(in.Summary)
+	summary := strings.TrimSpace(in.Summary)
 	lineage := incidentLineage(in.IncidentID, in.RootIncidentID, in.ParentIncidentID)
 	corr := s.ports.NewCorrelation()
 	payload := func(phase string) map[string]any {
@@ -248,14 +224,16 @@ func (s *ResolveService) Resolve(_ context.Context, in ResolveRequest) (ResolveO
 		}
 	}
 	requested := payload("requested")
-	if delegateTo := lenientString(in.DelegateTo); delegateTo != "" {
+	if delegateTo := strings.TrimSpace(in.DelegateTo); delegateTo != "" {
 		requested["delegate_to"] = delegateTo
 	}
-	if taskType := lenientString(in.TaskType); taskType != "" {
+	if taskType := strings.TrimSpace(in.TaskType); taskType != "" {
 		requested["routing_task_type"] = taskType
 	}
-	if chain := rawChain(in.TaskModelChain); len(chain) > 0 {
-		requested["routing_task_model_chain"] = normalizeTaskModelChain(chain)
+	if members := in.TaskModelChain.Members(); len(members) > 0 {
+		// A chain that was sent is always journaled, even when no model
+		// survives the trim.
+		requested["routing_task_model_chain"] = normalizeTaskModelChain(members)
 	}
 	s.ports.Publish("agent.resolve", corr, requested)
 
@@ -281,7 +259,7 @@ func ResolveOperations(provider func(context.Context) *ResolveService) ([]app.Op
 	if err != nil {
 		return nil, err
 	}
-	op, err := app.NewOperation(opapi.Spec{Name: opapi.AgentResolve, OutputSchema: output, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{"type":"string"},"resolution":{"type":"string"},"summary":{"type":"string"},"delegate_to":{"type":"string"},"task_type":{"type":"string"},"task_model_chain":{"type":"array","items":{"type":"string"}},"incident_id":{"type":"string"},"root_incident_id":{"type":"string"},"parent_incident_id":{"type":"string"}}}`)}, func(ctx context.Context, in ResolveRequest) (ResolveOutput, error) {
+	op, err := app.NewOperation(opapi.Spec{Name: opapi.AgentResolve, OutputSchema: output, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true}, func(ctx context.Context, in opapi.AgentResolveRequest) (ResolveOutput, error) {
 		return provider(ctx).Resolve(ctx, in)
 	})
 	if err != nil {

@@ -58,7 +58,7 @@ func wakeFixture() (*WakeService, *wakeCalls) {
 
 func wakeRun(t *testing.T, s *WakeService, raw string) (WakeOutput, error) {
 	t.Helper()
-	var in WakeRequest
+	var in opapi.AgentWakeRequest
 	if err := json.Unmarshal([]byte(raw), &in); err != nil {
 		t.Fatal(raw, err)
 	}
@@ -67,20 +67,16 @@ func wakeRun(t *testing.T, s *WakeService, raw string) (WakeOutput, error) {
 
 func TestRosterWakeRejectsWithoutEffects(t *testing.T) {
 	for raw, want := range map[string]string{
-		`{}`:                                    "args.ref required",
-		`{"ref":"  ","intent":3}`:               "args.ref required",
-		`{"ref":3}`:                             "args.ref must be a string",
-		`{"ref":"ghost","intent":3}`:            "unknown agent: ghost",
-		`{"ref":"gone","intent":3}`:             "agent gone is retired — revive it first",
-		`{"ref":"retsub"}`:                      "agent retsub is retired — revive it first",
-		`{"ref":"off","intent":3}`:              "agent off is paused",
-		`{"ref":"pausub"}`:                      "agent pausub is paused",
-		`{"ref":"sub","intent":3}`:              "agent sub is a managed sub-agent and cannot be called directly; wake lead or delegate through it",
-		`{"ref":"owned"}`:                       "agent owned is a managed sub-agent and cannot be called directly; wake owner or delegate through it",
-		`{"ref":"orphan"}`:                      "agent orphan is a managed sub-agent and cannot be called directly; route the work through its parent/owner agent",
-		`{"ref":"ops","intent":3,"reason":"r"}`: "args.intent must be a string",
-		`{"ref":"ops","intent":null}`:           "args.intent must be a string",
-		`{"ref":"ops","intent":["x"]}`:          "args.intent must be a string",
+		`{}`:               "args.ref required",
+		`{"ref":"  "}`:     "args.ref required",
+		`{"ref":"gone"}`:   "agent gone is retired — revive it first",
+		`{"ref":"retsub"}`: "agent retsub is retired — revive it first",
+		`{"ref":"off"}`:    "agent off is paused",
+		`{"ref":"pausub"}`: "agent pausub is paused",
+		`{"ref":"sub"}`:    "agent sub is a managed sub-agent and cannot be called directly; wake lead or delegate through it",
+		`{"ref":"owned"}`:  "agent owned is a managed sub-agent and cannot be called directly; wake owner or delegate through it",
+		`{"ref":"orphan"}`: "agent orphan is a managed sub-agent and cannot be called directly; route the work through its parent/owner agent",
+		`{"ref":"ghost"}`:  "unknown agent: ghost",
 	} {
 		s, calls := wakeFixture()
 		if _, err := wakeRun(t, s, raw); err == nil || err.Error() != want || calls.published != nil || calls.launches != nil {
@@ -91,6 +87,19 @@ func TestRosterWakeRejectsWithoutEffects(t *testing.T) {
 				t.Fatal("effect before rejection", raw, calls.steps)
 			}
 		}
+	}
+	// A ref or an intent that is not a text never reaches the service: the row
+	// reads its own fields.
+	for _, raw := range []string{`{"ref":3}`, `{"ref":"ghost","intent":3}`, `{"ref":"ops","intent":3,"reason":"r"}`, `{"ref":"ops","intent":["x"]}`} {
+		var in opapi.AgentWakeRequest
+		if err := json.Unmarshal([]byte(raw), &in); err == nil {
+			t.Fatal(raw)
+		}
+	}
+	// A null intent is an empty intent: the wake carries the default prompt.
+	s, calls := wakeFixture()
+	if _, err := wakeRun(t, s, `{"ref":"ops","intent":null}`); err != nil || calls.launches == nil {
+		t.Fatal("a null intent is an empty intent", err)
 	}
 }
 
@@ -120,13 +129,19 @@ func TestRosterWakeJournalsThenLaunches(t *testing.T) {
 	if out, err := wakeRun(t, s, `{"ref":"OPS","reason":"r"}`); err != nil || out.Agent != "ops" || calls.launches[0].slug != "ops" || calls.published[0]["agent"] != "ops" {
 		t.Fatal("resolved slug", out, err)
 	}
-	// Lenient reason and incident ids: anything but a string is empty.
+	// A null id is an empty one; a mistyped one never reaches the service.
 	s, calls = wakeFixture()
-	if _, err := wakeRun(t, s, `{"ref":"ops","reason":7,"incident_id":true,"root_incident_id":{},"parent_incident_id":null}`); err != nil {
+	if _, err := wakeRun(t, s, `{"ref":"ops","reason":null,"incident_id":null,"root_incident_id":null,"parent_incident_id":null}`); err != nil {
 		t.Fatal(err)
 	}
 	if calls.published[0]["reason"] != "" || calls.published[0]["incident_id"] != "" || calls.published[0]["root_incident_id"] != "" || calls.published[0]["parent_incident_id"] != "" || calls.launches[0].intent != BuildOperatorWakeIntent("", "ops", "", IncidentLineage{}) {
-		t.Fatal("lenient args", calls.published, calls.launches)
+		t.Fatal("null args", calls.published, calls.launches)
+	}
+	for _, raw := range []string{`{"ref":"ops","reason":7}`, `{"ref":"ops","incident_id":true}`, `{"ref":"ops","root_incident_id":{}}`} {
+		var in opapi.AgentWakeRequest
+		if err := json.Unmarshal([]byte(raw), &in); err == nil {
+			t.Fatal(raw)
+		}
 	}
 }
 
@@ -169,7 +184,7 @@ func TestRosterWakeOperationIsAudited(t *testing.T) {
 		t.Fatal(ops, err)
 	}
 	spec := ops[0].Spec()
-	if spec.Name != "agent_wake" || spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.Input != reflect.TypeFor[WakeRequest]() || spec.Output != reflect.TypeFor[WakeOutput]() {
+	if spec.Name != "agent_wake" || spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.Input != reflect.TypeFor[opapi.AgentWakeRequest]() || spec.Output != reflect.TypeFor[WakeOutput]() {
 		t.Fatal(spec)
 	}
 	if schema.ValidateJSON(spec.OutputSchema, json.RawMessage(`{"accepted":true,"agent":"a","correlation_id":"c"}`)) != nil || schema.ValidateJSON(spec.OutputSchema, json.RawMessage(`{"accepted":"yes","agent":"a","correlation_id":"c"}`)) == nil {
