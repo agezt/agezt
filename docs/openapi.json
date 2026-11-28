@@ -25337,65 +25337,17 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
                 "additionalProperties": true,
                 "properties": {
-                  "ref": {
-                    "type": "string"
-                  },
-                  "workflow": {
-                    "type": "object"
-                  },
-                  "reason": {
-                    "type": "string"
-                  },
-                  "enabled": {
-                    "type": [
-                      "boolean",
-                      "string"
-                    ]
-                  },
-                  "async": {
-                    "type": "boolean"
-                  },
-                  "payload": {
-                    "type": [
-                      "object",
-                      "array",
-                      "string",
-                      "number",
-                      "boolean",
-                      "null"
-                    ]
-                  },
-                  "with_runs": {
-                    "type": [
-                      "boolean",
-                      "string"
-                    ]
-                  },
-                  "limit": {
-                    "type": "number"
-                  },
-                  "name": {
-                    "type": "string"
-                  },
                   "description": {
                     "type": "string"
                   },
-                  "instruction": {
+                  "name": {
                     "type": "string"
-                  },
-                  "secret": {
-                    "type": "string"
-                  },
-                  "node": {
-                    "type": "string"
-                  },
-                  "data": {
-                    "type": "object"
                   }
-                }
+                },
+                "required": null,
+                "type": "object"
               }
             }
           }
@@ -25681,65 +25633,20 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
                 "additionalProperties": true,
                 "properties": {
+                  "instruction": {
+                    "type": "string"
+                  },
                   "ref": {
                     "type": "string"
                   },
                   "workflow": {
                     "type": "object"
-                  },
-                  "reason": {
-                    "type": "string"
-                  },
-                  "enabled": {
-                    "type": [
-                      "boolean",
-                      "string"
-                    ]
-                  },
-                  "async": {
-                    "type": "boolean"
-                  },
-                  "payload": {
-                    "type": [
-                      "object",
-                      "array",
-                      "string",
-                      "number",
-                      "boolean",
-                      "null"
-                    ]
-                  },
-                  "with_runs": {
-                    "type": [
-                      "boolean",
-                      "string"
-                    ]
-                  },
-                  "limit": {
-                    "type": "number"
-                  },
-                  "name": {
-                    "type": "string"
-                  },
-                  "description": {
-                    "type": "string"
-                  },
-                  "instruction": {
-                    "type": "string"
-                  },
-                  "secret": {
-                    "type": "string"
-                  },
-                  "node": {
-                    "type": "string"
-                  },
-                  "data": {
-                    "type": "object"
                   }
-                }
+                },
+                "required": null,
+                "type": "object"
               }
             }
           }
@@ -25953,24 +25860,8 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
                 "additionalProperties": true,
                 "properties": {
-                  "ref": {
-                    "type": "string"
-                  },
-                  "workflow": {
-                    "type": "object"
-                  },
-                  "reason": {
-                    "type": "string"
-                  },
-                  "enabled": {
-                    "type": [
-                      "boolean",
-                      "string"
-                    ]
-                  },
                   "async": {
                     "type": "boolean"
                   },
@@ -25984,34 +25875,12 @@
                       "null"
                     ]
                   },
-                  "with_runs": {
-                    "type": [
-                      "boolean",
-                      "string"
-                    ]
-                  },
-                  "limit": {
-                    "type": "number"
-                  },
-                  "name": {
+                  "ref": {
                     "type": "string"
-                  },
-                  "description": {
-                    "type": "string"
-                  },
-                  "instruction": {
-                    "type": "string"
-                  },
-                  "secret": {
-                    "type": "string"
-                  },
-                  "node": {
-                    "type": "string"
-                  },
-                  "data": {
-                    "type": "object"
                   }
-                }
+                },
+                "required": null,
+                "type": "object"
               }
             }
           }
@@ -26252,65 +26121,14 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
                 "additionalProperties": true,
                 "properties": {
-                  "ref": {
-                    "type": "string"
-                  },
                   "workflow": {
                     "type": "object"
-                  },
-                  "reason": {
-                    "type": "string"
-                  },
-                  "enabled": {
-                    "type": [
-                      "boolean",
-                      "string"
-                    ]
-                  },
-                  "async": {
-                    "type": "boolean"
-                  },
-                  "payload": {
-                    "type": [
-                      "object",
-                      "array",
-                      "string",
-                      "number",
-                      "boolean",
-                      "null"
-                    ]
-                  },
-                  "with_runs": {
-                    "type": [
-                      "boolean",
-                      "string"
-                    ]
-                  },
-                  "limit": {
-                    "type": "number"
-                  },
-                  "name": {
-                    "type": "string"
-                  },
-                  "description": {
-                    "type": "string"
-                  },
-                  "instruction": {
-                    "type": "string"
-                  },
-                  "secret": {
-                    "type": "string"
-                  },
-                  "node": {
-                    "type": "string"
-                  },
-                  "data": {
-                    "type": "object"
                   }
-                }
+                },
+                "required": null,
+                "type": "object"
               }
             }
           }
@@ -26857,26 +26675,13 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
                 "additionalProperties": true,
                 "properties": {
-                  "ref": {
-                    "type": "string"
-                  },
-                  "workflow": {
+                  "data": {
                     "type": "object"
                   },
-                  "reason": {
+                  "node": {
                     "type": "string"
-                  },
-                  "enabled": {
-                    "type": [
-                      "boolean",
-                      "string"
-                    ]
-                  },
-                  "async": {
-                    "type": "boolean"
                   },
                   "payload": {
                     "type": [
@@ -26888,34 +26693,12 @@
                       "null"
                     ]
                   },
-                  "with_runs": {
-                    "type": [
-                      "boolean",
-                      "string"
-                    ]
-                  },
-                  "limit": {
-                    "type": "number"
-                  },
-                  "name": {
-                    "type": "string"
-                  },
-                  "description": {
-                    "type": "string"
-                  },
-                  "instruction": {
-                    "type": "string"
-                  },
-                  "secret": {
-                    "type": "string"
-                  },
-                  "node": {
-                    "type": "string"
-                  },
-                  "data": {
+                  "workflow": {
                     "type": "object"
                   }
-                }
+                },
+                "required": null,
+                "type": "object"
               }
             }
           }

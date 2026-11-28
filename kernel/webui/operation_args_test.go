@@ -457,15 +457,14 @@ func TestTheConsolePassesTheOperationsOwnRow(t *testing.T) {
 				call.File, call.Operation, call.Row, want)
 		}
 	}
-	// Every operation the contract gives a row to, the console calls with that
-	// row: a row nobody calls with is a row nobody reads.
-	called := map[string]bool{}
-	for _, call := range calls {
-		called[call.Operation] = true
-	}
+	// The contract's rows are the operations' OWN rows — whether the console
+	// calls them with a typed row (its own ten) or through the catalogue's
+	// proxy (which forwards the catalogue's declared arguments). So the row
+	// table is not the console's list: the third rule below is what holds
+	// every row to the registry.
 	for _, binding := range opapi.RequestRows {
-		if !called[binding.Operation] {
-			t.Errorf("the console never calls %s — the contract gave it a request row", binding.Operation)
+		if rowNameOf(binding.Operation) == "" {
+			t.Errorf("the contract's row for %s is not reachable", binding.Operation)
 		}
 	}
 }

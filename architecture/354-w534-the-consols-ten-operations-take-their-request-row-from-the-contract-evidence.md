@@ -209,6 +209,8 @@ mutation was reverted and the tree is back to green).
 - **The workflow family's other eight operations keep their shared
   `requestSchema`** — this slice covered the operations the console calls, not
   the whole workflow family.
+  **Done in W5.35** — the family has one row per operation now; see
+  [355](355-w535-the-workflow-family-has-one-row-per-operation-evidence.md).
 - **No layer rule moved.** `archcheck` reports 0 violations: `opapi` is a
   contract (L1) and imports only another contract (`skillapi`); the app layer
   and the console read the rows from there.

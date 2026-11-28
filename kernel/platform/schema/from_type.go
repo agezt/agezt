@@ -36,12 +36,44 @@ type anyJSONValue interface{ AnyJSONValue() }
 // anyJSONValueTypes is the union a field carrying any JSON value derives.
 var anyJSONValueTypes = []string{"object", "array", "string", "number", "boolean", "null"}
 
+// booleanOrString is the marker a request field carries when it holds a
+// boolean OR the string a query string carries for one.
+//
+// A browser's query says "true", not true, so the flag's row says both forms
+// are allowed — and the union it derives says so out loud.
+type booleanOrString interface{ BooleanOrString() }
+
+// booleanOrStringTypes is the union a flag field derives.
+var booleanOrStringTypes = []string{"boolean", "string"}
+
+// jsonObject is the marker a request field carries when it holds a JSON
+// object.
+//
+// The object is named, not "any value": a missing object and a null one are
+// different answers, and the schema says so.
+type jsonObject interface{ JSONObject() }
+
+// jsonNumber is the marker a request field carries when it holds a number.
+//
+// A number that must tell "not asked" from "zero" cannot be a plain float, so
+// it rides in a wrapper — and the wrapper still derives the number itself.
+type jsonNumber interface{ JSONNumber() }
+
 func typeNode(t reflect.Type, allowUnknown bool, visiting map[reflect.Type]bool) (map[string]any, error) {
 	if t == nil {
 		return nil, fmt.Errorf("missing type")
 	}
 	if t.Implements(reflect.TypeFor[anyJSONValue]()) {
 		return map[string]any{"type": anyJSONValueTypes}, nil
+	}
+	if t.Implements(reflect.TypeFor[booleanOrString]()) {
+		return map[string]any{"type": booleanOrStringTypes}, nil
+	}
+	if t.Implements(reflect.TypeFor[jsonObject]()) {
+		return map[string]any{"type": "object"}, nil
+	}
+	if t.Implements(reflect.TypeFor[jsonNumber]()) {
+		return map[string]any{"type": "number"}, nil
 	}
 	marshaler, unmarshaler := reflect.TypeFor[json.Marshaler](), reflect.TypeFor[json.Unmarshaler]()
 	if t.Implements(marshaler) || t.Implements(unmarshaler) || reflect.PointerTo(t).Implements(marshaler) || reflect.PointerTo(t).Implements(unmarshaler) {

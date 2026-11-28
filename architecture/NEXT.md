@@ -1,5 +1,85 @@
 # NEXT — handoff for the next coding agent
 
+## Current checkpoint — W5.35 the workflow family has one request row per operation, 2026-11-28
+
+The W0–W5 objective remains open. W5.8–W5.15 gave the **browser**, the
+**registry** and the **SDKs** their request vocabulary; W5.11–W5.19 gave
+**every surface** that reads a request body its contract, its door and the
+boot-time check that holds the two together; W5.20 put a **gate** behind that
+sentence so it cannot decay; W5.21 closed W5.1's open end on the browser's
+**response** side; W5.22–W5.28 gave the daemon's own rows one home, one family
+at a time; W5.29–W5.32 gave the console's own answers one home each; W5.33
+checked the console's arguments against the registry and W5.34 gave the
+console's ten typed calls their rows. **This slice finishes the workflow
+family** — one row per operation, and the shared schema retired.
+
+### What was on the tree
+
+- **The family shared two hand-written declarations.** Thirteen operations,
+  one fourteen-field JSON Schema literal and one fourteen-field struct: every
+  operation declared **every** field. `workflow_list` published a `secret`, a
+  `node` and a `payload`; the eleven operations that shared the schema
+  declared **154** fields between them, while the family's real vocabulary is
+  **25**.
+- **The rows now live in the contract** — eleven new ones, the family is
+  **thirteen rows** in one table, and the app layer binds each operation
+  through its own row. The shared struct and the shared literal are **gone**.
+- **The rows carry the reading, not just the shape.** `BoolFlag` says a
+  boolean *or the string a query string carries for one*, and keeps both
+  readings the family always had (the strict one that refuses a typo, the
+  lenient one that reads an unknown spelling as off); `Object` says "a JSON
+  object" and **not** "an object or null"; `Limit` knows whether it was sent
+  at all, so "no limit asked" and "zero" stay different answers. The schema
+  package learned three **structural markers** for this — a method is enough,
+  so it needs no import from the contracts.
+- **The published document narrowed on purpose**: each operation publishes
+  **its own** body, and the family's declared request fields went from **170**
+  to **25**. The door still refuses the same mistyped bodies in the same
+  words, before the graph is read.
+- **The guard's forward rule was replaced, with a reason**: a row is not
+  required to be an operation the console calls *with a typed row* — the
+  console calls the family through the catalogue's proxy. What replaced it is
+  the rule that carries the meaning: **every** row in the contract's table
+  must be the operation's own declared input, which now covers **twenty-one**
+  rows.
+
+### What the measurement said
+
+- Request rows held by the contract: **10 → 21**.
+- Workflow operations with a row: **2 → 13** (of 13).
+- Hand-written input schemas in the workflow family: **1 → 0**; the family's
+  shared request struct: **1 → 0**.
+- Request fields the family declares: **170 → 25**.
+- The daemon's behaviour: **unchanged**.
+
+### The evidence
+
+`architecture/355-w535-the-workflow-family-has-one-row-per-operation-evidence.md`
+— the two shared declarations, the three field types, the three markers, the
+narrowed document, the guard's replaced rule, the measurement, the five
+reverted mutations, and what remains open.
+
+### What the next slice should do
+
+**The other families that still write their own schemas.** The rule is in
+place; the rows are the remaining work.
+
+- **The app layer carries 161 hand-written input schemas**: the board's seven,
+  the workboard's nineteen, the artifacts' three, the taste family's three,
+  the skill family's two, the standing and okr families, the world's, the
+  settings' remaining two. One family at a time, the way the workflow family
+  was finished.
+- **The catalogue's `Args` and the request row are still two lists.** The guard
+  compares them at build time; deriving the route's forwarded list from the row
+  would make the comparison unnecessary — the same move W5.35 made for the
+  schema.
+- **The console's ten native routes are not in the catalogue's route table** —
+  the file mutations, the restores, the OAuth callback and the workflow hook
+  are bound outside it, so their paths are not declared in one place yet.
+- **The console's route policy answers a wrong verb in plain text**
+  ("method not allowed"), not with the envelope — a second refusal shape on the
+  wire.
+
 ## Current checkpoint — W5.34 the console's ten operations take their request row from the contract, 2026-11-27
 
 The W0–W5 objective remains open. W5.8–W5.15 gave the **browser**, the
