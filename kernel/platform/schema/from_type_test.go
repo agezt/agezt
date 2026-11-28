@@ -295,6 +295,40 @@ type textDecodeOnly int
 
 func (n *textDecodeOnly) UnmarshalText([]byte) error { *n = 1; return nil }
 
+// TestFromTypeDerivesTheUnionANumberOrTextCarries says a field that carries a
+// number — or the string a query string carries for one — derives the union
+// of the two.
+func TestFromTypeDerivesTheUnionANumberOrTextCarries(t *testing.T) {
+	type payload struct {
+		Days numberOrText `json:"days"`
+	}
+	raw, err := schema.FromType(reflect.TypeFor[payload](), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, value := range []string{`{"days":3}`, `{"days":"3"}`, `{"days":2.75}`} {
+		if err := schema.ValidateJSON(raw, json.RawMessage(value)); err != nil {
+			t.Errorf("valid input=%s error=%v", value, err)
+		}
+	}
+	for _, value := range []string{`{"days":true}`, `{"days":[1]}`, `{"days":{"a":1}}`} {
+		if err := schema.ValidateJSON(raw, json.RawMessage(value)); err == nil {
+			t.Errorf("invalid input=%s accepted", value)
+		}
+	}
+}
+
+// numberOrText carries a number, or the string that stands for one.
+type numberOrText struct{ days float64 }
+
+func (numberOrText) NumberOrString() {}
+
+func (n *numberOrText) UnmarshalJSON(data []byte) error {
+	return json.Unmarshal(data, &n.days)
+}
+
+func (n numberOrText) MarshalJSON() ([]byte, error) { return json.Marshal(n.days) }
+
 // TestFromTypeDerivesTheUnionAListOfTextsCarries says a field that carries a
 // list of texts — or the one comma-separated string a caller sends instead —
 // derives the union of the two, and that the members stay unconstrained.

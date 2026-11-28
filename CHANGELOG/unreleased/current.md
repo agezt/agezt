@@ -837,6 +837,28 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The roster family's read half has one request row per operation.** The
+  roster — the board of agents — declared its request shape **twice**: a JSON
+  Schema literal in the app layer and a request struct beside it, spread over
+  **fifteen** files, with every field read raw by hand-written readers. The
+  family's **read half** — the activity, the escalations, the repair status,
+  the impact, the tombstone, the permissions, the listing and the graveyard —
+  now reads **four** contract rows: the ones that name one agent, the ones that
+  read one agent's page, the listing, and the graveyard's age. The app layer
+  keeps no copy of them, and the contract's row table grows from **49** to
+  **57**. The rows carry the **reading**, not just the shape: the page size
+  knows **whether it was sent at all** (a fraction truncates to *no rows at
+  all* here — the roster's own rule, which differs from the board's and the
+  workboard's), the ref is required and is **not** trimmed, and the graveyard's
+  age is a number **or the string a query string carries for one**, read
+  leniently. The schema package learned **one** more structural marker for
+  that union — a method is enough, so it needs no import from the contracts.
+  The daemon's behaviour did not change: the door already refused the mistyped
+  bodies with the same words, so the app-level type readings were unreachable
+  anyway. The published document and the SDK catalogs did **not** move — the
+  REST surface's own rows already said what the roster's rows now say. The
+  roster's **write half** (eleven operations) is the next slice's work.
+
 - **The workboard family has one request row per operation, and the counts and
   lists keep their rules.** The workboard's twenty-one operations declared their
   request shape **twice** — as a JSON Schema literal in the app layer and as a

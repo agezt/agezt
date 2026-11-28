@@ -82,7 +82,7 @@ func TestRosterSubagentImpactLabels(t *testing.T) {
 
 func TestRosterImpactSummaryPairsEverySubsystem(t *testing.T) {
 	src := impactFixture()
-	out, err := NewImpact(src).Impact(context.Background(), RefPageRequest{Ref: json.RawMessage(`"lead"`)})
+	out, err := NewImpact(src).Impact(context.Background(), opapi.AgentRefRequest{Ref: "lead"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,7 +121,7 @@ func TestRosterImpactSummaryPairsEverySubsystem(t *testing.T) {
 	if strings.Join(src.calls, ",") != "get:lead,subagents:lead,holdings:lead,holdings:a,holdings:b,holdings:c" {
 		t.Fatal(src.calls)
 	}
-	solo, _ := NewImpact(impactFixture()).Impact(context.Background(), RefPageRequest{Ref: json.RawMessage(`"solo"`)})
+	solo, _ := NewImpact(impactFixture()).Impact(context.Background(), opapi.AgentRefRequest{Ref: "solo"})
 	raw, _ = json.Marshal(solo)
 	if !strings.Contains(string(raw), `"subagents":[]`) || !strings.Contains(string(raw), `"subagent_skills":null`) || !strings.Contains(string(raw), `"skills":null`) || solo.SubagentCount != 0 {
 		t.Fatal("no tree", string(raw))
@@ -130,9 +130,11 @@ func TestRosterImpactSummaryPairsEverySubsystem(t *testing.T) {
 
 func TestRosterImpactAndTombstoneErrors(t *testing.T) {
 	s := NewImpact(impactFixture())
-	for raw, want := range map[string]string{`{}`: "args.ref required", `{"ref":" "}`: "args.ref required", `{"ref":3}`: "args.ref must be a string", `{"ref":"ghost"}`: "unknown agent: ghost"} {
-		var in RefPageRequest
-		json.Unmarshal([]byte(raw), &in)
+	for raw, want := range map[string]string{`{}`: "args.ref required", `{"ref":" "}`: "args.ref required", `{"ref":null}`: "args.ref required", `{"ref":"ghost"}`: "unknown agent: ghost"} {
+		var in opapi.AgentRefRequest
+		if err := json.Unmarshal([]byte(raw), &in); err != nil {
+			t.Fatal("impact", raw, err)
+		}
 		if _, err := s.Impact(context.Background(), in); err == nil || err.Error() != want {
 			t.Fatal("impact", raw, err)
 		}
@@ -140,10 +142,16 @@ func TestRosterImpactAndTombstoneErrors(t *testing.T) {
 			t.Fatal("tombstone", raw, err)
 		}
 	}
+	// A mistyped ref never reaches the service: the door refuses it in the
+	// daemon, and the decoder refuses it here.
+	var mistyped opapi.AgentRefRequest
+	if err := json.Unmarshal([]byte(`{"ref":3}`), &mistyped); err == nil {
+		t.Fatal("a mistyped ref was accepted")
+	}
 }
 
 func TestRosterTombstone(t *testing.T) {
-	out, err := NewImpact(impactFixture()).Tombstone(context.Background(), RefPageRequest{Ref: json.RawMessage(`"lead"`)})
+	out, err := NewImpact(impactFixture()).Tombstone(context.Background(), opapi.AgentRefRequest{Ref: "lead"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,7 +164,7 @@ func TestRosterTombstone(t *testing.T) {
 	if out.Tombstone != want {
 		t.Fatalf("%+v\nwant %+v", out.Tombstone, want)
 	}
-	solo, _ := NewImpact(impactFixture()).Tombstone(context.Background(), RefPageRequest{Ref: json.RawMessage(`"solo"`)})
+	solo, _ := NewImpact(impactFixture()).Tombstone(context.Background(), opapi.AgentRefRequest{Ref: "solo"})
 	if solo.Tombstone.Manager != "owner" {
 		t.Fatal("manager falls back to the owner", solo.Tombstone.Manager)
 	}
@@ -165,7 +173,7 @@ func TestRosterTombstone(t *testing.T) {
 	for i, name := range impactSubsystemNames {
 		src.held["lead"][name] = make([]string, i+1)
 	}
-	got, _ := NewImpact(src).Tombstone(context.Background(), RefPageRequest{Ref: json.RawMessage(`"lead"`)})
+	got, _ := NewImpact(src).Tombstone(context.Background(), opapi.AgentRefRequest{Ref: "lead"})
 	if f := got.Tombstone.Footprint; f != (TombstoneFootprint{StandingOrders: 1, Schedules: 2, Memories: 3, AuthoredShared: 4, Skills: 5, Configs: 6, Workspaces: 7, WorkflowRefs: 8, MailboxMessages: 9, Subagents: 3}) || got.Tombstone.RetainedByDesign != (TombstoneRetained{MailboxMessages: 9, WorkflowRefs: 8}) {
 		t.Fatalf("%+v %+v", f, got.Tombstone.RetainedByDesign)
 	}
@@ -186,7 +194,7 @@ func TestRosterImpactOperations(t *testing.T) {
 		t.Fatal(ops, err)
 	}
 	impact, tombstone := ops[0].Spec(), ops[1].Spec()
-	if impact.Name != "agent_impact" || !impact.ReadOnly || impact.Authz != opapi.PrimaryOnly || impact.Tenancy != opapi.Primary || !impact.AllowUnknownInput || impact.Input != reflect.TypeFor[RefPageRequest]() || impact.Output != reflect.TypeFor[ImpactOutput]() {
+	if impact.Name != "agent_impact" || !impact.ReadOnly || impact.Authz != opapi.PrimaryOnly || impact.Tenancy != opapi.Primary || !impact.AllowUnknownInput || impact.Input != reflect.TypeFor[opapi.AgentRefRequest]() || impact.Output != reflect.TypeFor[ImpactOutput]() {
 		t.Fatal(impact)
 	}
 	if tombstone.Name != "agent_tombstone" || !tombstone.ReadOnly || tombstone.Authz != opapi.PrimaryOnly || tombstone.Tenancy != opapi.Primary || !tombstone.AllowUnknownInput || tombstone.Output != reflect.TypeFor[TombstoneOutput]() {

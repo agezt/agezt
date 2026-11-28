@@ -68,7 +68,7 @@ func NewTaskUpdate(update func(string, func(*agentapi.Profile)) (agentapi.Profil
 }
 
 func (s *TaskUpdateService) TaskUpdate(_ context.Context, in TaskUpdateRequest) (TaskUpdateOutput, error) {
-	ref, err := RefPageRequest{Ref: in.Ref}.ref()
+	ref, err := rawRefOf(in.Ref)
 	if err != nil {
 		return TaskUpdateOutput{}, err
 	}

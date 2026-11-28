@@ -40,10 +40,6 @@ func NewPermissions(ports PermissionPorts) *PermissionService {
 	return &PermissionService{ports: ports}
 }
 
-type PermissionsRequest struct {
-	Ref json.RawMessage `json:"ref,omitempty"`
-}
-
 type CapabilitiesRequest struct {
 	Ref             json.RawMessage `json:"ref,omitempty"`
 	TrustCeiling    json.RawMessage `json:"trust_ceiling,omitempty"`
@@ -162,8 +158,8 @@ type CapabilitiesOutput struct {
 }
 
 // Permissions reports one agent's permission picture.
-func (s *PermissionService) Permissions(_ context.Context, in PermissionsRequest) (PermissionsOutput, error) {
-	ref, err := RefPageRequest{Ref: in.Ref}.ref()
+func (s *PermissionService) Permissions(_ context.Context, in opapi.AgentRefRequest) (PermissionsOutput, error) {
+	ref, err := refOf(in.Ref)
 	if err != nil {
 		return PermissionsOutput{}, err
 	}
@@ -177,7 +173,7 @@ func (s *PermissionService) Permissions(_ context.Context, in PermissionsRequest
 // Capabilities patches only the fields the caller sent. The patch is validated
 // against the live roster's hierarchy before the journaled update.
 func (s *PermissionService) Capabilities(_ context.Context, in CapabilitiesRequest) (CapabilitiesOutput, error) {
-	ref, err := RefPageRequest{Ref: in.Ref}.ref()
+	ref, err := rawRefOf(in.Ref)
 	if err != nil {
 		return CapabilitiesOutput{}, err
 	}
@@ -713,7 +709,7 @@ func PermissionOperations(provider func(context.Context) *PermissionService) ([]
 	if err != nil {
 		return nil, err
 	}
-	read, err := app.NewOperation(opapi.Spec{Name: opapi.AgentPermissions, ReadOnly: true, OutputSchema: readOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{"type":"string"}}}`)}, func(ctx context.Context, in PermissionsRequest) (PermissionsOutput, error) {
+	read, err := app.NewOperation(opapi.Spec{Name: opapi.AgentPermissions, ReadOnly: true, OutputSchema: readOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true}, func(ctx context.Context, in opapi.AgentRefRequest) (PermissionsOutput, error) {
 		return provider(ctx).Permissions(ctx, in)
 	})
 	if err != nil {

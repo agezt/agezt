@@ -43,9 +43,11 @@ func activityEvent(seq int64, kind event.Kind, corr string, pl map[string]any) *
 
 func activityRun(t *testing.T, s *ActivityService, raw string) (ActivityOutput, error) {
 	t.Helper()
-	var in ActivityRequest
+	var in opapi.AgentPageRequest
 	if err := json.Unmarshal([]byte(raw), &in); err != nil {
-		t.Fatal(raw, err)
+		// A mistyped field is refused by the door before the service sees
+		// the body; here it is the decoder that refuses it.
+		return ActivityOutput{}, err
 	}
 	return s.Activity(context.Background(), in)
 }
@@ -53,8 +55,8 @@ func activityRun(t *testing.T, s *ActivityService, raw string) (ActivityOutput, 
 func TestRosterActivityArgumentOrderMatchesLegacy(t *testing.T) {
 	s, reads := activityFixture(nil)
 	for raw, want := range map[string]string{
-		`{}`: "args.ref required", `{"ref":"  "}`: "args.ref required", `{"ref":7}`: "args.ref must be a string", `{"ref":null}`: "args.ref must be a string",
-		`{"ref":"ghost","limit":"x"}`: "unknown agent: ghost", `{"ref":" a"}`: "unknown agent:  a", `{"ref":"a","limit":"x"}`: "args.limit must be a number", `{"ref":"a","limit":null}`: "args.limit must be a number",
+		`{}`: "args.ref required", `{"ref":"  "}`: "args.ref required", `{"ref":null}`: "args.ref required",
+		`{"ref":"ghost"}`: "unknown agent: ghost", `{"ref":" a"}`: "unknown agent:  a",
 	} {
 		if _, err := activityRun(t, s, raw); err == nil || err.Error() != want {
 			t.Fatal(raw, err, want)
@@ -63,7 +65,14 @@ func TestRosterActivityArgumentOrderMatchesLegacy(t *testing.T) {
 	if *reads != 0 {
 		t.Fatal("journal read before argument admission", *reads)
 	}
-	out, err := activityRun(t, s, `{"ref":"id-a","cursor":17,"unknown":true}`)
+	// A mistyped field never reaches the service: the door refuses it in the
+	// daemon, and the decoder refuses it here.
+	for _, raw := range []string{`{"ref":7}`, `{"ref":"a","limit":"x"}`, `{"ref":"a","cursor":17}`} {
+		if _, err := activityRun(t, s, raw); err == nil {
+			t.Fatal(raw, "a mistyped field was accepted")
+		}
+	}
+	out, err := activityRun(t, s, `{"ref":"id-a","cursor":"x","unknown":true}`)
 	raw, _ := json.Marshal(out)
 	if err != nil || string(raw) != `{"slug":"a","activity":null,"count":0,"total":0}` || *reads != 1 {
 		t.Fatal("empty timeline shape", string(raw), err)
@@ -102,7 +111,7 @@ func TestRosterActivityScopesOrdersAndPages(t *testing.T) {
 	}
 	for raw, seqs := range map[string][]int64{
 		`{"ref":"a","limit":2,"cursor":"5"}`: {3, 1}, `{"ref":"a","cursor":" 4 "}`: {3, 1}, `{"ref":"a","cursor":"0"}`: {6, 5, 3, 1},
-		`{"ref":"a","cursor":"-3"}`: {6, 5, 3, 1}, `{"ref":"a","cursor":"x"}`: {6, 5, 3, 1}, `{"ref":"a","cursor":5}`: {6, 5, 3, 1},
+		`{"ref":"a","cursor":"-3"}`: {6, 5, 3, 1}, `{"ref":"a","cursor":"x"}`: {6, 5, 3, 1},
 		`{"ref":"a","limit":1.9}`: {6}, `{"ref":"a","limit":1}`: {6}, `{"ref":"a","limit":0.5}`: {6, 5, 3, 1}, `{"ref":"a","limit":-1}`: {6, 5, 3, 1},
 	} {
 		out, err := activityRun(t, s, raw)
@@ -150,7 +159,7 @@ func TestRosterActivityOperationSpecAndAdmission(t *testing.T) {
 		t.Fatal(ops, err)
 	}
 	spec := ops[0].Spec()
-	if spec.Name != "agent_activity" || !spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.Input != reflect.TypeFor[ActivityRequest]() || spec.Output != reflect.TypeFor[ActivityOutput]() || spec.Stream != opapi.StreamNone {
+	if spec.Name != "agent_activity" || !spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.Input != reflect.TypeFor[opapi.AgentPageRequest]() || spec.Output != reflect.TypeFor[ActivityOutput]() || spec.Stream != opapi.StreamNone {
 		t.Fatal(spec)
 	}
 	for _, principal := range []opapi.Principal{{Kind: opapi.Tenant, Tenant: "acme"}, {Kind: opapi.Agent}} {

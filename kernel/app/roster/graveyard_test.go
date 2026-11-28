@@ -23,15 +23,23 @@ const graveyardDay = 24 * 3600 * 1000
 func TestRosterGraveyardCodecMatchesLegacyLeniency(t *testing.T) {
 	for raw, want := range map[string]float64{
 		`{}`: 0, `{"older_than_days":3}`: 3, `{"older_than_days":2.75}`: 2.75, `{"older_than_days":" 4.5 "}`: 4.5,
-		`{"older_than_days":"soon"}`: 0, `{"older_than_days":true}`: 0, `{"older_than_days":null}`: 0, `{"older_than_days":[1]}`: 0,
+		`{"older_than_days":"soon"}`: 0, `{"older_than_days":null}`: 0,
 		`{"older_than_days":-2}`: -2, `{"older_than_days":"1e400"}`: math.Inf(1),
 	} {
-		var in GraveyardRequest
+		var in opapi.AgentGraveyardRequest
 		if err := json.Unmarshal([]byte(raw), &in); err != nil {
 			t.Fatal(raw, err)
 		}
-		if got := in.days(); got != want {
+		if got := opapi.NumberFlagValue(in.OlderThanDays); got != want {
 			t.Fatal(raw, got, want)
+		}
+	}
+	// A value that is neither a number nor its string never reaches the
+	// service: the door refuses it in the daemon, and the row refuses it here.
+	for _, raw := range []string{`{"older_than_days":true}`, `{"older_than_days":[1]}`} {
+		var in opapi.AgentGraveyardRequest
+		if err := json.Unmarshal([]byte(raw), &in); err == nil {
+			t.Fatal(raw, "a mistyped age was accepted")
 		}
 	}
 }
@@ -110,7 +118,7 @@ func TestRosterGraveyardOperationSpecAndAdmission(t *testing.T) {
 		t.Fatal(ops, err)
 	}
 	s := ops[0].Spec()
-	if s.Name != "agent_graveyard" || !s.ReadOnly || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || !s.AllowUnknownInput || s.Input != reflect.TypeFor[GraveyardRequest]() || s.Output != reflect.TypeFor[GraveyardOutput]() || s.Stream != opapi.StreamNone {
+	if s.Name != "agent_graveyard" || !s.ReadOnly || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || !s.AllowUnknownInput || s.Input != reflect.TypeFor[opapi.AgentGraveyardRequest]() || s.Output != reflect.TypeFor[GraveyardOutput]() || s.Stream != opapi.StreamNone {
 		t.Fatal(s)
 	}
 	if schema.ValidateJSON(s.OutputSchema, json.RawMessage(`{"graveyard":[{"age_days":"1","kind":"","name":"","retired_ms":0,"retired_reason":"","slug":"","system":false}],"count":1,"older_than_days":0}`)) == nil {

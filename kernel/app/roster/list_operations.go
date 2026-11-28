@@ -4,43 +4,23 @@ package roster
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"github.com/agezt/agezt/kernel/app"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
-type ListRequest struct {
-	Limit  json.RawMessage `json:"limit,omitempty"`
-	Cursor json.RawMessage `json:"cursor,omitempty"`
-}
-
-func (r ListRequest) input() ListInput {
-	var in ListInput
-	if len(r.Limit) > 0 {
-		var v any
-		_ = json.Unmarshal(r.Limit, &v)
-		number, ok := v.(float64)
-		if !ok {
-			in.DecodeError = fmt.Errorf("args.limit must be a number")
-			return in
-		}
-		if number > 0 {
-			in.Limit = int(number)
-		}
+// listInput reads the listing's page size and cursor from the request row.
+//
+// The listing's page size is the caller's — a count above zero, a fraction
+// included, which truncates to no rows at all — and it is capped at the
+// family's own cap of 1000.
+func listInput(in opapi.AgentListRequest) ListInput {
+	out := ListInput{}
+	if in.Limit.Present() && in.Limit.Number() > 0 {
+		out.Limit = int(in.Limit.Number())
 	}
-	if len(r.Cursor) > 0 {
-		var v any
-		_ = json.Unmarshal(r.Cursor, &v)
-		cursor, ok := v.(string)
-		if !ok {
-			in.DecodeError = fmt.Errorf("args.cursor must be a string")
-		} else {
-			in.Cursor = cursor
-		}
-	}
-	return in
+	out.Cursor = in.Cursor
+	return out
 }
 func ListOperations(provider func(context.Context) *ListService) ([]app.Operation, error) {
 	if provider == nil {
@@ -50,8 +30,8 @@ func ListOperations(provider func(context.Context) *ListService) ([]app.Operatio
 	if err != nil {
 		return nil, err
 	}
-	op, err := app.NewOperation(opapi.Spec{Name: opapi.AgentList, ReadOnly: true, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"limit":{"type":"number"},"cursor":{"type":"string"}}}`), OutputSchema: output}, func(ctx context.Context, in ListRequest) (ListOutput, error) {
-		return provider(ctx).List(ctx, in.input())
+	op, err := app.NewOperation(opapi.Spec{Name: opapi.AgentList, ReadOnly: true, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, OutputSchema: output}, func(ctx context.Context, in opapi.AgentListRequest) (ListOutput, error) {
+		return provider(ctx).List(ctx, listInput(in))
 	})
 	if err != nil {
 		return nil, err

@@ -4,7 +4,6 @@ package roster
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"reflect"
 	"sort"
@@ -174,8 +173,8 @@ func (s *ImpactService) Summary(p agentapi.Profile) ImpactOutput {
 	return out
 }
 
-func (s *ImpactService) resolve(in RefPageRequest) (agentapi.Profile, error) {
-	ref, err := in.ref()
+func (s *ImpactService) resolve(in opapi.AgentRefRequest) (agentapi.Profile, error) {
+	ref, err := refOf(in.Ref)
 	if err != nil {
 		return agentapi.Profile{}, err
 	}
@@ -186,7 +185,7 @@ func (s *ImpactService) resolve(in RefPageRequest) (agentapi.Profile, error) {
 	return p, nil
 }
 
-func (s *ImpactService) Impact(_ context.Context, in RefPageRequest) (ImpactOutput, error) {
+func (s *ImpactService) Impact(_ context.Context, in opapi.AgentRefRequest) (ImpactOutput, error) {
 	p, err := s.resolve(in)
 	if err != nil {
 		return ImpactOutput{}, err
@@ -240,7 +239,7 @@ type TombstoneOutput struct {
 	Tombstone Tombstone `json:"tombstone"`
 }
 
-func (s *ImpactService) Tombstone(_ context.Context, in RefPageRequest) (TombstoneOutput, error) {
+func (s *ImpactService) Tombstone(_ context.Context, in opapi.AgentRefRequest) (TombstoneOutput, error) {
 	p, err := s.resolve(in)
 	if err != nil {
 		return TombstoneOutput{}, err
@@ -293,14 +292,13 @@ func ImpactOperations(provider func(context.Context) *ImpactService) ([]app.Oper
 	if err != nil {
 		return nil, err
 	}
-	input := json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{"type":"string"}}}`)
-	impact, err := app.NewOperation(opapi.Spec{Name: opapi.AgentImpact, ReadOnly: true, OutputSchema: impactSchema, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: input}, func(ctx context.Context, in RefPageRequest) (ImpactOutput, error) {
+	impact, err := app.NewOperation(opapi.Spec{Name: opapi.AgentImpact, ReadOnly: true, OutputSchema: impactSchema, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true}, func(ctx context.Context, in opapi.AgentRefRequest) (ImpactOutput, error) {
 		return provider(ctx).Impact(ctx, in)
 	})
 	if err != nil {
 		return nil, err
 	}
-	tombstone, err := app.NewOperation(opapi.Spec{Name: opapi.AgentTombstone, ReadOnly: true, OutputSchema: tombstoneSchema, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: input}, func(ctx context.Context, in RefPageRequest) (TombstoneOutput, error) {
+	tombstone, err := app.NewOperation(opapi.Spec{Name: opapi.AgentTombstone, ReadOnly: true, OutputSchema: tombstoneSchema, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true}, func(ctx context.Context, in opapi.AgentRefRequest) (TombstoneOutput, error) {
 		return provider(ctx).Tombstone(ctx, in)
 	})
 	if err != nil {

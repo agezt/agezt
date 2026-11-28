@@ -227,6 +227,10 @@ FAIL	github.com/agezt/agezt/kernel/webui	0.873s
   **council**'s three, the **taste**'s three, the **world**'s three, the
   **skill**'s two, the **settings**' one, and thirty more families of one to
   two. The rule is in place; their rows are the work.
+
+  **Done in W5.38 for the roster's read half** — see
+  [358](358-w538-the-roster-familys-read-half-has-one-request-row-per-operation-evidence.md);
+  the roster's write half is the next slice's work.
 - **Those families read their fields loosely** — `any` and `json.RawMessage`
   fields with hand-written readers that tolerate what the door would refuse.
   Their rows need the same **reading rules** the workboard's counts and lists
