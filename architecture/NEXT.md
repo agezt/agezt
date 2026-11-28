@@ -1,5 +1,88 @@
 # NEXT — handoff for the next coding agent
 
+## Current checkpoint — W5.41 the runs family has one request row per operation, 2026-11-28
+
+The W0–W5 objective remains open. W5.8–W5.15 gave the **browser**, the
+**registry** and the **SDKs** their request vocabulary; W5.11–W5.19 gave
+**every surface** that reads a request body its contract, its door and the
+boot-time check that holds the two together; W5.20 put a **gate** behind that
+sentence so it cannot decay; W5.21 closed W5.1's open end on the browser's
+**response** side; W5.22–W5.28 gave the daemon's own rows one home, one family
+at a time; W5.29–W5.32 gave the console's own answers one home each; W5.33
+checked the console's arguments against the registry, W5.34 gave the console's
+ten typed calls their rows, W5.35 finished the **workflow** family, W5.36 the
+**board** family, W5.37 the **workboard** family, W5.38–W5.39 the **roster**
+family and W5.40 the **edict** family. **This slice gives the RUNS family the
+same home** — the daemon's governed run, whose eight operations declared their
+shape twice across seven files, and whose readers carried the family's rules in
+hand-written helpers.
+
+### What was on the tree
+
+- **The runs declared their request shape twice** — a JSON Schema literal in
+  the app layer and a request struct beside it, spread over **seven** files,
+  with every field read **raw** by hand-written readers (`rawValue`,
+  `optionalString`, `requiredString`, `lenientInt64`, `argString`,
+  `argInt64`, `argBool`, `argStringList`, `argText`, `argTruthy`,
+  `parseCapList`).
+- **The family's eight operations now bind through eight contract rows** — the
+  run, its two reads, the plan's run and reads, and the plan authoring — and
+  the app layer keeps no copy of them. The contract's row table grows from
+  **79** to **87**.
+- **The contract needed ONE new word for them** — a **strict list of texts**:
+  the auto-approve grant is a list of texts *or* the one comma-separated
+  string a caller sends instead, and its members must be texts, so the open
+  `TextList` was not enough. The trust flag grew a reader for the string it
+  was sent as, because "on" is on and that is the family's rule.
+- **The rules stayed in the family, and they are the family's own**: a page is
+  **twenty** rows, never fewer than one, never more than a thousand; a window
+  is truncated toward zero; a tool list drops its blank members and a list
+  that was sent is a list even when it is empty; the auto-approve grant splits
+  on commas **and** spaces; the trust flag reads "on", "true", "yes" and "1".
+- **The daemon's behaviour did not change** — the door already refused the
+  mistyped and the null bodies with the same words and the same types, so the
+  app-level type readings were unreachable anyway. The published document moved
+  in **shape** only — the run's and the plan's bodies now carry the derived
+  form, and a semantic comparison of the whole document finds **zero** changed
+  paths; the generated client and the browser's generated types are
+  byte-identical.
+
+### What the measurement said
+
+- Request rows held by the contract: **79 → 87**.
+- Runs operations with a row: **0 → 8** (of 8); runs row types living in the
+  contract: **0 → 8**.
+- Hand-written input schemas in the runs family: **8 → 0**; hand-written
+  request structs: **8 → 0**.
+- Hand-written input schemas in the app layer: **106 → 98**.
+- The daemon's behaviour: **unchanged**.
+
+### The evidence
+
+`architecture/361-w541-the-runs-family-has-one-request-row-per-operation-evidence.md`
+— the two declarations, the eight rows, the one new word, the family's rules,
+the measurement, the five reverted mutations, and what remains open.
+
+### What the next slice should do
+
+**The families that still write their own schemas.** The rule is in place; the
+rows are the remaining work.
+
+- **The app layer still carries 98 hand-written input schemas.** The biggest
+  families left are the **memory** (7), the **okr** (7), the **channels** (6),
+  the **journal** (6), the **steer** (6), the **tenants** (6), the **audit** (5),
+  the **tools** (5), the **approvals** (4), the **system** (4), and thirty more
+  families of one to three.
+- **Those families read their fields loosely** — `any` and `json.RawMessage`
+  fields with hand-written readers that tolerate what the door would refuse.
+  Their rows need the same **reading rules** the roster's counts and lists
+  just got.
+- **The catalogue's `Args` and the request row are still two lists.**
+- **The console's ten native routes are not in the catalogue's route table.**
+- **The console's route policy answers a wrong verb in plain text**
+  ("method not allowed"), not with the envelope — a second refusal shape on the
+  wire.
+
 ## Current checkpoint — W5.40 the edict family has one request row per operation, 2026-11-28
 
 The W0–W5 objective remains open. W5.8–W5.15 gave the **browser**, the

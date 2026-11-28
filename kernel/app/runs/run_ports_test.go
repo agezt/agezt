@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/contract/agentapi"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
 )
@@ -148,9 +149,7 @@ func TestTheRunPortsHoldTheWarden(t *testing.T) {
 func TestTheRunServiceRefusesAHostWithNoDaemon(t *testing.T) {
 	service := NewRunService(RunPortsFromKernel(nil))
 
-	_, err := service.resolve(context.Background(), RunRequest{
-		Intent: json.RawMessage(`"x"`),
-	})
+	_, err := service.resolve(context.Background(), decode[opapi.RunRequest](t, `{"intent":"x"}`))
 	if err == nil {
 		t.Fatal("a host with no daemon started a run")
 	}
@@ -167,10 +166,7 @@ func TestTheRunServiceRefusesAHostWithNoDaemon(t *testing.T) {
 func TestTheRunServiceAsksTheVisionGate(t *testing.T) {
 	service := NewRunService(RunPortsFromKernel(runKernel(t)))
 
-	_, err := service.resolve(context.Background(), RunRequest{
-		Intent: json.RawMessage(`"look at this"`),
-		Images: json.RawMessage(`["an-image"]`),
-	})
+	_, err := service.resolve(context.Background(), decode[opapi.RunRequest](t, `{"intent":"look at this","images":["an-image"]}`))
 	if err == nil {
 		t.Fatal("the run looked at an image without asking the vision gate")
 	}
@@ -185,10 +181,7 @@ func TestTheRunServiceAsksTheVisionGate(t *testing.T) {
 func TestTheRunServiceRefusesTheRemoteProfileWithoutPeers(t *testing.T) {
 	service := NewRunService(RunPortsFromKernel(runKernel(t)))
 
-	_, err := service.resolve(context.Background(), RunRequest{
-		Intent:      json.RawMessage(`"x"`),
-		ExecProfile: json.RawMessage(`"remote-agezt"`),
-	})
+	_, err := service.resolve(context.Background(), decode[opapi.RunRequest](t, `{"intent":"x","execution_profile":"remote-agezt"}`))
 	if err == nil {
 		t.Fatal("the remote profile was accepted without a peer")
 	}
@@ -220,9 +213,7 @@ func TestTheRunEventsReachTheCaller(t *testing.T) {
 	service := NewRunService(RunPortsFromKernel(runKernel(t)))
 
 	events := 0
-	out, err := service.Execute(context.Background(), RunRequest{
-		Intent: json.RawMessage(`"say hi"`),
-	}, func(*event.Event) error {
+	out, err := service.Execute(context.Background(), decode[opapi.RunRequest](t, `{"intent":"say hi"}`), func(*event.Event) error {
 		events++
 		return nil
 	})

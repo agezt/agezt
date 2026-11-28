@@ -61,11 +61,6 @@ func NewPlanRunner(ports PlanRunnerPorts, approvals func() *approval.Registry, s
 	return &PlanRunner{loopRunner: ports.LoopRunner, approvals: approvals, runPlan: ports.RunPlan, subscribe: subscribe}
 }
 
-// PlanRunRequest is the plan submission.
-type PlanRunRequest struct {
-	PlanJSON json.RawMessage `json:"plan_json,omitempty"`
-}
-
 // PlanRunOutput is the plan's result: its id and each node's output.
 type PlanRunOutput struct {
 	PlanID      string         `json:"plan_id"`
@@ -95,7 +90,7 @@ type planNodeSpec struct {
 // Run executes the submitted plan and streams its events. The events are the
 // plan's own: the caller sees plan.started and every node.* event in order,
 // and the terminal answer carries the node outputs.
-func (p *PlanRunner) Run(ctx context.Context, in PlanRunRequest, emit func(*event.Event) error) (PlanRunOutput, error) {
+func (p *PlanRunner) Run(ctx context.Context, in opapi.PlanRunRequest, emit func(*event.Event) error) (PlanRunOutput, error) {
 	raw, err := planJSONArg(in.PlanJSON)
 	if err != nil {
 		return PlanRunOutput{}, err
@@ -195,15 +190,14 @@ func (p *PlanRunner) build(spec planSpec) (scheduler.Plan, error) {
 
 // planJSONArg reads the submitted plan JSON: a string, as the CLI and the Web
 // UI both send it.
-func planJSONArg(raw json.RawMessage) (string, error) {
-	if len(raw) == 0 {
+//
+// A plan that was not sent at all is refused; a plan that was sent empty is
+// the empty text, and the plan reader says so in its own words.
+func planJSONArg(planJSON opapi.Text) (string, error) {
+	if !planJSON.Present() {
 		return "", fmt.Errorf("args.plan_json required (JSON string)")
 	}
-	var s *string
-	if err := json.Unmarshal(raw, &s); err != nil || s == nil {
-		return "", fmt.Errorf("args.plan_json must be a JSON string")
-	}
-	return *s, nil
+	return planJSON.String(), nil
 }
 
 // planIDFor names a plan after the request that submitted it.
@@ -227,7 +221,7 @@ func PlanRunOperations(provider func(context.Context) *PlanRunner) ([]app.Operat
 		return nil, err
 	}
 	frames := json.RawMessage(event.WireSchema)
-	run, err := app.NewStreamingOperation(opapi.Spec{Name: opapi.Plan, Stream: opapi.StreamEvents, OutputSchema: out, EmissionSchema: frames, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"plan_json":{"type":"string"}}}`)}, func(ctx context.Context, in PlanRunRequest, emit func(*event.Event) error) (PlanRunOutput, error) {
+	run, err := app.NewStreamingOperation(opapi.Spec{Name: opapi.Plan, Stream: opapi.StreamEvents, OutputSchema: out, EmissionSchema: frames, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true}, func(ctx context.Context, in opapi.PlanRunRequest, emit func(*event.Event) error) (PlanRunOutput, error) {
 		return provider(ctx).Run(ctx, in, emit)
 	})
 	if err != nil {

@@ -14,7 +14,6 @@ import (
 	"testing"
 	"time"
 
-	appruns "github.com/agezt/agezt/kernel/app/runs"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/journal"
@@ -140,7 +139,7 @@ func TestRunsNativeSameMillisecondOrder(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer k.Close()
-	out, err := (&Server{}).runReads(scopeForKernel(k)).List(context.Background(), appruns.ListRequest{})
+	out, err := (&Server{}).runReads(scopeForKernel(k)).List(context.Background(), opapi.RunListRequest{})
 	if err != nil {
 		t.Fatal(err)
 	}

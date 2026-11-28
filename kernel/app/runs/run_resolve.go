@@ -11,6 +11,7 @@ import (
 
 	approster "github.com/agezt/agezt/kernel/app/roster"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/executionprofile"
 	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 )
@@ -43,27 +44,18 @@ type resolvedRun struct {
 // resolve reads the request against the kernel and prepares the run's context.
 // Nothing here executes: a dry run resolves exactly the same way, so the plan
 // can never drift from what would run.
-func (s *RunService) resolve(ctx context.Context, in RunRequest) (*resolvedRun, error) {
+func (s *RunService) resolve(ctx context.Context, in opapi.RunRequest) (*resolvedRun, error) {
 	if !s.ports.Ready() {
 		return nil, ErrNoKernel
 	}
-	intent := strings.TrimSpace(argText(in.Intent))
+	intent := strings.TrimSpace(in.Intent)
 	if intent == "" {
 		return nil, errors.New("args.intent required")
 	}
-	tenant, _, err := argString(in.Tenant, "tenant")
-	if err != nil {
-		return nil, err
-	}
-	modelRaw, _, err := argString(in.Model, "model")
-	if err != nil {
-		return nil, err
-	}
+	tenant := in.Tenant
+	modelRaw := in.Model
 	modelOverride := strings.TrimSpace(modelRaw)
-	agentRaw, _, err := argString(in.Agent, "agent")
-	if err != nil {
-		return nil, err
-	}
+	agentRaw := in.Agent
 	resolved := &resolvedRun{ctx: ctx, intent: intent, tenant: tenant}
 	// Run AS a named agent: the profile's soul, model and cost ceiling become
 	// this run's defaults. An unknown, retired, paused or managed agent is a
@@ -111,10 +103,7 @@ func (s *RunService) resolve(ctx context.Context, in RunRequest) (*resolvedRun, 
 	// journaled event links to this run.
 	resolved.corr = s.ports.Correlation()
 
-	imageRefs, _, err := argStringList(in.Images, "images")
-	if err != nil {
-		return nil, err
-	}
+	imageRefs, _ := textList(in.Images)
 	admission, err := s.ports.AdmitVision(ctx, resolved.corr, modelOverride, intent, imageRefs)
 	if err != nil {
 		return nil, err
@@ -132,10 +121,7 @@ func (s *RunService) resolve(ctx context.Context, in RunRequest) (*resolvedRun, 
 
 	// A per-run system-prompt override replaces the base system prompt for
 	// this run only; memory/world/skill injection still layers on top.
-	sysRaw, _, err := argString(in.System, "system")
-	if err != nil {
-		return nil, err
-	}
+	sysRaw := in.System
 	systemOverride := strings.TrimSpace(sysRaw)
 	if systemOverride == "" && resolved.agent != nil {
 		// The agent's soul, standing instructions and tasks ARE its system
@@ -148,11 +134,7 @@ func (s *RunService) resolve(ctx context.Context, in RunRequest) (*resolvedRun, 
 	resolved.system = systemOverride
 
 	// A per-run wall-clock timeout bounds THIS run without a daemon-wide cap.
-	timeoutRaw, _, err := argString(in.Timeout, "timeout")
-	if err != nil {
-		return nil, err
-	}
-	timeoutRaw = strings.TrimSpace(timeoutRaw)
+	timeoutRaw := strings.TrimSpace(in.Timeout)
 	if timeoutRaw != "" {
 		d, perr := time.ParseDuration(timeoutRaw)
 		if perr != nil || d <= 0 {
@@ -165,10 +147,7 @@ func (s *RunService) resolve(ctx context.Context, in RunRequest) (*resolvedRun, 
 	// A "tools" arg (present, possibly empty) scopes THIS run to the named
 	// tools only — an empty list means no tools at all. Absent means
 	// unrestricted.
-	toolsAllow, toolsSet, err := argStringList(in.Tools, "tools")
-	if err != nil {
-		return nil, err
-	}
+	toolsAllow, toolsSet := textList(in.Tools)
 	if toolsSet {
 		ctx = runctx.WithTools(ctx, toolsAllow)
 	}
@@ -176,10 +155,7 @@ func (s *RunService) resolve(ctx context.Context, in RunRequest) (*resolvedRun, 
 
 	// A per-run cost cap bounds THIS run's cumulative provider spend. A
 	// malformed value is a usage error; a non-positive value is uncapped.
-	maxCost, _, err := argInt64(in.MaxCost, "max_cost")
-	if err != nil {
-		return nil, err
-	}
+	maxCost := int64(in.MaxCost.Number())
 	if maxCost <= 0 && resolved.agent != nil {
 		maxCost = resolved.agent.MaxCostMc
 	}
@@ -191,11 +167,7 @@ func (s *RunService) resolve(ctx context.Context, in RunRequest) (*resolvedRun, 
 	// The per-run execution profile selects the requested warden profile for
 	// shell/code_exec. Conditional profiles are only accepted when the active
 	// backend can satisfy them.
-	execProfileRaw, _, err := argString(in.ExecProfile, "execution_profile")
-	if err != nil {
-		return nil, err
-	}
-	execProfile := strings.TrimSpace(execProfileRaw)
+	execProfile := strings.TrimSpace(in.ExecProfile)
 	// No explicit profile? Fall back to the assigned agent's default isolation
 	// surface, so an agent configured to run sandboxed does so on direct runs
 	// too — an explicit arg still wins.
@@ -209,11 +181,7 @@ func (s *RunService) resolve(ctx context.Context, in RunRequest) (*resolvedRun, 
 	}
 	resolved.ctx, resolved.warden, resolved.remote = ctx, label, remote
 
-	remotePeerRaw, _, err := argString(in.RemotePeer, "remote_peer")
-	if err != nil {
-		return nil, err
-	}
-	remotePeer := strings.TrimSpace(remotePeerRaw)
+	remotePeer := strings.TrimSpace(in.RemotePeer)
 	if remotePeer != "" && !remote {
 		return nil, errors.New(`remote_peer requires execution_profile "remote-agezt"`)
 	}
@@ -221,35 +189,27 @@ func (s *RunService) resolve(ctx context.Context, in RunRequest) (*resolvedRun, 
 
 	// A session-scoped auto-approve grant lets the loop approve the named
 	// capabilities without prompting. It never overrides a hard-deny.
-	if caps := parseCapList(in.ApproveCaps); len(caps) > 0 {
+	if caps := approveCaps(in.ApproveCaps); len(caps) > 0 {
 		ctx = runctx.WithAutoApproveCapabilities(ctx, caps)
 	}
 	// A session-scoped "trust this run's content" grant downgrades the
 	// prompt-injection guard from blocking to warn FOR THIS RUN.
-	if argTruthy(in.Trust) {
+	if truthy(in.Trust) {
 		ctx = runctx.WithTrustedObservations(ctx)
 	}
 	resolved.ctx = ctx
 
 	// An assured run executes, verifies completion and retries with the gap
 	// fed back, up to that many attempts.
-	assure, _, err := argInt64(in.Assure, "assure")
-	if err != nil {
-		return nil, err
-	}
-	resolved.assure = assure
+	resolved.assure = int64(in.Assure.Number())
 
 	// A dry run resolves what the run WOULD do without executing it. A
 	// mistyped dry_run is rejected rather than silently executing the run.
-	dryRun, _, err := argBool(in.DryRun, "dry_run")
-	if err != nil {
-		return nil, err
-	}
-	resolved.dryRun = dryRun
-	if dryRun {
+	resolved.dryRun = in.DryRun
+	if in.DryRun {
 		return resolved, nil
 	}
-	if remote && assure > 0 {
+	if remote && resolved.assure > 0 {
 		return nil, errors.New(`execution profile "remote-agezt" cannot combine with assure yet; delegate once or run assurance on the peer`)
 	}
 	return resolved, nil

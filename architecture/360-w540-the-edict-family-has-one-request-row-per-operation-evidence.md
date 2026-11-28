@@ -189,6 +189,14 @@ every mutation was reverted and the tree is back to green).
 
 ## 6. What remains open
 
+- **The runs family still writes its own schemas** — eight operations, eight
+  literals and eight request structs. Their rows are the next slice's work.
+
+  **Done in W5.41 for the runs family** — see
+  [361](361-w541-the-runs-family-has-one-request-row-per-operation-evidence.md);
+  the contract needed **one** new word for them (a strict list of texts, for
+  the auto-approve grant) and all **eight** of the runs family's operations now
+  have a row.
 - **The app layer still carries 106 hand-written input schemas.** The biggest
   families left are the **runs** (8), the **memory** (7), the **okr** (7), the
   **channels** (6), the **journal** (6), the **steer** (6), the **tenants**

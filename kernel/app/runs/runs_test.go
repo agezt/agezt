@@ -25,6 +25,16 @@ func decode[T any](t *testing.T, raw string) T {
 	return v
 }
 
+// decodeError reads a request row the way the door reads it: a mistyped field
+// is refused before the service runs.
+func decodeError[T any](t *testing.T, raw string) {
+	t.Helper()
+	var v T
+	if err := json.Unmarshal([]byte(raw), &v); err == nil {
+		t.Fatal(raw, "a mistyped field was accepted")
+	}
+}
+
 func fixed(runs ...Run) func() (map[string]Run, error) {
 	return func() (map[string]Run, error) {
 		m := map[string]Run{}
@@ -52,23 +62,22 @@ func TestRunStatusPrecedence(t *testing.T) {
 
 func TestListCodecs(t *testing.T) {
 	called := false
-	s := New(func() (map[string]Run, error) { called = true; return nil, nil }, clock)
-	for raw, want := range map[string]string{
-		`{"status":1}`:                          "args.status must be a string",
-		`{"status":1,"intent":2}`:               "args.status must be a string",
-		`{"intent":null,"model":3}`:             "args.intent must be a string",
-		`{"model":["m"]}`:                       "args.model must be a string",
-		`{"limit":"x","cursor":4,"model":true}`: "args.model must be a string",
+	New(func() (map[string]Run, error) { called = true; return nil, nil }, clock)
+	// A mistyped argument is refused by the row itself, before the fold.
+	for _, raw := range []string{
+		`{"status":1}`,
+		`{"status":1,"intent":2}`,
+		`{"intent":null,"model":3}`,
+		`{"model":["m"]}`,
+		`{"limit":"x","cursor":4,"model":true}`,
 	} {
-		if _, err := s.List(context.Background(), decode[ListRequest](t, raw)); err == nil || err.Error() != want {
-			t.Fatal(raw, err)
-		}
+		decodeError[opapi.RunListRequest](t, raw)
 	}
 	if called {
 		t.Fatal("argument errors must precede the journal fold")
 	}
 	boom := errors.New("journal unreadable")
-	if _, err := New(func() (map[string]Run, error) { return nil, boom }, clock).List(context.Background(), ListRequest{}); !errors.Is(err, boom) {
+	if _, err := New(func() (map[string]Run, error) { return nil, boom }, clock).List(context.Background(), opapi.RunListRequest{}); !errors.Is(err, boom) {
 		t.Fatal(err)
 	}
 }
@@ -79,12 +88,14 @@ func TestListLimitClamp(t *testing.T) {
 		runs = append(runs, Run{CorrelationID: string(rune('a'+i%26)) + strings.Repeat("x", i/26), StartedUnixMS: int64(i + 1)})
 	}
 	s := New(fixed(runs...), clock)
-	for raw, want := range map[string]int{`{}`: 20, `{"limit":0}`: 1, `{"limit":-4}`: 1, `{"limit":2.9}`: 2, `{"limit":"5"}`: 20, `{"limit":5000}`: 1_000, `{"limit":1000}`: 1_000} {
-		out, err := s.List(context.Background(), decode[ListRequest](t, raw))
+	for raw, want := range map[string]int{`{}`: 20, `{"limit":0}`: 1, `{"limit":-4}`: 1, `{"limit":2.9}`: 2, `{"limit":5000}`: 1_000, `{"limit":1000}`: 1_000} {
+		out, err := s.List(context.Background(), decode[opapi.RunListRequest](t, raw))
 		if err != nil || out.Count != want || len(out.Runs) != want {
 			t.Fatal(raw, out.Count, err)
 		}
 	}
+	// A limit that is not a number is refused by the row itself.
+	decodeError[opapi.RunListRequest](t, `{"limit":"5"}`)
 }
 
 func TestListFiltersSortAndPage(t *testing.T) {
@@ -105,36 +116,38 @@ func TestListFiltersSortAndPage(t *testing.T) {
 		return strings.Join(parts, ",")
 	}
 	for raw, want := range map[string]string{
-		`{}`:                                     "c,g,b,a,f,d,e",
-		`{"status":"failed"}`:                    "b,f",
-		`{"status":"running","limit":1}`:         "c",
-		`{"intent":"DEPLOY"}`:                    "b,a,f,d,e",
-		`{"model":"opus"}`:                       "a",
-		`{"min_cost_mc":51}`:                     "b",
-		`{"max_cost_mc":100}`:                    "c,g,a,f,d,e",
-		`{"min_cost_mc":-1,"max_cost_mc":0}`:     "c,g,b,a,f,d,e",
-		`{"min_cost_mc":50.9,"max_cost_mc":"1"}`: "b,a",
-		`{"intent":"deploy","limit":2}`:          "b,a",
+		`{}`:                                 "c,g,b,a,f,d,e",
+		`{"status":"failed"}`:                "b,f",
+		`{"status":"running","limit":1}`:     "c",
+		`{"intent":"DEPLOY"}`:                "b,a,f,d,e",
+		`{"model":"opus"}`:                   "a",
+		`{"min_cost_mc":51}`:                 "b",
+		`{"max_cost_mc":100}`:                "c,g,a,f,d,e",
+		`{"min_cost_mc":-1,"max_cost_mc":0}`: "c,g,b,a,f,d,e",
+		`{"min_cost_mc":50.9}`:               "b,a",
+		`{"intent":"deploy","limit":2}`:      "b,a",
 	} {
-		if out, err := s.List(context.Background(), decode[ListRequest](t, raw)); err != nil || ids(out) != want {
+		if out, err := s.List(context.Background(), decode[opapi.RunListRequest](t, raw)); err != nil || ids(out) != want {
 			t.Fatal(raw, ids(out), err)
 		}
 	}
-	page, _ := s.List(context.Background(), decode[ListRequest](t, `{"limit":2}`))
+	// A cost window that is not a number is refused by the row itself.
+	decodeError[opapi.RunListRequest](t, `{"min_cost_mc":50.9,"max_cost_mc":"1"}`)
+	page, _ := s.List(context.Background(), decode[opapi.RunListRequest](t, `{"limit":2}`))
 	if page.NextCursor != journal.NextCursor(200, 0, 2, 2) || page.NextCursor == "" {
 		t.Fatal(page.NextCursor)
 	}
-	next, _ := s.List(context.Background(), decode[ListRequest](t, `{"limit":2,"cursor":"`+page.NextCursor+`"}`))
+	next, _ := s.List(context.Background(), decode[opapi.RunListRequest](t, `{"limit":2,"cursor":"`+page.NextCursor+`"}`))
 	if ids(next) != "b,a" {
 		t.Fatal(ids(next))
 	}
-	if last, _ := s.List(context.Background(), decode[ListRequest](t, `{"limit":3,"cursor":"80:0"}`)); ids(last) != "d,e" || last.NextCursor != "" {
+	if last, _ := s.List(context.Background(), decode[opapi.RunListRequest](t, `{"limit":3,"cursor":"80:0"}`)); ids(last) != "d,e" || last.NextCursor != "" {
 		t.Fatal("a short page has no next cursor", ids(last), last.NextCursor)
 	}
-	if bad, _ := s.List(context.Background(), decode[ListRequest](t, `{"cursor":"nonsense"}`)); ids(bad) != "c,g,b,a,f,d,e" {
+	if bad, _ := s.List(context.Background(), decode[opapi.RunListRequest](t, `{"cursor":"nonsense"}`)); ids(bad) != "c,g,b,a,f,d,e" {
 		t.Fatal("an unreadable cursor is the first page", ids(bad))
 	}
-	all, _ := s.List(context.Background(), ListRequest{})
+	all, _ := s.List(context.Background(), opapi.RunListRequest{})
 	rows := map[string]RunRow{}
 	for _, r := range all.Runs {
 		rows[r.CorrelationID] = r
@@ -158,7 +171,7 @@ func TestListFiltersSortAndPage(t *testing.T) {
 	if string(raw) != `{"correlation_id":"g","intent":"idle","status":"running","reason":"","started_unix_ms":200,"completed_unix_ms":0,"duration_ms":0,"iters":0,"parent_correlation":"","spent_mc":0,"model":"","answer_preview":"","agent":"","phase":"thinking"}` {
 		t.Fatal(string(raw))
 	}
-	empty, _ := New(fixed(), clock).List(context.Background(), ListRequest{})
+	empty, _ := New(fixed(), clock).List(context.Background(), opapi.RunListRequest{})
 	if raw, _ := json.Marshal(empty); string(raw) != `{"runs":[],"count":0,"next_cursor":""}` {
 		t.Fatal(string(raw))
 	}
@@ -175,7 +188,7 @@ func TestStats(t *testing.T) {
 		Run{CorrelationID: "f", Intent: "chat"},
 		Run{CorrelationID: "g", Intent: "chat", StartedUnixMS: 9_000, Completed: true, CompletedUnixMS: 8_000},
 	), clock)
-	all, err := s.Stats(ctx, StatsRequest{})
+	all, err := s.Stats(ctx, opapi.RunStatsRequest{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -189,24 +202,22 @@ func TestStats(t *testing.T) {
 	if !reflect.DeepEqual(all, want) {
 		t.Fatalf("%+v\n%+v", all, want)
 	}
-	windowed, _ := s.Stats(ctx, decode[StatsRequest](t, `{"since_ms":1000.7,"intent":"CHAT"}`))
+	windowed, _ := s.Stats(ctx, decode[opapi.RunStatsRequest](t, `{"since_ms":1000.7,"intent":"CHAT"}`))
 	if windowed.Total != 3 || windowed.WindowMS != 1000 || windowed.Failed != 1 || windowed.Abandoned != 1 || windowed.Completed != 1 || windowed.DurationMS.Count != 0 {
 		t.Fatalf("window keeps started runs at/after now-since_ms and the intent scope: %+v", windowed)
 	}
-	if ignored, _ := s.Stats(ctx, decode[StatsRequest](t, `{"since_ms":"60000"}`)); ignored.Total != 7 || ignored.WindowMS != 0 {
-		t.Fatal(ignored)
-	}
-	if negative, _ := s.Stats(ctx, decode[StatsRequest](t, `{"since_ms":-5}`)); negative.Total != 7 || negative.WindowMS != -5 {
+	// A window that is not a number is refused by the row itself.
+	decodeError[opapi.RunStatsRequest](t, `{"since_ms":"60000"}`)
+	if negative, _ := s.Stats(ctx, decode[opapi.RunStatsRequest](t, `{"since_ms":-5}`)); negative.Total != 7 || negative.WindowMS != -5 {
 		t.Fatal("a non-positive window is all-time but still echoed", negative)
 	}
-	if _, err := s.Stats(ctx, decode[StatsRequest](t, `{"intent":4}`)); err == nil || err.Error() != "args.intent must be a string" {
-		t.Fatal(err)
-	}
+	// A mistyped filter is refused by the row itself, before the fold.
+	decodeError[opapi.RunStatsRequest](t, `{"intent":4}`)
 	boom := errors.New("journal unreadable")
-	if _, err := New(func() (map[string]Run, error) { return nil, boom }, clock).Stats(ctx, decode[StatsRequest](t, `{"intent":4}`)); !errors.Is(err, boom) {
+	if _, err := New(func() (map[string]Run, error) { return nil, boom }, clock).Stats(ctx, opapi.RunStatsRequest{}); !errors.Is(err, boom) {
 		t.Fatal("the fold runs before the intent check", err)
 	}
-	empty, _ := New(fixed(), clock).Stats(ctx, StatsRequest{})
+	empty, _ := New(fixed(), clock).Stats(ctx, opapi.RunStatsRequest{})
 	raw, _ := json.Marshal(empty)
 	if string(raw) != `{"total":0,"completed":0,"failed":0,"running":0,"abandoned":0,"terminal":0,"success_rate":0,"avg_iters":0,"failed_by_reason":{},"window_ms":0,"delegations":0,"delegating_runs":0,"max_fanout":0,"spent_microcents":0,"delegated_spent_microcents":0,"by_model":{},"spend_microcents":{"count":0,"avg":0,"min":0,"max":0,"p50":0,"p95":0},"duration_ms":{"count":0,"avg":0,"min":0,"max":0,"p50":0,"p95":0}}` {
 		t.Fatal(string(raw))
@@ -226,16 +237,16 @@ func TestOperations(t *testing.T) {
 		in   reflect.Type
 		out  reflect.Type
 	}{
-		{"runs_list", reflect.TypeFor[ListRequest](), reflect.TypeFor[ListOutput]()},
-		{"runs_stats", reflect.TypeFor[StatsRequest](), reflect.TypeFor[StatsOutput]()},
+		{"runs_list", reflect.TypeFor[opapi.RunListRequest](), reflect.TypeFor[ListOutput]()},
+		{"runs_stats", reflect.TypeFor[opapi.RunStatsRequest](), reflect.TypeFor[StatsOutput]()},
 	} {
 		spec := ops[i].Spec()
 		if spec.Name != w.name || !spec.ReadOnly || spec.Authz != opapi.OwnTenant || spec.Tenancy != opapi.CallerTenant || !spec.AllowUnknownInput || spec.Input != w.in || spec.Output != w.out {
 			t.Fatal(spec)
 		}
 	}
-	list, _ := New(fixed(Run{CorrelationID: "a"}), clock).List(context.Background(), ListRequest{})
-	stats, _ := New(fixed(Run{CorrelationID: "a", Model: "m", Failed: true}), clock).Stats(context.Background(), StatsRequest{})
+	list, _ := New(fixed(Run{CorrelationID: "a"}), clock).List(context.Background(), opapi.RunListRequest{})
+	stats, _ := New(fixed(Run{CorrelationID: "a", Model: "m", Failed: true}), clock).Stats(context.Background(), opapi.RunStatsRequest{})
 	for i, v := range []any{list, stats} {
 		raw, _ := json.Marshal(v)
 		if err := schema.ValidateJSON(ops[i].Spec().OutputSchema, raw); err != nil {

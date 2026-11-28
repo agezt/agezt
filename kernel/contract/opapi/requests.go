@@ -396,6 +396,18 @@ func (f BoolFlag) MarshalJSON() ([]byte, error) {
 // Value returns the flag's boolean — the value it rides the wire as.
 func (f BoolFlag) Value() any { return f.boolean }
 
+// Text returns the flag's string, when that is how the flag came.
+//
+// The string is kept as it came, so a family that reads a flag its own way —
+// one that says "on" is on, say — can still read it: the flag's own reading
+// is the family's, not the contract's.
+func (f BoolFlag) Text() string {
+	if f.kind == flagText {
+		return f.text
+	}
+	return ""
+}
+
 // BooleanOrString marks the type as carrying a boolean or a boolean string,
 // so the schema derives the union of the two.
 func (BoolFlag) BooleanOrString() {}
@@ -638,6 +650,77 @@ func TextListValue(list TextList) []string {
 	}
 	return out
 }
+
+// StrictTextList is a request field that carries a list of texts — or the ONE
+// comma-separated string a caller sends instead of a list — and whose members
+// ARE texts.
+//
+// The TextList leaves its members open on purpose: a handler filters the ones
+// it cannot use rather than refusing the whole body. This one does not: a
+// member that is not a text is refused, the way the door refuses it.
+type StrictTextList struct {
+	present bool
+	isText  bool
+	text    string
+	members []string
+}
+
+// UnmarshalJSON reads the list as it came: a list of texts, or one string.
+func (l *StrictTextList) UnmarshalJSON(data []byte) error {
+	var raw any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	switch value := raw.(type) {
+	case []any:
+		members := make([]string, 0, len(value))
+		for _, member := range value {
+			text, ok := member.(string)
+			if !ok {
+				return fmt.Errorf("must be a list of texts")
+			}
+			members = append(members, text)
+		}
+		l.present, l.isText, l.text, l.members = true, false, "", members
+	case string:
+		l.present, l.isText, l.text, l.members = true, true, value, nil
+	default:
+		return fmt.Errorf("must be a list of texts")
+	}
+	return nil
+}
+
+// MarshalJSON writes the list as it came.
+func (l StrictTextList) MarshalJSON() ([]byte, error) {
+	if l.isText {
+		return json.Marshal(l.text)
+	}
+	return json.Marshal(l.members)
+}
+
+// Value returns the list the field carries.
+func (l StrictTextList) Value() any {
+	if l.isText {
+		return l.text
+	}
+	return l.members
+}
+
+// Present reports whether the field carried a list at all.
+func (l StrictTextList) Present() bool { return l.present }
+
+// IsText reports whether the list came as the one string that stands for it.
+func (l StrictTextList) IsText() bool { return l.isText }
+
+// Text returns the one string the list came as, when that is how it came.
+func (l StrictTextList) Text() string { return l.text }
+
+// Members returns the texts the list carries.
+func (l StrictTextList) Members() []string { return l.members }
+
+// StrictTextList marks the type as carrying a list of texts — or the one
+// string that stands for it — so the schema derives the union of the two.
+func (StrictTextList) StrictTextList() {}
 
 // WorkboardListRequest is the workboard_list request row: which tasks to
 // list, and how many.
@@ -1099,6 +1182,82 @@ type EdictDecisionStatsRequest struct {
 	Capability string `json:"capability,omitempty"`
 }
 
+// RunRequest is the run operation's request row: the intent to run, the
+// tenant, the model and the agent to run as, the images and the system
+// prompt, the timeout, the tools to scope the run to, the cost cap, the
+// execution profile, the remote peer, the auto-approve grant, the injection
+// trust, the assurance attempts and the dry-run flag.
+type RunRequest struct {
+	Intent      string         `json:"intent,omitempty"`
+	Tenant      string         `json:"tenant,omitempty"`
+	Model       string         `json:"model,omitempty"`
+	Agent       string         `json:"agent,omitempty"`
+	Images      TextArray      `json:"images,omitempty"`
+	System      string         `json:"system,omitempty"`
+	Timeout     string         `json:"timeout,omitempty"`
+	Tools       TextArray      `json:"tools,omitempty"`
+	MaxCost     Limit          `json:"max_cost,omitempty"`
+	ExecProfile string         `json:"execution_profile,omitempty"`
+	RemotePeer  string         `json:"remote_peer,omitempty"`
+	ApproveCaps StrictTextList `json:"auto_approve_caps,omitempty"`
+	Trust       BoolFlag       `json:"prompt_injection_trust,omitempty"`
+	Assure      Limit          `json:"assure,omitempty"`
+	DryRun      bool           `json:"dry_run,omitempty"`
+}
+
+// RunListRequest is the runs_list request row: the page, the filters and the
+// cost window.
+type RunListRequest struct {
+	Limit     Limit  `json:"limit,omitempty"`
+	Cursor    string `json:"cursor,omitempty"`
+	Status    string `json:"status,omitempty"`
+	Intent    string `json:"intent,omitempty"`
+	Model     string `json:"model,omitempty"`
+	MinCostMC Limit  `json:"min_cost_mc,omitempty"`
+	MaxCostMC Limit  `json:"max_cost_mc,omitempty"`
+}
+
+// RunStatsRequest is the runs_stats request row: the window and the intent
+// filter.
+type RunStatsRequest struct {
+	SinceMS Limit  `json:"since_ms,omitempty"`
+	Intent  string `json:"intent,omitempty"`
+}
+
+// PlanRunRequest is the plan operation's request row: the plan to run.
+//
+// The plan is a text, and the row knows whether it was sent at all: a plan
+// that was not sent and a plan that was sent empty are different answers.
+type PlanRunRequest struct {
+	PlanJSON Text `json:"plan_json,omitempty"`
+}
+
+// PlanHistoryRequest is the plan_history request row: the page and the status
+// filter.
+type PlanHistoryRequest struct {
+	Limit  Limit  `json:"limit,omitempty"`
+	Cursor string `json:"cursor,omitempty"`
+	Status string `json:"status,omitempty"`
+}
+
+// PlanStatsRequest is the plan_stats request row: it takes no arguments.
+type PlanStatsRequest struct{}
+
+// PlanGenerateRequest is the plan_generate request row: the intent to plan
+// and the model to plan it with.
+type PlanGenerateRequest struct {
+	Intent string `json:"intent,omitempty"`
+	Model  string `json:"model,omitempty"`
+}
+
+// PlanRefineRequest is the plan_refine request row: the plan to revise, the
+// feedback that says how, and the model to revise it with.
+type PlanRefineRequest struct {
+	PlanJSON string `json:"plan_json,omitempty"`
+	Feedback string `json:"feedback,omitempty"`
+	Model    string `json:"model,omitempty"`
+}
+
 // RequestRow binds one operation to its request row.
 type RequestRow struct {
 	// Operation is the operation's name.
@@ -1211,6 +1370,16 @@ var RequestRows = []RequestRow{
 	{Operation: EdictCompact, Row: EdictOverlayRequest{}},
 	{Operation: EdictLog, Row: EdictDecisionLogRequest{}},
 	{Operation: EdictStats, Row: EdictDecisionStatsRequest{}},
+	// The runs family: the governed run, its two reads, and the plan surface
+	// the run answers with.
+	{Operation: Run, Row: RunRequest{}},
+	{Operation: RunsList, Row: RunListRequest{}},
+	{Operation: RunsStats, Row: RunStatsRequest{}},
+	{Operation: Plan, Row: PlanRunRequest{}},
+	{Operation: PlanHistory, Row: PlanHistoryRequest{}},
+	{Operation: PlanStats, Row: PlanStatsRequest{}},
+	{Operation: PlanGenerate, Row: PlanGenerateRequest{}},
+	{Operation: PlanRefine, Row: PlanRefineRequest{}},
 }
 
 // Args returns the operation arguments a request row describes.

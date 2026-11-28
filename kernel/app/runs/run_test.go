@@ -86,10 +86,7 @@ func TestRunScopesTheOfferedTools(t *testing.T) {
 		return mock.FinalText("the answer")
 	}
 	service := NewRunService(RunPortsFromKernel(k))
-	if _, err := service.Execute(context.Background(), RunRequest{
-		Intent: json.RawMessage(`"say hi"`),
-		Tools:  json.RawMessage(`["shell"]`),
-	}, func(*event.Event) error { return nil }); err != nil {
+	if _, err := service.Execute(context.Background(), decode[opapi.RunRequest](t, `{"intent":"say hi","tools":["shell"]}`), func(*event.Event) error { return nil }); err != nil {
 		t.Fatal(err)
 	}
 	if len(offered) != 1 || offered[0] != "shell" {
@@ -167,27 +164,15 @@ func TestRunResolveRejectsBadArguments(t *testing.T) {
 	service := NewRunService(RunPortsFromKernel(k))
 	cases := []struct {
 		name string
-		in   RunRequest
+		in   opapi.RunRequest
 		want string
 	}{
-		{"missing intent", RunRequest{}, "args.intent required"},
-		{"blank intent", RunRequest{Intent: json.RawMessage(`"  "`)}, "args.intent required"},
-		{"non-string intent", RunRequest{Intent: json.RawMessage(`7`)}, "args.intent required"},
-		{"non-string tenant", RunRequest{Intent: json.RawMessage(`"x"`), Tenant: json.RawMessage(`7`)}, "args.tenant must be a string"},
-		{"null tenant", RunRequest{Intent: json.RawMessage(`"x"`), Tenant: json.RawMessage(`null`)}, "args.tenant must be a string"},
-		{"non-string model", RunRequest{Intent: json.RawMessage(`"x"`), Model: json.RawMessage(`7`)}, "args.model must be a string"},
-		{"unknown agent", RunRequest{Intent: json.RawMessage(`"x"`), Agent: json.RawMessage(`"ghost"`)}, "unknown agent: ghost"},
-		{"non-string images", RunRequest{Intent: json.RawMessage(`"x"`), Images: json.RawMessage(`"a"`)}, "args.images must be an array"},
-		{"non-string image entry", RunRequest{Intent: json.RawMessage(`"x"`), Images: json.RawMessage(`[7]`)}, "args.images[0] must be a string"},
-		{"non-string system", RunRequest{Intent: json.RawMessage(`"x"`), System: json.RawMessage(`7`)}, "args.system must be a string"},
-		{"bad timeout", RunRequest{Intent: json.RawMessage(`"x"`), Timeout: json.RawMessage(`"notaduration"`)}, "invalid timeout"},
-		{"zero timeout", RunRequest{Intent: json.RawMessage(`"x"`), Timeout: json.RawMessage(`"0s"`)}, "invalid timeout"},
-		{"non-string tools", RunRequest{Intent: json.RawMessage(`"x"`), Tools: json.RawMessage(`"shell"`)}, "args.tools must be an array"},
-		{"non-string tool entry", RunRequest{Intent: json.RawMessage(`"x"`), Tools: json.RawMessage(`[7]`)}, "args.tools[0] must be a string"},
-		{"non-numeric max cost", RunRequest{Intent: json.RawMessage(`"x"`), MaxCost: json.RawMessage(`"5"`)}, "args.max_cost must be a number"},
-		{"non-numeric assure", RunRequest{Intent: json.RawMessage(`"x"`), Assure: json.RawMessage(`"2"`)}, "args.assure must be a number"},
-		{"non-boolean dry run", RunRequest{Intent: json.RawMessage(`"x"`), DryRun: json.RawMessage(`"true"`)}, "args.dry_run must be a boolean"},
-		{"peer without remote profile", RunRequest{Intent: json.RawMessage(`"x"`), RemotePeer: json.RawMessage(`"nodeB"`)}, `remote_peer requires execution_profile "remote-agezt"`},
+		{"missing intent", decode[opapi.RunRequest](t, `{}`), "args.intent required"},
+		{"blank intent", decode[opapi.RunRequest](t, `{"intent":"  "}`), "args.intent required"},
+		{"unknown agent", decode[opapi.RunRequest](t, `{"intent":"x","agent":"ghost"}`), "unknown agent: ghost"},
+		{"bad timeout", decode[opapi.RunRequest](t, `{"intent":"x","timeout":"notaduration"}`), "invalid timeout"},
+		{"zero timeout", decode[opapi.RunRequest](t, `{"intent":"x","timeout":"0s"}`), "invalid timeout"},
+		{"peer without remote profile", decode[opapi.RunRequest](t, `{"intent":"x","remote_peer":"nodeB"}`), `remote_peer requires execution_profile "remote-agezt"`},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -200,6 +185,24 @@ func TestRunResolveRejectsBadArguments(t *testing.T) {
 			}
 		})
 	}
+	// A mistyped field is refused by the row itself, before the service runs:
+	// the family's readers read the values, not their types.
+	for _, raw := range []string{
+		`{"intent":7}`,
+		`{"intent":"x","tenant":7}`,
+		`{"intent":"x","model":7}`,
+		`{"intent":"x","images":"a"}`,
+		`{"intent":"x","images":[7]}`,
+		`{"intent":"x","system":7}`,
+		`{"intent":"x","tools":"shell"}`,
+		`{"intent":"x","tools":[7]}`,
+		`{"intent":"x","max_cost":"5"}`,
+		`{"intent":"x","assure":"2"}`,
+		`{"intent":"x","dry_run":"true"}`,
+		`{"intent":"x","auto_approve_caps":[7]}`,
+	} {
+		decodeError[opapi.RunRequest](t, raw)
+	}
 }
 
 // TestRunDryRunResolvesWithoutRunning: a dry run reports the plan and starts
@@ -207,10 +210,7 @@ func TestRunResolveRejectsBadArguments(t *testing.T) {
 func TestRunDryRunResolvesWithoutRunning(t *testing.T) {
 	k := runKernel(t)
 	service := NewRunService(RunPortsFromKernel(k))
-	out, err := service.Execute(context.Background(), RunRequest{
-		Intent: json.RawMessage(`"what is the weather"`),
-		DryRun: json.RawMessage(`true`),
-	}, func(*event.Event) error { return nil })
+	out, err := service.Execute(context.Background(), decode[opapi.RunRequest](t, `{"intent":"what is the weather","dry_run":true}`), func(*event.Event) error { return nil })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -236,10 +236,7 @@ func TestRunDryRunNeverEmitsEvents(t *testing.T) {
 	k := runKernel(t)
 	service := NewRunService(RunPortsFromKernel(k))
 	emitted := 0
-	if _, err := service.Execute(context.Background(), RunRequest{
-		Intent: json.RawMessage(`"x"`),
-		DryRun: json.RawMessage(`true`),
-	}, func(*event.Event) error { emitted++; return nil }); err != nil {
+	if _, err := service.Execute(context.Background(), decode[opapi.RunRequest](t, `{"intent":"x","dry_run":true}`), func(*event.Event) error { emitted++; return nil }); err != nil {
 		t.Fatal(err)
 	}
 	if emitted != 0 {
@@ -252,9 +249,7 @@ func TestRunDryRunNeverEmitsEvents(t *testing.T) {
 func TestRunExecuteAnswersWithTheRun(t *testing.T) {
 	k := runKernel(t)
 	service := NewRunService(RunPortsFromKernel(k))
-	out, err := service.Execute(context.Background(), RunRequest{
-		Intent: json.RawMessage(`"say hi"`),
-	}, func(*event.Event) error { return nil })
+	out, err := service.Execute(context.Background(), decode[opapi.RunRequest](t, `{"intent":"say hi"}`), func(*event.Event) error { return nil })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -277,9 +272,7 @@ func TestRunExecuteEnrichesTheAnswer(t *testing.T) {
 		return Run{Iters: 3, SpentMicrocents: 42, Model: "run-model"}, true, nil
 	}
 	service := NewRunService(ports)
-	out, err := service.Execute(context.Background(), RunRequest{
-		Intent: json.RawMessage(`"say hi"`),
-	}, func(*event.Event) error { return nil })
+	out, err := service.Execute(context.Background(), decode[opapi.RunRequest](t, `{"intent":"say hi"}`), func(*event.Event) error { return nil })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -302,9 +295,7 @@ func TestRunAnswerStaysBareWhenTheFoldIsUnknown(t *testing.T) {
 		return Run{Iters: 9, SpentMicrocents: 99}, false, nil
 	}
 	service := NewRunService(ports)
-	out, err := service.Execute(context.Background(), RunRequest{
-		Intent: json.RawMessage(`"say hi"`),
-	}, func(*event.Event) error { return nil })
+	out, err := service.Execute(context.Background(), decode[opapi.RunRequest](t, `{"intent":"say hi"}`), func(*event.Event) error { return nil })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -321,10 +312,7 @@ func TestRunResolveUsesTheAgentsModel(t *testing.T) {
 		t.Fatal(err)
 	}
 	service := NewRunService(RunPortsFromKernel(k))
-	resolved, err := service.resolve(context.Background(), RunRequest{
-		Intent: json.RawMessage(`"x"`),
-		Agent:  json.RawMessage(`"modeled"`),
-	})
+	resolved, err := service.resolve(context.Background(), decode[opapi.RunRequest](t, `{"intent":"x","agent":"modeled"}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -332,11 +320,7 @@ func TestRunResolveUsesTheAgentsModel(t *testing.T) {
 		t.Fatalf("model = %q, want agent-model", resolved.model)
 	}
 	// An explicit override still wins.
-	resolved, err = service.resolve(context.Background(), RunRequest{
-		Intent: json.RawMessage(`"x"`),
-		Agent:  json.RawMessage(`"modeled"`),
-		Model:  json.RawMessage(`"explicit-model"`),
-	})
+	resolved, err = service.resolve(context.Background(), decode[opapi.RunRequest](t, `{"intent":"x","agent":"modeled","model":"explicit-model"}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -353,11 +337,7 @@ func TestRunResolveUsesTheAgentsModel(t *testing.T) {
 func TestRunDryRunScopesTheTools(t *testing.T) {
 	k := runKernelWithTools(t)
 	service := NewRunService(RunPortsFromKernel(k))
-	out, err := service.Execute(context.Background(), RunRequest{
-		Intent: json.RawMessage(`"x"`),
-		Tools:  json.RawMessage(`["shell"]`),
-		DryRun: json.RawMessage(`true`),
-	}, func(*event.Event) error { return nil })
+	out, err := service.Execute(context.Background(), decode[opapi.RunRequest](t, `{"intent":"x","tools":["shell"],"dry_run":true}`), func(*event.Event) error { return nil })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -374,11 +354,7 @@ func TestRunDryRunScopesTheTools(t *testing.T) {
 func TestRunDryRunReportsTheModelOverride(t *testing.T) {
 	k := runKernel(t)
 	service := NewRunService(RunPortsFromKernel(k))
-	out, err := service.Execute(context.Background(), RunRequest{
-		Intent: json.RawMessage(`"x"`),
-		Model:  json.RawMessage(`"override-model"`),
-		DryRun: json.RawMessage(`true`),
-	}, func(*event.Event) error { return nil })
+	out, err := service.Execute(context.Background(), decode[opapi.RunRequest](t, `{"intent":"x","model":"override-model","dry_run":true}`), func(*event.Event) error { return nil })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -399,17 +375,12 @@ func TestRunResolveUsesTheAgentsExecutionProfile(t *testing.T) {
 	}
 	service := NewRunService(RunPortsFromKernel(k))
 	// The agent's profile is applied, and the inactive SSH backend is refused.
-	_, err := service.resolve(context.Background(), RunRequest{
-		Intent: json.RawMessage(`"x"`),
-		Agent:  json.RawMessage(`"ssh-agent"`),
-	})
+	_, err := service.resolve(context.Background(), decode[opapi.RunRequest](t, `{"intent":"x","agent":"ssh-agent"}`))
 	if err == nil || !strings.Contains(err.Error(), "requires an active SSH backend") {
 		t.Fatalf("error = %v, want the inactive SSH backend refusal", err)
 	}
 	// Without the agent, the profile does not apply and the run resolves.
-	if _, err := service.resolve(context.Background(), RunRequest{
-		Intent: json.RawMessage(`"x"`),
-	}); err != nil {
+	if _, err := service.resolve(context.Background(), decode[opapi.RunRequest](t, `{"intent":"x"}`)); err != nil {
 		t.Fatalf("the ad-hoc run must resolve: %v", err)
 	}
 }
@@ -427,10 +398,7 @@ func TestRunResolveRejectsAManagedSubAgent(t *testing.T) {
 		t.Fatal(err)
 	}
 	service := NewRunService(RunPortsFromKernel(k))
-	_, err := service.resolve(context.Background(), RunRequest{
-		Intent: json.RawMessage(`"x"`),
-		Agent:  json.RawMessage(`"worker"`),
-	})
+	_, err := service.resolve(context.Background(), decode[opapi.RunRequest](t, `{"intent":"x","agent":"worker"}`))
 	if err == nil || !strings.Contains(err.Error(), "managed sub-agent") {
 		t.Fatalf("error = %v, want the managed sub-agent rejection", err)
 	}
@@ -457,10 +425,7 @@ func TestRunResolveRejectsARetiredOrPausedAgent(t *testing.T) {
 		{"retired-one", "is retired"},
 		{"paused-one", "is paused"},
 	} {
-		_, err := service.resolve(context.Background(), RunRequest{
-			Intent: json.RawMessage(`"x"`),
-			Agent:  json.RawMessage(`"` + tc.agent + `"`),
-		})
+		_, err := service.resolve(context.Background(), decode[opapi.RunRequest](t, `{"intent":"x","agent":"`+tc.agent+`"}`))
 		if err == nil || !strings.Contains(err.Error(), tc.want) {
 			t.Errorf("%s: error = %v, want it to contain %q", tc.agent, err, tc.want)
 		}

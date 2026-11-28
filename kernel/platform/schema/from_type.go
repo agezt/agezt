@@ -96,6 +96,18 @@ type textList interface{ TextList() }
 // textListTypes is the union a list-of-texts field derives.
 var textListTypes = []string{"array", "string"}
 
+// strictTextList is the marker a request field carries when it holds a list
+// of texts — or the ONE comma-separated string a caller sends instead of a
+// list — and whose members ARE texts.
+//
+// Both shapes are what the daemon understands, so the union it derives names
+// both, and the members are named too: a member that is not a text is
+// refused, the way the door refuses it.
+type strictTextList interface{ StrictTextList() }
+
+// strictTextListTypes is the union a strict list-of-texts field derives.
+var strictTextListTypes = []string{"string", "array"}
+
 func typeNode(t reflect.Type, allowUnknown bool, visiting map[reflect.Type]bool) (map[string]any, error) {
 	if t == nil {
 		return nil, fmt.Errorf("missing type")
@@ -114,6 +126,9 @@ func typeNode(t reflect.Type, allowUnknown bool, visiting map[reflect.Type]bool)
 	}
 	if t.Implements(reflect.TypeFor[textList]()) {
 		return map[string]any{"type": textListTypes}, nil
+	}
+	if t.Implements(reflect.TypeFor[strictTextList]()) {
+		return map[string]any{"type": strictTextListTypes, "items": map[string]any{"type": "string"}}, nil
 	}
 	if t.Implements(reflect.TypeFor[numberOrString]()) {
 		return map[string]any{"type": numberOrStringTypes}, nil
