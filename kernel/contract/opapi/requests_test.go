@@ -274,6 +274,34 @@ func TestTheLimitKnowsWhetherItCame(t *testing.T) {
 	}
 }
 
+// TestTheTextListReadsAListOrTheOneStringThatCarriesIt says a list field
+// carries a list of texts — or the ONE comma-separated string a caller sends
+// instead — and that the members a list cannot use are dropped, not refused.
+func TestTheTextListReadsAListOrTheOneStringThatCarriesIt(t *testing.T) {
+	var list TextList
+	if err := json.Unmarshal([]byte(`[" a ","","b"]`), &list); err != nil {
+		t.Fatal(err)
+	}
+	members := TextListValue(list)
+	if len(members) != 2 || members[0] != "a" || members[1] != "b" {
+		t.Errorf("the list reads as %v", members)
+	}
+	var text TextList
+	if err := json.Unmarshal([]byte(`"one, two"`), &text); err != nil {
+		t.Fatal(err)
+	}
+	members = TextListValue(text)
+	if len(members) != 2 || members[0] != "one" || members[1] != " two" {
+		t.Errorf("the string reads as %v", members)
+	}
+	if TextListValue(TextList{}) != nil {
+		t.Error("a list that was not sent must read as nothing")
+	}
+	if err := json.Unmarshal([]byte(`7`), &text); err == nil {
+		t.Error("a number must not read as a list of texts")
+	}
+}
+
 // boolFlagOf reads a flag from the JSON value it arrives as.
 func boolFlagOf(t *testing.T, value any) BoolFlag {
 	t.Helper()
