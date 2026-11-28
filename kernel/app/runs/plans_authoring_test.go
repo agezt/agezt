@@ -4,7 +4,6 @@ package runs
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"reflect"
 	"strings"
@@ -56,8 +55,22 @@ func testProvider() llm.Provider {
 // before the planner runs.
 func TestPlanGenerateRefusesTheMissingIntent(t *testing.T) {
 	a := &authoring{}
-	for _, raw := range []string{``, `""`, `"   "`} {
-		out, err := a.service(testProvider()).Generate(context.Background(), PlanGenerateRequest{Intent: json.RawMessage(raw)})
+	// A missing intent and an intent that carries no text are the same
+	// answer: the row carries no text, so the family refuses it.
+	for _, in := range []opapi.PlanGenerateRequest{
+		{},
+		decode[opapi.PlanGenerateRequest](t, `{"intent":null}`),
+	} {
+		out, err := a.service(testProvider()).Generate(context.Background(), in)
+		if err == nil || err.Error() != "args.intent required" {
+			t.Fatalf("%v: %v, want args.intent required", in, err)
+		}
+		if !reflect.DeepEqual(out, PlanOutput{}) {
+			t.Fatalf("%v: a refused intent answers nothing: %+v", in, out)
+		}
+	}
+	for _, raw := range []string{`""`, `"   "`} {
+		out, err := a.service(testProvider()).Generate(context.Background(), decode[opapi.PlanGenerateRequest](t, `{"intent":`+raw+`}`))
 		if err == nil || err.Error() != "args.intent required" {
 			t.Fatalf("%s: %v, want args.intent required", raw, err)
 		}
@@ -65,36 +78,25 @@ func TestPlanGenerateRefusesTheMissingIntent(t *testing.T) {
 			t.Fatalf("%s: a refused intent answers nothing: %+v", raw, out)
 		}
 	}
-	// An explicit null is a wrong type, not a missing argument.
-	if _, err := a.service(testProvider()).Generate(context.Background(), PlanGenerateRequest{Intent: json.RawMessage(`null`)}); err == nil || err.Error() != "args.intent must be a string" {
-		t.Fatalf("null: %v, want args.intent must be a string", err)
-	}
 	if len(a.generated) != 0 {
 		t.Fatal("a refused intent never reaches the planner", a.generated)
 	}
 }
 
 // TestPlanGenerateRefusesANonStringArgument: an argument that is not a string
-// is refused with the type error, not the required error.
+// is refused by the row itself, before the planner runs.
 func TestPlanGenerateRefusesANonStringArgument(t *testing.T) {
-	a := &authoring{}
 	for _, raw := range []string{`7`, `{}`, `[]`, `true`} {
-		if _, err := a.service(testProvider()).Generate(context.Background(), PlanGenerateRequest{Intent: json.RawMessage(raw)}); err == nil || err.Error() != "args.intent must be a string" {
-			t.Fatalf("%s: %v, want args.intent must be a string", raw, err)
-		}
+		decodeError[opapi.PlanGenerateRequest](t, `{"intent":`+raw+`}`)
 	}
-	if _, err := a.service(testProvider()).Generate(context.Background(), PlanGenerateRequest{Intent: json.RawMessage(`"do it"`), Model: json.RawMessage(`7`)}); err == nil || err.Error() != "args.model must be a string" {
-		t.Fatalf("the model: %v", err)
-	}
+	decodeError[opapi.PlanGenerateRequest](t, `{"intent":"do it","model":7}`)
 }
 
 // TestPlanGenerateAnswersThePlan: the plan JSON and the node count answer the
 // request, and the model override reaches the planner.
 func TestPlanGenerateAnswersThePlan(t *testing.T) {
 	a := &authoring{raw: `{"nodes":[]}`, nodes: 3}
-	out, err := a.service(testProvider()).Generate(context.Background(), PlanGenerateRequest{
-		Intent: json.RawMessage(`"do it"`), Model: json.RawMessage(`"fast"`),
-	})
+	out, err := a.service(testProvider()).Generate(context.Background(), decode[opapi.PlanGenerateRequest](t, `{"intent":"do it","model":"fast"}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +112,7 @@ func TestPlanGenerateAnswersThePlan(t *testing.T) {
 // to the planner, as before.
 func TestPlanGenerateKeepsTheIntentAsGiven(t *testing.T) {
 	a := &authoring{raw: `{}`}
-	if _, err := a.service(testProvider()).Generate(context.Background(), PlanGenerateRequest{Intent: json.RawMessage(`"  do it  "`)}); err != nil {
+	if _, err := a.service(testProvider()).Generate(context.Background(), decode[opapi.PlanGenerateRequest](t, `{"intent":"  do it  "}`)); err != nil {
 		t.Fatal(err)
 	}
 	if a.generated[0] != "  do it  |" {
@@ -122,7 +124,7 @@ func TestPlanGenerateKeepsTheIntentAsGiven(t *testing.T) {
 // provider is the operator's answer, not a planner error.
 func TestPlanGenerateRefusesADaemonWithoutAProvider(t *testing.T) {
 	a := &authoring{}
-	if _, err := a.service(nil).Generate(context.Background(), PlanGenerateRequest{Intent: json.RawMessage(`"do it"`)}); err == nil || err.Error() != "daemon has no provider configured" {
+	if _, err := a.service(nil).Generate(context.Background(), decode[opapi.PlanGenerateRequest](t, `{"intent":"do it"}`)); err == nil || err.Error() != "daemon has no provider configured" {
 		t.Fatalf("err=%v", err)
 	}
 }
@@ -131,7 +133,7 @@ func TestPlanGenerateRefusesADaemonWithoutAProvider(t *testing.T) {
 // operation's failure.
 func TestPlanGenerateReportsThePlannerFailure(t *testing.T) {
 	a := &authoring{err: errors.New("planner: intent required")}
-	if _, err := a.service(testProvider()).Generate(context.Background(), PlanGenerateRequest{Intent: json.RawMessage(`"do it"`)}); err == nil || err.Error() != "planner: intent required" {
+	if _, err := a.service(testProvider()).Generate(context.Background(), decode[opapi.PlanGenerateRequest](t, `{"intent":"do it"}`)); err == nil || err.Error() != "planner: intent required" {
 		t.Fatal(err)
 	}
 }
@@ -140,20 +142,28 @@ func TestPlanGenerateReportsThePlannerFailure(t *testing.T) {
 // both required.
 func TestPlanRefineRefusesTheMissingArguments(t *testing.T) {
 	a := &authoring{}
-	plan := json.RawMessage(`"{\"nodes\":[]}"`)
+	plan := `{\"nodes\":[]}`
 	for _, raw := range []string{``, `""`, `"   "`} {
-		if _, err := a.service(testProvider()).Refine(context.Background(), PlanRefineRequest{PlanJSON: json.RawMessage(raw), Feedback: json.RawMessage(`"change it"`)}); err == nil || err.Error() != "args.plan_json required" {
+		body := `{"feedback":"change it"}`
+		if raw != `` {
+			body = `{"plan_json":` + raw + `,"feedback":"change it"}`
+		}
+		if _, err := a.service(testProvider()).Refine(context.Background(), decode[opapi.PlanRefineRequest](t, body)); err == nil || err.Error() != "args.plan_json required" {
 			t.Fatalf("%s: %v, want args.plan_json required", raw, err)
 		}
 	}
 	for _, raw := range []string{``, `""`, `"   "`} {
-		if _, err := a.service(testProvider()).Refine(context.Background(), PlanRefineRequest{PlanJSON: plan, Feedback: json.RawMessage(raw)}); err == nil || err.Error() != "args.feedback required" {
+		body := `{"plan_json":"` + plan + `"}`
+		if raw != `` {
+			body = `{"plan_json":"` + plan + `","feedback":` + raw + `}`
+		}
+		if _, err := a.service(testProvider()).Refine(context.Background(), decode[opapi.PlanRefineRequest](t, body)); err == nil || err.Error() != "args.feedback required" {
 			t.Fatalf("%s: %v, want args.feedback required", raw, err)
 		}
 	}
-	// An explicit null is a wrong type, not a missing argument.
-	if _, err := a.service(testProvider()).Refine(context.Background(), PlanRefineRequest{PlanJSON: plan, Feedback: json.RawMessage(`null`)}); err == nil || err.Error() != "args.feedback must be a string" {
-		t.Fatalf("null: %v, want args.feedback must be a string", err)
+	// An explicit null carries no text: the row's answer, not the old type error.
+	if _, err := a.service(testProvider()).Refine(context.Background(), decode[opapi.PlanRefineRequest](t, `{"plan_json":"`+plan+`","feedback":null}`)); err == nil || err.Error() != "args.feedback required" {
+		t.Fatalf("null: %v, want args.feedback required", err)
 	}
 	if len(a.refined) != 0 {
 		t.Fatal("a refused revision never reaches the planner", a.refined)
@@ -164,9 +174,7 @@ func TestPlanRefineRefusesTheMissingArguments(t *testing.T) {
 // the plan_json prefix.
 func TestPlanRefineRefusesABrokenPlan(t *testing.T) {
 	a := &authoring{}
-	_, err := a.service(testProvider()).Refine(context.Background(), PlanRefineRequest{
-		PlanJSON: json.RawMessage(`"not a plan"`), Feedback: json.RawMessage(`"change it"`),
-	})
+	_, err := a.service(testProvider()).Refine(context.Background(), decode[opapi.PlanRefineRequest](t, `{"plan_json":"not a plan","feedback":"change it"}`))
 	if err == nil || !strings.HasPrefix(err.Error(), "plan_json: ") {
 		t.Fatalf("err=%v", err)
 	}
@@ -176,9 +184,7 @@ func TestPlanRefineRefusesABrokenPlan(t *testing.T) {
 // count answer the request.
 func TestPlanRefineAnswersTheRevisedPlan(t *testing.T) {
 	a := &authoring{raw: `{"nodes":[{"id":"a"}]}`, nodes: 1}
-	out, err := a.service(testProvider()).Refine(context.Background(), PlanRefineRequest{
-		PlanJSON: json.RawMessage(`"{\"nodes\":[{\"id\":\"a\"}]}"`), Feedback: json.RawMessage(`"change it"`), Model: json.RawMessage(`"fast"`),
-	})
+	out, err := a.service(testProvider()).Refine(context.Background(), decode[opapi.PlanRefineRequest](t, `{"plan_json":"{\"nodes\":[{\"id\":\"a\"}]}","feedback":"change it","model":"fast"}`))
 	if err != nil {
 		t.Fatal(err)
 	}

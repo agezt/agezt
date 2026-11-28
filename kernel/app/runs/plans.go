@@ -21,15 +21,6 @@ type Plans struct{ journal journalview.Reader }
 
 func NewPlans(journal journalview.Reader) *Plans { return &Plans{journal: journal} }
 
-type PlansRequest struct {
-	Limit  json.RawMessage `json:"limit,omitempty"`
-	Cursor json.RawMessage `json:"cursor,omitempty"`
-	Status json.RawMessage `json:"status,omitempty"`
-}
-
-// PlanStatsRequest takes no arguments.
-type PlanStatsRequest struct{}
-
 type PlanRow struct {
 	CorrelationID string `json:"correlation_id"`
 	PlanName      string `json:"plan_name"`
@@ -114,17 +105,14 @@ func (p *plan) duration() (int64, bool) {
 
 // List pages the plan executions newest start first. A plan whose start was not
 // journaled sorts as the oldest, and ties among those break by correlation.
-func (s *Plans) List(_ context.Context, in PlansRequest) (PlansOutput, error) {
+func (s *Plans) List(_ context.Context, in opapi.PlanHistoryRequest) (PlansOutput, error) {
 	limit := defaultListLimit
-	if v, ok := rawValue(in.Limit).(float64); ok {
-		limit = int(v)
+	if in.Limit.Present() {
+		limit = int(in.Limit.Number())
 	}
 	limit = min(max(limit, 1), maxListLimit)
-	cursorMS, cursorSeq, cursorOK := journal.DecodeCursor(rawValue(in.Cursor))
-	status, err := optionalString(in.Status, "status")
-	if err != nil {
-		return PlansOutput{}, err
-	}
+	cursorMS, cursorSeq, cursorOK := journal.DecodeCursor(in.Cursor)
+	status := in.Status
 	plans, err := s.fold()
 	if err != nil {
 		return PlansOutput{}, err
@@ -159,7 +147,7 @@ func (s *Plans) List(_ context.Context, in PlansRequest) (PlansOutput, error) {
 
 // Stats counts the plans by status, the success rate over terminal plans and the
 // duration distribution of terminal plans with a journaled start.
-func (s *Plans) Stats(context.Context, PlanStatsRequest) (PlanStatsOutput, error) {
+func (s *Plans) Stats(context.Context, opapi.PlanStatsRequest) (PlanStatsOutput, error) {
 	plans, err := s.fold()
 	if err != nil {
 		return PlanStatsOutput{}, err
@@ -195,12 +183,12 @@ func PlanOperations(provider func(context.Context) *Plans) ([]app.Operation, err
 		return nil, errors.New("plans provider required")
 	}
 	var ops []app.Operation
-	if err := bind(&ops, opapi.Spec{Name: opapi.PlanHistory, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"limit":{"type":"number"},"cursor":{"type":"string"},"status":{"type":"string"}}}`)}, func(ctx context.Context, in PlansRequest) (PlansOutput, error) {
+	if err := bind(&ops, opapi.Spec{Name: opapi.PlanHistory}, func(ctx context.Context, in opapi.PlanHistoryRequest) (PlansOutput, error) {
 		return provider(ctx).List(ctx, in)
 	}); err != nil {
 		return nil, err
 	}
-	if err := bind(&ops, opapi.Spec{Name: opapi.PlanStats, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true}`)}, func(ctx context.Context, in PlanStatsRequest) (PlanStatsOutput, error) {
+	if err := bind(&ops, opapi.Spec{Name: opapi.PlanStats}, func(ctx context.Context, in opapi.PlanStatsRequest) (PlanStatsOutput, error) {
 		return provider(ctx).Stats(ctx, in)
 	}); err != nil {
 		return nil, err

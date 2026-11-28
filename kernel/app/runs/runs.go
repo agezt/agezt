@@ -4,9 +4,7 @@ package runs
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"reflect"
 	"sort"
 	"strings"
@@ -48,23 +46,6 @@ func (r Run) Status() string {
 	default:
 		return "running"
 	}
-}
-
-// ListRequest keeps the arguments raw so the legacy lenient numbers and strict
-// strings hold.
-type ListRequest struct {
-	Limit     json.RawMessage `json:"limit,omitempty"`
-	Cursor    json.RawMessage `json:"cursor,omitempty"`
-	Status    json.RawMessage `json:"status,omitempty"`
-	Intent    json.RawMessage `json:"intent,omitempty"`
-	Model     json.RawMessage `json:"model,omitempty"`
-	MinCostMC json.RawMessage `json:"min_cost_mc,omitempty"`
-	MaxCostMC json.RawMessage `json:"max_cost_mc,omitempty"`
-}
-
-type StatsRequest struct {
-	SinceMS json.RawMessage `json:"since_ms,omitempty"`
-	Intent  json.RawMessage `json:"intent,omitempty"`
 }
 
 type RunRow struct {
@@ -127,32 +108,6 @@ type StatsOutput struct {
 	DurationMS               Distribution          `json:"duration_ms"`
 }
 
-func rawValue(raw json.RawMessage) any {
-	var v any
-	if len(raw) != 0 {
-		_ = json.Unmarshal(raw, &v)
-	}
-	return v
-}
-
-// optionalString is a strict string: absent is empty, present must be a string.
-func optionalString(raw json.RawMessage, key string) (string, error) {
-	if len(raw) == 0 {
-		return "", nil
-	}
-	s, ok := rawValue(raw).(string)
-	if !ok {
-		return "", fmt.Errorf("args.%s must be a string", key)
-	}
-	return s, nil
-}
-
-// lenientInt64 reads a JSON number truncated toward zero; anything else is 0.
-func lenientInt64(raw json.RawMessage) int64 {
-	n, _ := rawValue(raw).(float64)
-	return int64(n)
-}
-
 // Service reads the routed kernel's folded runs.
 type Service struct {
 	runs func() (map[string]Run, error)
@@ -165,25 +120,15 @@ func New(runs func() (map[string]Run, error), now func() time.Time) *Service {
 
 // List filters before the limit, sorts newest first (journal seq breaks a
 // same-millisecond tie) and pages strictly older than the cursor.
-func (s *Service) List(_ context.Context, in ListRequest) (ListOutput, error) {
+func (s *Service) List(_ context.Context, in opapi.RunListRequest) (ListOutput, error) {
 	limit := defaultListLimit
-	if v, ok := rawValue(in.Limit).(float64); ok {
-		limit = int(v)
+	if in.Limit.Present() {
+		limit = int(in.Limit.Number())
 	}
 	limit = min(max(limit, 1), maxListLimit)
-	cursorMS, cursorSeq, cursorOK := journal.DecodeCursor(rawValue(in.Cursor))
-	var filters [3]string
-	for i, f := range []struct {
-		raw json.RawMessage
-		key string
-	}{{in.Status, "status"}, {in.Intent, "intent"}, {in.Model, "model"}} {
-		var err error
-		if filters[i], err = optionalString(f.raw, f.key); err != nil {
-			return ListOutput{}, err
-		}
-	}
-	status, intent, model := filters[0], strings.ToLower(filters[1]), strings.ToLower(filters[2])
-	minCost, maxCost := lenientInt64(in.MinCostMC), lenientInt64(in.MaxCostMC)
+	cursorMS, cursorSeq, cursorOK := journal.DecodeCursor(in.Cursor)
+	status, intent, model := in.Status, strings.ToLower(in.Intent), strings.ToLower(in.Model)
+	minCost, maxCost := int64(in.MinCostMC.Number()), int64(in.MaxCostMC.Number())
 	runs, err := s.runs()
 	if err != nil {
 		return ListOutput{}, err
@@ -254,21 +199,17 @@ func distribution(values []int64) Distribution {
 // since_ms of now and scoped to an intent substring. Durations cover completed
 // runs only; the success rate counts failed and abandoned runs against it but
 // not runs still in flight.
-func (s *Service) Stats(_ context.Context, in StatsRequest) (StatsOutput, error) {
+func (s *Service) Stats(_ context.Context, in opapi.RunStatsRequest) (StatsOutput, error) {
 	runs, err := s.runs()
 	if err != nil {
 		return StatsOutput{}, err
 	}
-	sinceMS := lenientInt64(in.SinceMS)
+	sinceMS := int64(in.SinceMS.Number())
 	var cutoff int64
 	if sinceMS > 0 {
 		cutoff = s.now().UnixMilli() - sinceMS
 	}
-	intent, err := optionalString(in.Intent, "intent")
-	if err != nil {
-		return StatsOutput{}, err
-	}
-	intent = strings.ToLower(intent)
+	intent := strings.ToLower(in.Intent)
 	out := StatsOutput{FailedByReason: map[string]int{}, WindowMS: sinceMS, ByModel: map[string]ModelSpend{}}
 	var itersSum int
 	durations, spends := make([]int64, 0, len(runs)), make([]int64, 0, len(runs))
@@ -353,12 +294,12 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 		return nil, errors.New("runs provider required")
 	}
 	var ops []app.Operation
-	if err := bind(&ops, opapi.Spec{Name: opapi.RunsList, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"limit":{"type":"number"},"cursor":{"type":"string"},"status":{"type":"string"},"intent":{"type":"string"},"model":{"type":"string"},"min_cost_mc":{"type":"number"},"max_cost_mc":{"type":"number"}}}`)}, func(ctx context.Context, in ListRequest) (ListOutput, error) {
+	if err := bind(&ops, opapi.Spec{Name: opapi.RunsList}, func(ctx context.Context, in opapi.RunListRequest) (ListOutput, error) {
 		return provider(ctx).List(ctx, in)
 	}); err != nil {
 		return nil, err
 	}
-	if err := bind(&ops, opapi.Spec{Name: opapi.RunsStats, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"since_ms":{"type":"number"},"intent":{"type":"string"}}}`)}, func(ctx context.Context, in StatsRequest) (StatsOutput, error) {
+	if err := bind(&ops, opapi.Spec{Name: opapi.RunsStats}, func(ctx context.Context, in opapi.RunStatsRequest) (StatsOutput, error) {
 		return provider(ctx).Stats(ctx, in)
 	}); err != nil {
 		return nil, err

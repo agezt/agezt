@@ -61,21 +61,22 @@ func (p *planRunner) runner() *PlanRunner {
 	}
 }
 
-// TestPlanRunRefusesTheMissingPlan: the plan JSON is required and must be a
-// string.
+// TestPlanRunRefusesTheMissingPlan: the plan JSON is required, and the row
+// refuses a plan that is not a text.
 func TestPlanRunRefusesTheMissingPlan(t *testing.T) {
 	p := &planRunner{}
-	for _, raw := range []string{``, `null`, `7`, `{}`} {
-		_, err := p.runner().Run(context.Background(), PlanRunRequest{PlanJSON: json.RawMessage(raw)}, func(*event.Event) error { return nil })
-		if err == nil {
-			t.Fatalf("%s: a refused plan answers nothing", raw)
-		}
-		if raw == `` && err.Error() != "args.plan_json required (JSON string)" {
-			t.Fatalf("%s: %v", raw, err)
-		}
-		if raw != `` && !strings.HasPrefix(err.Error(), "args.plan_json must be a JSON string") {
-			t.Fatalf("%s: %v", raw, err)
-		}
+	if _, err := p.runner().Run(context.Background(), opapi.PlanRunRequest{}, func(*event.Event) error { return nil }); err == nil || err.Error() != "args.plan_json required (JSON string)" {
+		t.Fatalf("err=%v", err)
+	}
+	// A plan that was sent as something other than a text is refused by the
+	// row itself, before the runner reads it.
+	for _, raw := range []string{`{"plan_json":7}`, `{"plan_json":{}}`, `{"plan_json":["a"]}`} {
+		decodeError[opapi.PlanRunRequest](t, raw)
+	}
+	// A plan that was sent empty is the empty text, and the plan reader says
+	// so in its own words.
+	if _, err := p.runner().Run(context.Background(), decode[opapi.PlanRunRequest](t, `{"plan_json":null}`), func(*event.Event) error { return nil }); err == nil || !strings.HasPrefix(err.Error(), "plan_json parse: ") {
+		t.Fatalf("err=%v", err)
 	}
 	if p.pattern != "" {
 		t.Fatal("a refused plan never subscribes", p.pattern)
@@ -86,10 +87,10 @@ func TestPlanRunRefusesTheMissingPlan(t *testing.T) {
 // parse prefix, and a plan without nodes is refused as empty.
 func TestPlanRunRefusesABrokenPlan(t *testing.T) {
 	p := &planRunner{}
-	if _, err := p.runner().Run(context.Background(), PlanRunRequest{PlanJSON: json.RawMessage(`"not a plan"`)}, func(*event.Event) error { return nil }); err == nil || !strings.HasPrefix(err.Error(), "plan_json parse: ") {
+	if _, err := p.runner().Run(context.Background(), planRequest(t, "not a plan"), func(*event.Event) error { return nil }); err == nil || !strings.HasPrefix(err.Error(), "plan_json parse: ") {
 		t.Fatalf("err=%v", err)
 	}
-	if _, err := p.runner().Run(context.Background(), PlanRunRequest{PlanJSON: json.RawMessage(`"{\"nodes\":[]}"`)}, func(*event.Event) error { return nil }); err == nil || err.Error() != "plan has no nodes" {
+	if _, err := p.runner().Run(context.Background(), planRequest(t, `{"nodes":[]}`), func(*event.Event) error { return nil }); err == nil || err.Error() != "plan has no nodes" {
 		t.Fatalf("err=%v", err)
 	}
 }
@@ -98,19 +99,21 @@ func TestPlanRunRefusesABrokenPlan(t *testing.T) {
 // refused with its id and kind.
 func TestPlanRunRefusesAnUnknownNodeKind(t *testing.T) {
 	p := &planRunner{}
-	_, err := p.runner().Run(context.Background(), PlanRunRequest{PlanJSON: planArg(`{"nodes":[{"id":"a","kind":"nope"}]}`)}, func(*event.Event) error { return nil })
+	_, err := p.runner().Run(context.Background(), planRequest(t, `{"nodes":[{"id":"a","kind":"nope"}]}`), func(*event.Event) error { return nil })
 	if err == nil || err.Error() != `node "a": unknown kind "nope" (want loop|gate)` {
 		t.Fatalf("err=%v", err)
 	}
 }
 
-// planArg encodes a plan JSON as the string argument a client sends.
-func planArg(plan string) json.RawMessage {
+// planRequest builds the plan operation's row from the plan JSON a client
+// sends.
+func planRequest(t *testing.T, plan string) opapi.PlanRunRequest {
+	t.Helper()
 	raw, err := json.Marshal(plan)
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
-	return raw
+	return decode[opapi.PlanRunRequest](t, `{"plan_json":`+string(raw)+`}`)
 }
 
 // TestPlanRunStreamsTheEventsAndAnswers: the plan's events reach the caller
@@ -122,9 +125,7 @@ func TestPlanRunStreamsTheEventsAndAnswers(t *testing.T) {
 		"a": {Output: "done"},
 	}}}
 	var seen []string
-	out, err := p.runner().Run(app.WithRequestID(context.Background(), "q1"), PlanRunRequest{
-		PlanJSON: json.RawMessage(`"{\"nodes\":[{\"id\":\"a\",\"kind\":\"loop\",\"intent\":\"x\"}]}"`),
-	}, func(ev *event.Event) error {
+	out, err := p.runner().Run(app.WithRequestID(context.Background(), "q1"), planRequest(t, `{"nodes":[{"id":"a","kind":"loop","intent":"x"}]}`), func(ev *event.Event) error {
 		seen = append(seen, string(ev.Kind))
 		return nil
 	})
@@ -161,9 +162,7 @@ func TestPlanRunNamesThePlanAfterTheRequest(t *testing.T) {
 // TestPlanRunReportsThePlanFailure: a plan failure is the operation's failure.
 func TestPlanRunReportsThePlanFailure(t *testing.T) {
 	p := &planRunner{sub: &fakeSubscription{events: make(chan *event.Event, 1)}, err: errors.New("plan: node failed")}
-	_, err := p.runner().Run(context.Background(), PlanRunRequest{
-		PlanJSON: json.RawMessage(`"{\"nodes\":[{\"id\":\"a\",\"kind\":\"loop\"}]}"`),
-	}, func(*event.Event) error { return nil })
+	_, err := p.runner().Run(context.Background(), planRequest(t, `{"nodes":[{"id":"a","kind":"loop"}]}`), func(*event.Event) error { return nil })
 	if err == nil || err.Error() != "plan: node failed" {
 		t.Fatalf("err=%v", err)
 	}

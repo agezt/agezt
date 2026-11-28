@@ -14,27 +14,6 @@ import (
 	"github.com/agezt/agezt/kernel/platform/schema"
 )
 
-// RunRequest is the run command's arguments. Every field stays raw so the
-// strict readers below decide what a value means: a mistyped flag is a usage
-// error, never a silent default.
-type RunRequest struct {
-	Intent      json.RawMessage `json:"intent,omitempty"`
-	Tenant      json.RawMessage `json:"tenant,omitempty"`
-	Model       json.RawMessage `json:"model,omitempty"`
-	Agent       json.RawMessage `json:"agent,omitempty"`
-	Images      json.RawMessage `json:"images,omitempty"`
-	System      json.RawMessage `json:"system,omitempty"`
-	Timeout     json.RawMessage `json:"timeout,omitempty"`
-	Tools       json.RawMessage `json:"tools,omitempty"`
-	MaxCost     json.RawMessage `json:"max_cost,omitempty"`
-	ExecProfile json.RawMessage `json:"execution_profile,omitempty"`
-	RemotePeer  json.RawMessage `json:"remote_peer,omitempty"`
-	ApproveCaps json.RawMessage `json:"auto_approve_caps,omitempty"`
-	Trust       json.RawMessage `json:"prompt_injection_trust,omitempty"`
-	Assure      json.RawMessage `json:"assure,omitempty"`
-	DryRun      json.RawMessage `json:"dry_run,omitempty"`
-}
-
 // RunOutput is the run's terminal answer. A plain run reports the answer and
 // the run's own accounting; a dry run reports the resolved plan instead. Both
 // share one shape, so the operation has a single declared output contract.
@@ -82,7 +61,7 @@ func NewRunService(ports RunPorts) *RunService { return &RunService{ports: ports
 // Execute resolves the request against the kernel and runs it, streaming the
 // run's own events to the caller. A dry run resolves the same way but reports
 // the plan instead of executing it.
-func (s *RunService) Execute(ctx context.Context, in RunRequest, emit func(*event.Event) error) (RunOutput, error) {
+func (s *RunService) Execute(ctx context.Context, in opapi.RunRequest, emit func(*event.Event) error) (RunOutput, error) {
 	resolved, err := s.resolve(ctx, in)
 	if err != nil {
 		return RunOutput{}, err
@@ -104,18 +83,10 @@ func RunOperations(provider func(context.Context) *RunService) ([]app.Operation,
 		return nil, err
 	}
 	frames := json.RawMessage(event.WireSchema)
-	input := json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{
-		"intent":{"type":"string"},"tenant":{"type":"string"},"model":{"type":"string"},"agent":{"type":"string"},
-		"images":{"type":"array","items":{"type":"string"}},"system":{"type":"string"},
-		"timeout":{"type":"string"},"tools":{"type":"array","items":{"type":"string"}},"max_cost":{"type":"number"},
-		"execution_profile":{"type":"string"},"remote_peer":{"type":"string"},
-		"auto_approve_caps":{"type":["string","array"],"items":{"type":"string"}},"prompt_injection_trust":{"type":["boolean","string"]},
-		"assure":{"type":"number"},"dry_run":{"type":"boolean"}}}`)
 	run, err := app.NewStreamingOperation(opapi.Spec{
 		Name: opapi.Run, Stream: opapi.StreamEvents, OutputSchema: out, EmissionSchema: frames,
 		Authz: opapi.OwnTenant, Tenancy: opapi.CallerTenant, AllowUnknownInput: true,
-		InputSchema: input,
-	}, func(ctx context.Context, in RunRequest, emit func(*event.Event) error) (RunOutput, error) {
+	}, func(ctx context.Context, in opapi.RunRequest, emit func(*event.Event) error) (RunOutput, error) {
 		return provider(ctx).Execute(ctx, in, emit)
 	})
 	if err != nil {

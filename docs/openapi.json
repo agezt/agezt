@@ -17496,7 +17496,6 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
                 "additionalProperties": true,
                 "properties": {
                   "intent": {
@@ -17505,7 +17504,9 @@
                   "model": {
                     "type": "string"
                   }
-                }
+                },
+                "required": null,
+                "type": "object"
               }
             }
           }
@@ -17548,19 +17549,20 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
                 "additionalProperties": true,
                 "properties": {
-                  "plan_json": {
-                    "type": "string"
-                  },
                   "feedback": {
                     "type": "string"
                   },
                   "model": {
                     "type": "string"
+                  },
+                  "plan_json": {
+                    "type": "string"
                   }
-                }
+                },
+                "required": null,
+                "type": "object"
               }
             }
           }
@@ -17603,13 +17605,14 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
                 "additionalProperties": true,
                 "properties": {
                   "plan_json": {
                     "type": "string"
                   }
-                }
+                },
+                "required": null,
+                "type": "object"
               }
             }
           }
@@ -20531,56 +20534,43 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
                 "additionalProperties": true,
                 "properties": {
-                  "intent": {
-                    "type": "string"
-                  },
-                  "tenant": {
-                    "type": "string"
-                  },
-                  "model": {
-                    "type": "string"
-                  },
                   "agent": {
                     "type": "string"
                   },
-                  "images": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  },
-                  "system": {
-                    "type": "string"
-                  },
-                  "timeout": {
-                    "type": "string"
-                  },
-                  "tools": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  },
-                  "max_cost": {
+                  "assure": {
                     "type": "number"
+                  },
+                  "auto_approve_caps": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": [
+                      "string",
+                      "array"
+                    ]
+                  },
+                  "dry_run": {
+                    "type": "boolean"
                   },
                   "execution_profile": {
                     "type": "string"
                   },
-                  "remote_peer": {
-                    "type": "string"
-                  },
-                  "auto_approve_caps": {
-                    "type": [
-                      "string",
-                      "array"
-                    ],
+                  "images": {
                     "items": {
                       "type": "string"
-                    }
+                    },
+                    "type": "array"
+                  },
+                  "intent": {
+                    "type": "string"
+                  },
+                  "max_cost": {
+                    "type": "number"
+                  },
+                  "model": {
+                    "type": "string"
                   },
                   "prompt_injection_trust": {
                     "type": [
@@ -20588,13 +20578,27 @@
                       "string"
                     ]
                   },
-                  "assure": {
-                    "type": "number"
+                  "remote_peer": {
+                    "type": "string"
                   },
-                  "dry_run": {
-                    "type": "boolean"
+                  "system": {
+                    "type": "string"
+                  },
+                  "tenant": {
+                    "type": "string"
+                  },
+                  "timeout": {
+                    "type": "string"
+                  },
+                  "tools": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
                   }
-                }
+                },
+                "required": null,
+                "type": "object"
               }
             }
           }

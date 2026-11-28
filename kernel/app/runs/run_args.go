@@ -3,124 +3,45 @@
 package runs
 
 import (
-	"encoding/json"
-	"fmt"
 	"strings"
+
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
-// The readers below are the run command's strict argument contract: a flag
-// that arrives with the wrong JSON type is a usage error, never a silent
-// default. The messages are the ones the native run handler used, so the CLI
-// keeps reporting the same text.
-
-// argString reads a present string argument; the value is returned as sent.
-func argString(raw json.RawMessage, key string) (string, bool, error) {
-	if len(raw) == 0 {
-		return "", false, nil
+// textList reads a list of texts the way the family reads one: the members are
+// trimmed and the blank ones dropped, and a list that was not sent is not a
+// list at all.
+//
+// The members themselves are the row's business — a member that is not a text
+// never reaches this reader.
+func textList(list opapi.TextArray) ([]string, bool) {
+	if !list.Present() {
+		return nil, false
 	}
-	s, ok := rawValue(raw).(string)
-	if !ok {
-		return "", true, fmt.Errorf("args.%s must be a string", key)
-	}
-	return s, true, nil
-}
-
-// argInt64 reads a present numeric argument, truncated toward zero.
-func argInt64(raw json.RawMessage, key string) (int64, bool, error) {
-	if len(raw) == 0 {
-		return 0, false, nil
-	}
-	f, ok := rawValue(raw).(float64)
-	if !ok {
-		return 0, true, fmt.Errorf("args.%s must be a number", key)
-	}
-	return int64(f), true, nil
-}
-
-// argBool reads a present boolean argument. A string "true" is a type error
-// here: a mistyped dry_run must not silently execute the run.
-func argBool(raw json.RawMessage, key string) (bool, bool, error) {
-	if len(raw) == 0 {
-		return false, false, nil
-	}
-	b, ok := rawValue(raw).(bool)
-	if !ok {
-		return false, true, fmt.Errorf("args.%s must be a boolean", key)
-	}
-	return b, true, nil
-}
-
-// argStringList reads a present array of strings; blank entries are dropped.
-// A present-but-not-an-array value is an error, not a silent empty list.
-func argStringList(raw json.RawMessage, key string) ([]string, bool, error) {
-	if len(raw) == 0 {
-		return nil, false, nil
-	}
-	list, ok := rawValue(raw).([]any)
-	if !ok {
-		return nil, true, fmt.Errorf("args.%s must be an array", key)
-	}
-	out := make([]string, 0, len(list))
-	for i, e := range list {
-		s, ok := e.(string)
-		if !ok {
-			return nil, true, fmt.Errorf("args.%s[%d] must be a string", key, i)
-		}
-		if s = strings.TrimSpace(s); s != "" {
-			out = append(out, s)
+	out := make([]string, 0, len(list.Members()))
+	for _, member := range list.Members() {
+		if member = strings.TrimSpace(member); member != "" {
+			out = append(out, member)
 		}
 	}
-	return out, true, nil
+	return out, true
 }
 
-// argText reads a present argument as text; a non-string reads as empty.
-func argText(raw json.RawMessage) string {
-	if len(raw) == 0 {
-		return ""
-	}
-	s, _ := rawValue(raw).(string)
-	return s
-}
-
-// argTruthy reads a lenient truthy flag: a boolean, or the strings "on",
-// "true", "yes" and "1".
-func argTruthy(raw json.RawMessage) bool {
-	if len(raw) == 0 {
-		return false
-	}
-	switch t := rawValue(raw).(type) {
-	case bool:
-		return t
-	case string:
-		switch strings.ToLower(strings.TrimSpace(t)) {
-		case "on", "true", "yes", "1":
-			return true
-		}
-	}
-	return false
-}
-
-// parseCapList parses an auto-approve grant — a comma/space-separated string
-// OR a JSON array of strings — into a capability set.
-func parseCapList(raw json.RawMessage) map[string]bool {
-	if len(raw) == 0 {
+// approveCaps parses an auto-approve grant — the ONE comma/space-separated
+// string a caller sends OR a list of texts — into a capability set.
+func approveCaps(list opapi.StrictTextList) map[string]bool {
+	if !list.Present() {
 		return nil
 	}
-	add := func(out map[string]bool, s string) {
-		for _, f := range strings.FieldsFunc(s, func(r rune) bool { return r == ',' || r == ' ' || r == '\t' || r == '\n' }) {
-			if f = strings.TrimSpace(f); f != "" {
-				out[f] = true
-			}
-		}
+	parts := list.Members()
+	if list.IsText() {
+		parts = []string{list.Text()}
 	}
 	out := map[string]bool{}
-	switch t := rawValue(raw).(type) {
-	case string:
-		add(out, t)
-	case []any:
-		for _, e := range t {
-			if s, ok := e.(string); ok {
-				add(out, s)
+	for _, part := range parts {
+		for _, field := range strings.FieldsFunc(part, func(r rune) bool { return r == ',' || r == ' ' || r == '\t' || r == '\n' }) {
+			if field = strings.TrimSpace(field); field != "" {
+				out[field] = true
 			}
 		}
 	}
@@ -128,4 +49,20 @@ func parseCapList(raw json.RawMessage) map[string]bool {
 		return nil
 	}
 	return out
+}
+
+// truthy reads the trust flag the lenient way the family has always read it:
+// a boolean, or the strings "on", "true", "yes" and "1".
+//
+// The flag's own string is kept as it came, so the family's spelling survives:
+// the flag's reading is the family's, not the contract's.
+func truthy(flag opapi.BoolFlag) bool {
+	if b, ok := flag.Value().(bool); ok && b {
+		return true
+	}
+	switch strings.ToLower(strings.TrimSpace(flag.Text())) {
+	case "on", "true", "yes", "1":
+		return true
+	}
+	return false
 }

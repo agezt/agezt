@@ -27,19 +27,6 @@ type PlanAuthoring struct {
 	refine   func(ctx context.Context, cfg planner.Config, original planner.Plan, feedback string) (string, planner.Plan, error)
 }
 
-// PlanGenerateRequest is the plan authoring request.
-type PlanGenerateRequest struct {
-	Intent json.RawMessage `json:"intent,omitempty"`
-	Model  json.RawMessage `json:"model,omitempty"`
-}
-
-// PlanRefineRequest is the plan revision request.
-type PlanRefineRequest struct {
-	PlanJSON json.RawMessage `json:"plan_json,omitempty"`
-	Feedback json.RawMessage `json:"feedback,omitempty"`
-	Model    json.RawMessage `json:"model,omitempty"`
-}
-
 // PlanOutput is a generated or revised plan: its JSON and its node count.
 type PlanOutput struct {
 	PlanJSON  string `json:"plan_json"`
@@ -70,16 +57,12 @@ func (p *PlanAuthoring) config(model string) (planner.Config, error) {
 }
 
 // Generate answers with a validated plan JSON and its node count.
-func (p *PlanAuthoring) Generate(ctx context.Context, in PlanGenerateRequest) (PlanOutput, error) {
-	intent, err := requiredString(in.Intent, "intent")
+func (p *PlanAuthoring) Generate(ctx context.Context, in opapi.PlanGenerateRequest) (PlanOutput, error) {
+	intent, err := requiredText(in.Intent, "intent")
 	if err != nil {
 		return PlanOutput{}, err
 	}
-	model, err := optionalString(in.Model, "model")
-	if err != nil {
-		return PlanOutput{}, err
-	}
-	cfg, err := p.config(model)
+	cfg, err := p.config(in.Model)
 	if err != nil {
 		return PlanOutput{}, err
 	}
@@ -91,16 +74,12 @@ func (p *PlanAuthoring) Generate(ctx context.Context, in PlanGenerateRequest) (P
 }
 
 // Refine answers with the revised plan JSON and its node count.
-func (p *PlanAuthoring) Refine(ctx context.Context, in PlanRefineRequest) (PlanOutput, error) {
-	planJSON, err := requiredString(in.PlanJSON, "plan_json")
+func (p *PlanAuthoring) Refine(ctx context.Context, in opapi.PlanRefineRequest) (PlanOutput, error) {
+	planJSON, err := requiredText(in.PlanJSON, "plan_json")
 	if err != nil {
 		return PlanOutput{}, err
 	}
-	feedback, err := requiredString(in.Feedback, "feedback")
-	if err != nil {
-		return PlanOutput{}, err
-	}
-	model, err := optionalString(in.Model, "model")
+	feedback, err := requiredText(in.Feedback, "feedback")
 	if err != nil {
 		return PlanOutput{}, err
 	}
@@ -108,7 +87,7 @@ func (p *PlanAuthoring) Refine(ctx context.Context, in PlanRefineRequest) (PlanO
 	if err := json.Unmarshal([]byte(planJSON), &original); err != nil {
 		return PlanOutput{}, fmt.Errorf("plan_json: %w", err)
 	}
-	cfg, err := p.config(model)
+	cfg, err := p.config(in.Model)
 	if err != nil {
 		return PlanOutput{}, err
 	}
@@ -119,17 +98,13 @@ func (p *PlanAuthoring) Refine(ctx context.Context, in PlanRefineRequest) (PlanO
 	return PlanOutput{PlanJSON: rawJSON, NodeCount: len(revised.Nodes)}, nil
 }
 
-// requiredString is a strict required string: absent is refused, present must
-// be a string, and a blank one is refused.
-func requiredString(raw json.RawMessage, key string) (string, error) {
-	s, err := optionalString(raw, key)
-	if err != nil {
-		return "", err
-	}
-	if len(raw) == 0 || strings.TrimSpace(s) == "" {
+// requiredText is a strict required text: a blank one is refused, and the one
+// that was sent is returned as it came.
+func requiredText(text, key string) (string, error) {
+	if strings.TrimSpace(text) == "" {
 		return "", fmt.Errorf("args.%s required", key)
 	}
-	return s, nil
+	return text, nil
 }
 
 // PlanAuthoringOperations declares the plan authoring surface: audited,
@@ -145,13 +120,13 @@ func PlanAuthoringOperations(provider func(context.Context) *PlanAuthoring) ([]a
 		return nil, err
 	}
 	frames := json.RawMessage(event.WireSchema)
-	generate, err := app.NewStreamingOperation(opapi.Spec{Name: opapi.PlanGenerate, Stream: opapi.StreamLive, OutputSchema: out, EmissionSchema: frames, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"intent":{"type":"string"},"model":{"type":"string"}}}`)}, func(ctx context.Context, in PlanGenerateRequest, _ func(event.Event) error) (PlanOutput, error) {
+	generate, err := app.NewStreamingOperation(opapi.Spec{Name: opapi.PlanGenerate, Stream: opapi.StreamLive, OutputSchema: out, EmissionSchema: frames, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true}, func(ctx context.Context, in opapi.PlanGenerateRequest, _ func(event.Event) error) (PlanOutput, error) {
 		return provider(ctx).Generate(ctx, in)
 	})
 	if err != nil {
 		return nil, err
 	}
-	refine, err := app.NewStreamingOperation(opapi.Spec{Name: opapi.PlanRefine, Stream: opapi.StreamLive, OutputSchema: out, EmissionSchema: frames, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"plan_json":{"type":"string"},"feedback":{"type":"string"},"model":{"type":"string"}}}`)}, func(ctx context.Context, in PlanRefineRequest, _ func(event.Event) error) (PlanOutput, error) {
+	refine, err := app.NewStreamingOperation(opapi.Spec{Name: opapi.PlanRefine, Stream: opapi.StreamLive, OutputSchema: out, EmissionSchema: frames, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true}, func(ctx context.Context, in opapi.PlanRefineRequest, _ func(event.Event) error) (PlanOutput, error) {
 		return provider(ctx).Refine(ctx, in)
 	})
 	if err != nil {

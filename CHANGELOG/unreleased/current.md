@@ -837,6 +837,36 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The runs family has one request row per operation.** The **runs** family —
+  the governed run, its two reads, the plan surface the run answers with and
+  the plan authoring — declared its request shape **twice**: a JSON Schema
+  literal in the app layer and a request struct beside it, spread over
+  **seven** files, with every field read **raw** by hand-written readers
+  (`rawValue`, `optionalString`, `requiredString`, `lenientInt64`, `argString`,
+  `argInt64`, `argBool`, `argStringList`, `argText`, `argTruthy`,
+  `parseCapList`). Those rows now live in the contract, the app layer keeps no
+  copy of them, and the contract's row table grows from **79** to **87** — all
+  **eight** of the runs family's operations now have a row. The contract needed
+  **one** new word for them: a **strict list of texts** — the auto-approve
+  grant is a list of texts *or* the one comma-separated string a caller sends
+  instead, and its members must be texts, so the open `TextList` was not
+  enough — plus a reader for the trust flag's own spelling, because "on" is on
+  and that is the family's rule, not the contract's. The rest the contract
+  already had: a **text** for the intent and the rest, a **`Limit`** for the
+  page, the cost cap and the window, a **`TextArray`** for the images and the
+  tools, and a **`BoolFlag`** for the injection trust. The family's rules
+  stayed in the family: a page is **twenty** rows, never fewer than one, never
+  more than a thousand; a window is truncated toward zero; a tool list drops
+  its blank members and a list that was sent is a list even when it is empty;
+  the auto-approve grant splits on commas **and** spaces; the trust flag reads
+  "on", "true", "yes" and "1". The daemon's behaviour did not change — the
+  door already refused the mistyped and the null bodies with the same words and
+  the same types, so the app-level type readings were unreachable anyway. The
+  published document moved in **shape** only — the run's and the plan's bodies
+  now carry the derived form, and a semantic comparison of the whole document
+  finds **zero** changed paths; the generated client and the browser's
+  generated types are byte-identical.
+
 - **The edict family has one request row per operation.** The **edict** family
   — the policy reads, the policy writes, the overlay and the decision log —
   declared its request shape **twice**: a JSON Schema literal in the app layer
