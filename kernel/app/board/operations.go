@@ -4,7 +4,6 @@ package board
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"github.com/agezt/agezt/kernel/app"
 	"github.com/agezt/agezt/kernel/contract/boardapi"
@@ -12,62 +11,35 @@ import (
 	"strings"
 )
 
-// The request inputs are the console's own contract: every field names the
-// type it is read as, so a mistyped body is refused at the door instead of
-// arriving as a silent default. The read routes carry their arguments as
+// The board's request rows live in the contract (kernel/contract/opapi): the
+// topic, the cursor and the recipient are text, the page size is a number, and
+// the "everything" flag is a boolean. The read routes carry their arguments as
 // query arguments, so `limit` is a number there too: the query proxy coerces
 // it, and a limit that is not a number is a usage error the door names
 // instead of a page size the caller never asked for.
-type ReadRequestInput struct {
-	Topic  string `json:"topic,omitempty"`
-	Cursor string `json:"cursor,omitempty"`
-	Limit  any    `json:"limit,omitempty"`
-}
-type LimitRequestInput struct {
-	Limit any `json:"limit,omitempty"`
-}
-type InboxRequestInput struct {
-	To    string `json:"to,omitempty"`
-	All   bool   `json:"all,omitempty"`
-	Limit any    `json:"limit,omitempty"`
-}
-type GetRequestInput struct {
-	ID string `json:"id,omitempty"`
-}
-type RepliesRequestInput struct {
-	ID    string `json:"id,omitempty"`
-	Limit any    `json:"limit,omitempty"`
-}
-type AckRequestInput struct {
-	ID string `json:"id,omitempty"`
-	By string `json:"by,omitempty"`
-}
-
+//
 // SendRequestInput is the body of the board_send operation — the wire row,
-// which lives in the contract layer (kernel/contract/boardapi): the REST
-// surface decodes the same row, and the contract names its fields.
+// which lives in the board's own contract (kernel/contract/boardapi): the
+// REST surface decodes the same row, and the contract names its fields.
 type SendRequestInput = boardapi.Draft
 
-// The board's read bodies name the type each field is read as: the topic,
-// the cursor and the recipient are text, the page size is a number, and the
-// "everything" flag is a boolean.
-var (
-	readRequestSchema    = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"topic":{"type":"string"},"cursor":{"type":"string"},"limit":{"type":"number"}}}`)
-	limitRequestSchema   = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"limit":{"type":"number"}}}`)
-	inboxRequestSchema   = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"to":{"type":"string"},"all":{"type":"boolean"},"limit":{"type":"number"}}}`)
-	repliesRequestSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"id":{"type":"string"},"limit":{"type":"number"}}}`)
-)
-
 func trim(value string) string { return strings.TrimSpace(value) }
-func admittedLimit(raw any) int {
-	limit := 50
-	if value, ok := raw.(float64); ok && value > 0 {
-		limit = int(value)
+
+// admittedLimit reads the page size the row asked for: the family's default
+// when it did not ask for one, the cap when it asked for too many.
+//
+// A number above zero is the caller's page size — even a fraction, which the
+// store reads as "no page at all"; a number at or below zero is no page size
+// the caller asked for.
+func admittedLimit(limit opapi.Limit) int {
+	size := 50
+	if limit.Present() && limit.Number() > 0 {
+		size = int(limit.Number())
 	}
-	if limit > 500 {
-		limit = 500
+	if size > 500 {
+		size = 500
 	}
-	return limit
+	return size
 }
 func bind[I, O any](ops *[]app.Operation, spec opapi.Spec, handler func(context.Context, I) (O, error)) error {
 	spec.AllowUnknownInput = true
@@ -84,7 +56,7 @@ func Operations(reads func(context.Context) (*Service, error), writes func(conte
 	var ops []app.Operation
 	bindings := []func() error{
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.BoardRead, ReadOnly: true, InputSchema: readRequestSchema}, func(ctx context.Context, in ReadRequestInput) (ReadOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.BoardRead, ReadOnly: true}, func(ctx context.Context, in opapi.BoardReadRequest) (ReadOutput, error) {
 				service, err := reads(ctx)
 				if err != nil {
 					return ReadOutput{}, err
@@ -93,7 +65,7 @@ func Operations(reads func(context.Context) (*Service, error), writes func(conte
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.BoardHelp, ReadOnly: true, InputSchema: limitRequestSchema}, func(ctx context.Context, in LimitRequestInput) (HelpOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.BoardHelp, ReadOnly: true}, func(ctx context.Context, in opapi.BoardHelpRequest) (HelpOutput, error) {
 				service, err := reads(ctx)
 				if err != nil {
 					return HelpOutput{}, err
@@ -102,7 +74,7 @@ func Operations(reads func(context.Context) (*Service, error), writes func(conte
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.BoardInbox, ReadOnly: true, InputSchema: inboxRequestSchema}, func(ctx context.Context, in InboxRequestInput) (InboxOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.BoardInbox, ReadOnly: true}, func(ctx context.Context, in opapi.BoardInboxRequest) (InboxOutput, error) {
 				service, err := reads(ctx)
 				if err != nil {
 					return InboxOutput{}, err
@@ -111,7 +83,7 @@ func Operations(reads func(context.Context) (*Service, error), writes func(conte
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.BoardGet, ReadOnly: true}, func(ctx context.Context, in GetRequestInput) (GetOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.BoardGet, ReadOnly: true}, func(ctx context.Context, in opapi.BoardGetRequest) (GetOutput, error) {
 				service, err := reads(ctx)
 				if err != nil {
 					return GetOutput{}, err
@@ -120,7 +92,7 @@ func Operations(reads func(context.Context) (*Service, error), writes func(conte
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.BoardReplies, ReadOnly: true, InputSchema: repliesRequestSchema}, func(ctx context.Context, in RepliesRequestInput) (RepliesOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.BoardReplies, ReadOnly: true}, func(ctx context.Context, in opapi.BoardRepliesRequest) (RepliesOutput, error) {
 				service, err := reads(ctx)
 				if err != nil {
 					return RepliesOutput{}, err
@@ -138,7 +110,7 @@ func Operations(reads func(context.Context) (*Service, error), writes func(conte
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.BoardAck}, func(ctx context.Context, in AckRequestInput) (AckOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.BoardAck}, func(ctx context.Context, in opapi.BoardAckRequest) (AckOutput, error) {
 				service, err := writes(ctx)
 				if err != nil {
 					return AckOutput{}, err

@@ -837,6 +837,31 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The board family has one request row per operation, and the page size
+  keeps its rules.** The board's seven operations declared their request shape
+  **twice** — as a JSON Schema literal in the app layer and as a request struct
+  beside it — and the board's **send** row was already a contract row
+  (`boardapi.Draft`), which made the family look finished when it was not: six
+  request structs and four hand-written schemas still lived in the application
+  layer. Those six rows now live in the contract beside the send row, the app
+  layer keeps no copy, and the seven operations bind through the contract's
+  rows. The page size was the sharpest edge: the board reads it as a **number
+  that may be a fraction**, and its rules were spread over three places — the
+  literal said "number", the struct said `any`, and the reader knew that a
+  fraction is not a page (so the store reads every message) but that a zero is
+  no answer at all (so the family's default of 50 stands). The number now
+  carries **whether it was sent at all**, so "no limit asked" and "a limit of
+  zero" stay different answers, and the board's own rules — the default, the
+  fraction, the cap of 500 — stay in the board, because they are the board's
+  vocabulary. The published document and the SDK catalogs did **not** move:
+  the board's rows already said what the board's rows say. Measured: request
+  rows held by the contract **21 → 28**; board operations with a row **0 → 7**
+  (of 7); hand-written input schemas in the board family **4 → 0**; hand-written
+  request structs in the board family **6 → 0**. **Five** reverted mutations
+  prove it. The daemon's behaviour did not change — the board's page sizes,
+  defaults, cap and refusals are the same.
+
+
 - **The workflow family has one request row per operation, and the shared
   schema is retired.** The family's thirteen operations shared **two**
   hand-written declarations — one fourteen-field JSON Schema literal and one
