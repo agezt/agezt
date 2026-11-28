@@ -59,6 +59,17 @@ type jsonObject interface{ JSONObject() }
 // it rides in a wrapper — and the wrapper still derives the number itself.
 type jsonNumber interface{ JSONNumber() }
 
+// textList is the marker a request field carries when it holds a list of
+// texts — or the ONE comma-separated string a caller sends instead of a list.
+//
+// Both shapes are what the daemon understands, so the union it derives names
+// both. The members stay unconstrained: the daemon filters the ones it cannot
+// use rather than refusing the whole body.
+type textList interface{ TextList() }
+
+// textListTypes is the union a list-of-texts field derives.
+var textListTypes = []string{"array", "string"}
+
 func typeNode(t reflect.Type, allowUnknown bool, visiting map[reflect.Type]bool) (map[string]any, error) {
 	if t == nil {
 		return nil, fmt.Errorf("missing type")
@@ -74,6 +85,9 @@ func typeNode(t reflect.Type, allowUnknown bool, visiting map[reflect.Type]bool)
 	}
 	if t.Implements(reflect.TypeFor[jsonNumber]()) {
 		return map[string]any{"type": "number"}, nil
+	}
+	if t.Implements(reflect.TypeFor[textList]()) {
+		return map[string]any{"type": textListTypes}, nil
 	}
 	marshaler, unmarshaler := reflect.TypeFor[json.Marshaler](), reflect.TypeFor[json.Unmarshaler]()
 	if t.Implements(marshaler) || t.Implements(unmarshaler) || reflect.PointerTo(t).Implements(marshaler) || reflect.PointerTo(t).Implements(unmarshaler) {

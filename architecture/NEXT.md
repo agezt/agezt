@@ -1,5 +1,88 @@
 # NEXT — handoff for the next coding agent
 
+## Current checkpoint — W5.37 the workboard family has one request row per operation, 2026-11-28
+
+The W0–W5 objective remains open. W5.8–W5.15 gave the **browser**, the
+**registry** and the **SDKs** their request vocabulary; W5.11–W5.19 gave
+**every surface** that reads a request body its contract, its door and the
+boot-time check that holds the two together; W5.20 put a **gate** behind that
+sentence so it cannot decay; W5.21 closed W5.1's open end on the browser's
+**response** side; W5.22–W5.28 gave the daemon's own rows one home, one family
+at a time; W5.29–W5.32 gave the console's own answers one home each; W5.33
+checked the console's arguments against the registry, W5.34 gave the console's
+ten typed calls their rows, W5.35 finished the **workflow** family and W5.36
+the **board** family. **This slice gives the WORKBOARD family the same home** —
+the board of work, whose twenty-one operations declared their shape twice and
+whose counts and tag lists carried their reading rules in hand-written readers.
+
+### What was on the tree
+
+- **The workboard declared its request shape twice** — a JSON Schema literal in
+  the app layer and a request struct beside it. Fifteen structs and fifteen
+  literals served **twenty-one** operations, and every field was `any`, read by
+  hand-written readers that tolerated whatever arrived.
+- **Fifteen rows now live in the contract**, and the app layer keeps no copy.
+  The twenty-one operations bind through them, and the guard holds all
+  **forty-nine**. The sharing is the family's own vocabulary: the lanes read
+  what the listing reads, the heartbeat carries what the claim carries, and the
+  five reasoned mutations are one reasoned mutation.
+- **The counts keep their rules.** A count that is not a count is the family's
+  default (nothing asked, zero, or a fraction all read as the default; `1.9`
+  reads as 1), the sweep is capped at 1000, the watch at 200, a stale claim at
+  ten minutes — and a count now carries **whether it was sent at all**, so "no
+  count asked" and "a count of zero" stay different answers.
+- **The list that may be one string has a home.** A tag list is a list of
+  texts **or the ONE comma-separated string a caller sends instead** — the
+  contract's `TextList`, with a structural marker in the schema package that
+  derives the same union the old literal said. The members stay
+  unconstrained: the family **filters** the ones it cannot use rather than
+  refusing the body, and a list's members are trimmed while a string's parts
+  are split as they came.
+- **The published document did not move**: the family's fifteen literals already
+  said what the fifteen rows now say. The shape changed homes, not its words.
+
+### What the measurement said
+
+- Request rows held by the contract: **28 → 49**.
+- Workboard operations with a row: **0 → 21** (of 21); workboard row types
+  living in the contract: **0 → 15**.
+- Hand-written input schemas in the workboard family: **21 → 0**; hand-written
+  schema literals: **15 → 0**; hand-written request structs: **15 → 0**.
+- Hand-written input schemas in the app layer: **157 → 136**.
+- The daemon's behaviour: **unchanged**.
+
+### The evidence
+
+`architecture/357-w537-the-workboard-family-has-one-request-row-per-operation-evidence.md`
+— the two declarations, the fifteen rows, the counts' and lists' rules, the
+measurement, the five reverted mutations, and what remains open.
+
+### What the next slice should do
+
+**The families that still write their own schemas — and the reading rules they
+carry.** The rule is in place; the rows are the remaining work.
+
+- **The app layer still carries 136 hand-written input schemas.** The biggest
+  families left are the **roster** (19), the **edict** (11), the **runs** (8),
+  the **memory** (7), the **okr** (7), the **channels** (6), the **journal** (6),
+  the **steer** (6), the **tenants** (6), the **audit** (5), the **tools** (5),
+  the **approvals** (4), the **system** (4), the **artifacts**' three, the
+  **council**'s three, the **taste**'s three, the **world**'s three, the
+  **skill**'s two and the **settings**' one — and thirty more families of one
+  to two. One family at a time, the way the workflow, board and workboard
+  families were finished.
+- **Those families read their fields loosely** — `any` and `json.RawMessage`
+  fields with hand-written readers that tolerate what the door would refuse.
+  Their rows need the same **reading rules** the workboard's counts and lists
+  just got (a count that knows whether it was sent, a list that may be one
+  comma-separated string, a member list whose unusable members are filtered
+  rather than refused).
+- **The catalogue's `Args` and the request row are still two lists.**
+- **The console's ten native routes are not in the catalogue's route table.**
+- **The console's route policy answers a wrong verb in plain text**
+  ("method not allowed"), not with the envelope — a second refusal shape on the
+  wire.
+
 ## Current checkpoint — W5.36 the board family has one request row per operation, 2026-11-28
 
 The W0–W5 objective remains open. W5.8–W5.15 gave the **browser**, the

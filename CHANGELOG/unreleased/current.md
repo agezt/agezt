@@ -837,6 +837,30 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The workboard family has one request row per operation, and the counts and
+  lists keep their rules.** The workboard's twenty-one operations declared their
+  request shape **twice** — as a JSON Schema literal in the app layer and as a
+  request struct beside it — so **fifteen** request structs and **fifteen**
+  hand-written schemas served the family, and every field was `any`, read by
+  hand-written readers that tolerated whatever arrived. Those rows now live in
+  the contract (`kernel/contract/opapi/requests.go`), the app layer keeps no
+  copy, and the twenty-one operations bind through **fifteen** contract rows —
+  the lanes read what the listing reads, the heartbeat carries what the claim
+  carries, and the five reasoned mutations (block, fail, unblock, complete,
+  archive) are one reasoned mutation. The rows carry the **reading**, not just
+  the shape: a count that knows **whether it was sent at all**, so "no count
+  asked" and "a count of zero" stay different answers; and a `TextList`, which
+  is a list of texts **or the ONE comma-separated string a caller sends
+  instead**, whose members stay unconstrained because the family filters the
+  ones it cannot use rather than refusing the body. The schema package learned
+  one more structural marker for it — a method is enough, so it needs no import
+  from the contracts — and it derives the same union the old literal said. The
+  family's own rules stay in the family: the listing's default of 100, the
+  lanes' 500, the sweep's cap of 1000, the watch's cap of 200, the stale
+  claim's ten minutes, and the sweeper's own name. The published document and
+  the SDK catalogs did **not** move — the family's rows already said what the
+  rows now say.
+
 - **The board family has one request row per operation, and the page size
   keeps its rules.** The board's seven operations declared their request shape
   **twice** — as a JSON Schema literal in the app layer and as a request struct

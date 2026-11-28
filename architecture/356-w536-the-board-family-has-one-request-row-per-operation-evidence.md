@@ -158,6 +158,9 @@ mutation was reverted and the tree is back to green).
   (4), the **taste** (3), the **edict**'s writes (4) and reads (3), the
   **artifacts**' three, the **skill**'s two, the **settings**' remaining two.
   The rule is in place; their rows are the work.
+
+  **Done in W5.37** — the workboard family has one row per operation now; see
+  [357](357-w537-the-workboard-family-has-one-request-row-per-operation-evidence.md).
 - **Those families read their fields loosely** — `any` and `json.RawMessage`
   fields with hand-written readers that tolerate what the door would refuse.
   Their rows will need the same reading-rules contract the board's page size

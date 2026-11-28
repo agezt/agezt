@@ -329,6 +329,221 @@ func LimitValue(limit Limit, fallback int) int {
 	return int(limit.value)
 }
 
+// TextList is a request field that carries a list of texts — or the ONE
+// comma-separated string a caller sends instead of a list.
+//
+// The members stay unconstrained on purpose: the handler filters the ones it
+// cannot use rather than refusing the whole body, so the list says "texts" and
+// the reading says which of them count.
+type TextList struct {
+	present bool
+	isText  bool
+	text    string
+	members []any
+}
+
+// UnmarshalJSON reads the list as it came: a list, or one string to be split.
+func (l *TextList) UnmarshalJSON(data []byte) error {
+	var raw any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	switch value := raw.(type) {
+	case []any:
+		l.present, l.isText, l.text, l.members = true, false, "", value
+	case string:
+		l.present, l.isText, l.text, l.members = true, true, value, nil
+	default:
+		return fmt.Errorf("must be a list of texts")
+	}
+	return nil
+}
+
+// MarshalJSON writes the list as it came.
+func (l TextList) MarshalJSON() ([]byte, error) {
+	if l.isText {
+		return json.Marshal(l.text)
+	}
+	return json.Marshal(l.members)
+}
+
+// Value returns the list the field carries.
+func (l TextList) Value() any {
+	if l.isText {
+		return l.text
+	}
+	return l.members
+}
+
+// TextList marks the type as carrying a list of texts or one comma-separated
+// string, so the schema derives the union of the two.
+func (TextList) TextList() {}
+
+// TextListValue reads a list field of a request row: the texts it carries.
+//
+// A list's members are trimmed and the blank ones dropped; a string is split
+// on commas, the way a caller sends one list as one field.
+func TextListValue(list TextList) []string {
+	if !list.present {
+		return nil
+	}
+	if list.isText {
+		if strings.TrimSpace(list.text) == "" {
+			return nil
+		}
+		return strings.Split(list.text, ",")
+	}
+	out := make([]string, 0, len(list.members))
+	for _, member := range list.members {
+		if text, ok := member.(string); ok && strings.TrimSpace(text) != "" {
+			out = append(out, strings.TrimSpace(text))
+		}
+	}
+	return out
+}
+
+// WorkboardListRequest is the workboard_list request row: which tasks to
+// list, and how many.
+type WorkboardListRequest struct {
+	Status          string `json:"status,omitempty"`
+	Tenant          string `json:"tenant,omitempty"`
+	Assignee        string `json:"assignee,omitempty"`
+	IncludeArchived bool   `json:"include_archived,omitempty"`
+	Limit           Limit  `json:"limit,omitempty"`
+}
+
+// WorkboardShowRequest is the workboard_show request row: the task to read.
+type WorkboardShowRequest struct {
+	ID string `json:"id,omitempty"`
+}
+
+// WorkboardCreateRequest is the workboard_create request row: the task to
+// create, who owns it, and how it may be retried.
+type WorkboardCreateRequest struct {
+	Title          string   `json:"title,omitempty"`
+	Description    string   `json:"description,omitempty"`
+	Status         string   `json:"status,omitempty"`
+	Priority       float64  `json:"priority,omitempty"`
+	Tenant         string   `json:"tenant,omitempty"`
+	Assignee       string   `json:"assignee,omitempty"`
+	Owner          string   `json:"owner,omitempty"`
+	IdempotencyKey string   `json:"idempotency_key,omitempty"`
+	Tags           TextList `json:"tags,omitempty"`
+	Artifacts      TextList `json:"artifacts,omitempty"`
+	Criteria       TextList `json:"criteria,omitempty"`
+	Seat           string   `json:"seat,omitempty"`
+	EscalateTo     string   `json:"escalate_to,omitempty"`
+	CorrelationID  string   `json:"correlation_id,omitempty"`
+	MaxAttempts    Limit    `json:"max_attempts,omitempty"`
+}
+
+// WorkboardClaimRequest is the workboard_claim request row: the task to
+// claim, who claims it, and the run it belongs to.
+type WorkboardClaimRequest struct {
+	ID            string `json:"id,omitempty"`
+	Agent         string `json:"agent,omitempty"`
+	RunID         string `json:"run_id,omitempty"`
+	CorrelationID string `json:"correlation_id,omitempty"`
+}
+
+// WorkboardCommentRequest is the workboard_comment request row: the task to
+// comment on, and the comment.
+type WorkboardCommentRequest struct {
+	ID            string `json:"id,omitempty"`
+	Author        string `json:"author,omitempty"`
+	Body          string `json:"body,omitempty"`
+	CorrelationID string `json:"correlation_id,omitempty"`
+}
+
+// WorkboardReasonRequest is the request row of the workboard's reasoned
+// mutations — block, fail, unblock, complete and archive: the task, who acts,
+// and why.
+type WorkboardReasonRequest struct {
+	ID            string `json:"id,omitempty"`
+	Actor         string `json:"actor,omitempty"`
+	Reason        string `json:"reason,omitempty"`
+	CorrelationID string `json:"correlation_id,omitempty"`
+}
+
+// WorkboardProveRequest is the workboard_prove request row: the task to prove
+// and the answer that proves it.
+type WorkboardProveRequest struct {
+	ID            string `json:"id,omitempty"`
+	Answer        string `json:"answer,omitempty"`
+	CorrelationID string `json:"correlation_id,omitempty"`
+}
+
+// WorkboardSeatRequest is the workboard_seat request row: the task and the
+// execution seat it runs on.
+type WorkboardSeatRequest struct {
+	ID   string `json:"id,omitempty"`
+	Seat string `json:"seat,omitempty"`
+}
+
+// WorkboardLinkRequest is the workboard_link request row: the task, the kind
+// of link, and what it links to.
+type WorkboardLinkRequest struct {
+	ID            string `json:"id,omitempty"`
+	Type          string `json:"type,omitempty"`
+	Target        string `json:"target,omitempty"`
+	CorrelationID string `json:"correlation_id,omitempty"`
+}
+
+// WorkboardDependRequest is the workboard_depend request row: the task and
+// the task it depends on.
+type WorkboardDependRequest struct {
+	ID            string `json:"id,omitempty"`
+	DependsOn     string `json:"depends_on,omitempty"`
+	On            string `json:"on,omitempty"`
+	CorrelationID string `json:"correlation_id,omitempty"`
+}
+
+// WorkboardReclaimRequest is the workboard_reclaim request row: the task to
+// reclaim, who reclaims it, and how stale it must be.
+type WorkboardReclaimRequest struct {
+	ID            string `json:"id,omitempty"`
+	Actor         string `json:"actor,omitempty"`
+	StaleAfterMS  Limit  `json:"stale_after_ms,omitempty"`
+	CorrelationID string `json:"correlation_id,omitempty"`
+}
+
+// WorkboardSweepRequest is the workboard_sweep request row: who sweeps, how
+// stale a task must be, and how many to sweep.
+type WorkboardSweepRequest struct {
+	Actor         string `json:"actor,omitempty"`
+	StaleAfterMS  Limit  `json:"stale_after_ms,omitempty"`
+	Limit         Limit  `json:"limit,omitempty"`
+	CorrelationID string `json:"correlation_id,omitempty"`
+}
+
+// WorkboardWatchRequest is the workboard_watch request row: the task to
+// watch, the run to watch it in, and how many frames to keep.
+type WorkboardWatchRequest struct {
+	ID    string `json:"id,omitempty"`
+	RunID string `json:"run_id,omitempty"`
+	Limit Limit  `json:"limit,omitempty"`
+}
+
+// WorkboardDispatchRequest is the workboard_dispatch request row: the task
+// to dispatch, to whom, why, and with what intent.
+type WorkboardDispatchRequest struct {
+	ID     string `json:"id,omitempty"`
+	Agent  string `json:"agent,omitempty"`
+	Reason string `json:"reason,omitempty"`
+	Intent string `json:"intent,omitempty"`
+}
+
+// WorkboardPolicyRequest is the workboard_policy request row: the task, the
+// retry policy, and whether it is cleared.
+type WorkboardPolicyRequest struct {
+	ID            string `json:"id,omitempty"`
+	Actor         string `json:"actor,omitempty"`
+	Clear         bool   `json:"clear,omitempty"`
+	MaxAttempts   Limit  `json:"max_attempts,omitempty"`
+	EscalateTo    string `json:"escalate_to,omitempty"`
+	CorrelationID string `json:"correlation_id,omitempty"`
+}
+
 // BoardReadRequest is the board_read request row: the topic to read, the
 // cursor to continue from, and the page size.
 type BoardReadRequest struct {
@@ -450,12 +665,16 @@ type RequestRow struct {
 	Row any
 }
 
-// RequestRows are the request rows of the operations the console calls.
+// RequestRows are the request rows of the contract's operations.
 //
 // The binding lives with the rows: an operation and its request shape are one
 // fact, and a list that says which row belongs to which operation is the
 // other half of that fact — so the rows and their operations cannot drift
 // apart.
+//
+// The table holds the console's calls and the daemon's own operations alike:
+// a row that is not called from the console is still a row the daemon reads,
+// and a row the contract does not name is a shape somebody wrote by hand.
 var RequestRows = []RequestRow{
 	{Operation: ArtifactGet, Row: ArtifactGetRequest{}},
 	{Operation: FileMkdir, Row: FileMkdirRequest{}},
@@ -487,6 +706,31 @@ var RequestRows = []RequestRow{
 	// The board's send row is the board's own: the wire row the REST surface
 	// decodes and the contract names.
 	{Operation: BoardSend, Row: boardapi.Draft{}},
+	// The workboard's twenty-one operations share fifteen rows: the lanes
+	// read what the listing reads, the heartbeat carries what the claim
+	// carries, and the five reasoned mutations — block, fail, unblock,
+	// complete, archive — are one reasoned mutation.
+	{Operation: WorkboardList, Row: WorkboardListRequest{}},
+	{Operation: WorkboardLanes, Row: WorkboardListRequest{}},
+	{Operation: WorkboardShow, Row: WorkboardShowRequest{}},
+	{Operation: WorkboardCreate, Row: WorkboardCreateRequest{}},
+	{Operation: WorkboardClaim, Row: WorkboardClaimRequest{}},
+	{Operation: WorkboardHeartbeat, Row: WorkboardClaimRequest{}},
+	{Operation: WorkboardComment, Row: WorkboardCommentRequest{}},
+	{Operation: WorkboardBlock, Row: WorkboardReasonRequest{}},
+	{Operation: WorkboardFail, Row: WorkboardReasonRequest{}},
+	{Operation: WorkboardUnblock, Row: WorkboardReasonRequest{}},
+	{Operation: WorkboardComplete, Row: WorkboardReasonRequest{}},
+	{Operation: WorkboardArchive, Row: WorkboardReasonRequest{}},
+	{Operation: WorkboardProve, Row: WorkboardProveRequest{}},
+	{Operation: WorkboardSeat, Row: WorkboardSeatRequest{}},
+	{Operation: WorkboardLink, Row: WorkboardLinkRequest{}},
+	{Operation: WorkboardPolicy, Row: WorkboardPolicyRequest{}},
+	{Operation: WorkboardDepend, Row: WorkboardDependRequest{}},
+	{Operation: WorkboardReclaim, Row: WorkboardReclaimRequest{}},
+	{Operation: WorkboardSweep, Row: WorkboardSweepRequest{}},
+	{Operation: WorkboardWatch, Row: WorkboardWatchRequest{}},
+	{Operation: WorkboardDispatch, Row: WorkboardDispatchRequest{}},
 }
 
 // Args returns the operation arguments a request row describes.

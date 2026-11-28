@@ -294,3 +294,37 @@ func (*textEncodeOnly) MarshalText() ([]byte, error) { return []byte("ready"), n
 type textDecodeOnly int
 
 func (n *textDecodeOnly) UnmarshalText([]byte) error { *n = 1; return nil }
+
+// TestFromTypeDerivesTheUnionAListOfTextsCarries says a field that carries a
+// list of texts — or the one comma-separated string a caller sends instead —
+// derives the union of the two, and that the members stay unconstrained.
+func TestFromTypeDerivesTheUnionAListOfTextsCarries(t *testing.T) {
+	type payload struct {
+		Tags textList `json:"tags"`
+	}
+	raw, err := schema.FromType(reflect.TypeFor[payload](), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, value := range []string{`{"tags":["a","b"]}`, `{"tags":"a,b"}`, `{"tags":[]}`} {
+		if err := schema.ValidateJSON(raw, json.RawMessage(value)); err != nil {
+			t.Errorf("valid input=%s error=%v", value, err)
+		}
+	}
+	for _, value := range []string{`{"tags":7}`, `{"tags":{"a":1}}`, `{"tags":true}`} {
+		if err := schema.ValidateJSON(raw, json.RawMessage(value)); err == nil {
+			t.Errorf("invalid input=%s accepted", value)
+		}
+	}
+}
+
+// textList carries a list of texts, or the one string that stands for it.
+type textList struct{ texts []string }
+
+func (textList) TextList() {}
+
+func (l *textList) UnmarshalJSON(data []byte) error {
+	return json.Unmarshal(data, &l.texts)
+}
+
+func (l textList) MarshalJSON() ([]byte, error) { return json.Marshal(l.texts) }
